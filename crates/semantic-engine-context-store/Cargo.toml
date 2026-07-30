@@ -11,6 +11,7 @@ semantic-engine-core = { path = "../semantic-engine-core" }
 semantic-engine-package = { path = "../semantic-engine-package" }
 serde.workspace = true
 serde_json.workspace = true
+unicode-normalization.workspace = true
 
 [dev-dependencies]
 tempfile = "3"

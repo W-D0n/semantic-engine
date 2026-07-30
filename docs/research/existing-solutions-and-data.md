@@ -41,8 +41,9 @@ explication, idempotence et validation de round : c’est l’espace du produit.
 [Tauri 2](https://v2.tauri.app/start/) assemble frontend web et cœur Rust. Sur
 Windows moderne, WebView2 est généralement fourni par le système. Pour un bundle
 hors ligne, Tauri documente un runtime
-[fixedVersion](https://v2.tauri.app/distribute/windows-installer/) qui ajoute
-environ 180 Mo. Pour un flux soutenu, les
+[Fixed Version](https://v2.tauri.app/distribute/windows-installer/). Le package
+x64 vérifié dans ce projet pèse environ 690 Mo extrait ; la taille varie selon la
+version. Pour un flux soutenu, les
 [channels](https://v2.tauri.app/develop/calling-frontend/) sont préférables aux
 événements JSON génériques.
 

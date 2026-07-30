@@ -211,7 +211,7 @@ textarea { resize: vertical; min-height: 112px; margin-bottom: 24px; line-height
 .history-heading button:disabled { opacity: .35; cursor: not-allowed; }
 .history-list { margin-top: 18px; border-top: 1px solid var(--line); }
 .history-item {
-  display: grid; grid-template-columns: 10px minmax(150px, 1.4fr) minmax(90px, 1fr) 76px 60px 70px;
+  display: grid; grid-template-columns: 10px minmax(150px, 1.4fr) minmax(90px, 1fr) 130px 60px 70px;
   align-items: center; gap: 12px; min-height: 43px; border-bottom: 1px solid #282c25;
   color: #8e9588; font-size: 10px;
 }
@@ -220,6 +220,7 @@ textarea { resize: vertical; min-height: 112px; margin-bottom: 24px; line-height
 .history-item strong { color: #c7ccbf; }
 .history-item time { color: #737a6e; }
 .history-decision { color: #b9c0b2; font-weight: 700; }
+.history-decision small { display: block; margin-top: 3px; color: #c8f15b; font-size: 9px; }
 .decision-pip { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
 .decision-pip.accepted { background: var(--lime); }
 .decision-pip.abstained { background: var(--amber); }

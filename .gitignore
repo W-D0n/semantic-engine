@@ -1,6 +1,8 @@
 # Rust
 /target/
 /SemanticEngine.exe
+/SemanticEngine Portable.cmd
+/portable/
 
 # Desktop frontend
 /apps/desktop/node_modules/

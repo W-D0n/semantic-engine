@@ -41,3 +41,4 @@ nav:
       - Pipeline hybride: adr/0002-hybrid-recognition.md
       - Déploiement évolutif: adr/0003-evolutive-deployment.md
       - Paquets Data Package: adr/0004-context-data-package.md
+      - Brouillons locaux et décision opérateur: adr/0005-local-context-drafts.md

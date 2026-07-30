@@ -39,6 +39,11 @@ _Avoid_: Import, sélection de fichier
 Version persistée du contexte de reconnaissance utilisée par les workflows locaux.
 _Avoid_: Dernier paquet ouvert, cible du round
 
+**Brouillon local de cible**:
+Calque opérateur persistant qui ajuste le canonique ou les alias d’une cible sans
+modifier la version publiée du paquet.
+_Avoid_: Nouvelle version, apprentissage, mutation du paquet
+
 **Restauration de contexte**:
 Activation atomique de la version qui précédait directement le contexte actif.
 _Avoid_: Annulation de fichier, arbitrage, rollback
@@ -90,6 +95,11 @@ _Avoid_: Proposition, message seul
 **Validation**:
 Résultat déterministe indiquant si une soumission correspond à une cible.
 _Avoid_: Victoire, point
+
+**Décision opérateur**:
+Acceptation ou rejet manuel rattaché à une validation, conservant la décision
+moteur originale et l’identité ordonnée de la soumission.
+_Avoid_: Réécriture du résultat, apprentissage automatique, score
 
 **Acceptation**:
 Validation positive qu’un workflow externe peut consommer de façon idempotente.

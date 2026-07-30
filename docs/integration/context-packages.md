@@ -43,9 +43,21 @@ L’aperçu affiche nom, version, licence, langues, sources, nombre de réponses
 empreinte. L’opérateur active ensuite explicitement le paquet ; le contexte actif
 est persisté dans SQLite et relu au démarrage. À l’activation, le backend relit le
 paquet et refuse l’opération si son empreinte diffère de celle de l’aperçu.
-**Version précédente** restaure
-atomiquement le parent de l’activation courante. La cible manuelle de la manche
-reste indépendante tant qu’un workflow ne la sélectionne pas dans le paquet actif.
+**Version précédente** restaure atomiquement le parent de l’activation courante.
+L’atelier **Voir et régler le dictionnaire** recherche ensuite dans le contexte
+actif, permet de créer un brouillon local et d’utiliser la cible sélectionnée pour
+la manche sans modifier le paquet publié.
+
+### Brouillons locaux et diffusion
+
+Un brouillon est indexé par `(package_sha256, target_id)` dans SQLite. Il peut
+modifier le titre canonique et les alias, persiste après redémarrage et disparaît
+avec **Revenir au publié**. La recherche fusionne paquet et brouillons en une
+lecture groupée, puis ne renvoie au frontend qu’un résultat borné.
+
+Le brouillon n’est pas encore un paquet diffusable. L’export futur devra produire
+une nouvelle version SemVer, recalculer les empreintes et passer la même validation
+qu’un paquet tiers. Une version déjà publiée ne sera jamais réécrite.
 
 ```json
 {
@@ -117,10 +129,11 @@ flowchart LR
     T --> B["Rollback vers la version précédente"]
 ```
 
-Aujourd’hui, validation, aperçu, activation idempotente et rollback sont disponibles
-dans des modules Rust séparés et dans le client Tauri. SQLite conserve les versions
-immuables, le contexte actif et le lien vers l’activation précédente. Le prochain
-incrément rendra les cibles du paquet actif sélectionnables par un round.
+Aujourd’hui, validation, aperçu, activation idempotente, rollback, recherche de
+cibles et brouillons locaux sont disponibles dans des modules Rust séparés et
+dans le client Tauri. SQLite conserve les versions immuables, le contexte actif,
+le lien vers l’activation précédente et les calques locaux. Le prochain incrément
+exportera ces calques comme une nouvelle version vérifiable.
 
 ## Compatibilité et mises à jour
 

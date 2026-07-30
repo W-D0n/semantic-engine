@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/operator-resolution.schema.json",
+  "title": "Semantic Engine Operator Resolution",
+  "description": "Manual resolution of a recorded validation. The idempotency key is (round_id, message_id).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["round_id", "message_id", "participant_id", "source_sequence", "original_decision", "final_decision", "target_id", "note"],
+  "properties": {
+    "round_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "message_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "participant_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "source_sequence": { "type": "integer", "minimum": 0 },
+    "original_decision": { "enum": ["accepted", "rejected", "abstained"] },
+    "final_decision": { "enum": ["accepted", "rejected"] },
+    "target_id": { "type": ["string", "null"] },
+    "note": { "type": "string", "maxLength": 512 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "final_decision": { "const": "accepted" } } },
+      "then": { "properties": { "target_id": { "type": "string", "minLength": 1 } } }
+    },
+    {
+      "if": { "properties": { "final_decision": { "const": "rejected" } } },
+      "then": { "properties": { "target_id": { "type": "null" } } }
+    }
+  ]
+}

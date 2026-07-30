@@ -1,9 +1,20 @@
-use std::{error::Error, fmt, path::Path, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    fmt,
+    path::Path,
+    time::Duration,
+};
 
 use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
-use semantic_engine_core::AnswerTarget;
+use semantic_engine_core::{
+    AnswerTarget, MAX_ALIASES_PER_TARGET, MAX_EXPRESSION_CHARS, MAX_IDENTIFIER_CHARS,
+};
 use semantic_engine_package::{ImportedContext, SourceMetadata};
 use serde::{Deserialize, Serialize};
+use unicode_normalization::{UnicodeNormalization, char::is_combining_mark};
+
+const MAX_TARGET_SEARCH_RESULTS: usize = 100;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct StoredContext {
@@ -36,11 +47,25 @@ impl StoredContext {
     }
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct TargetRecord {
+    pub id: String,
+    pub canonical: String,
+    pub aliases: Vec<String>,
+    pub is_draft: bool,
+    pub package_sha256: String,
+}
+
 #[derive(Debug)]
 pub enum StoreError {
     Sqlite(rusqlite::Error),
     Json(serde_json::Error),
     ImmutableVersionConflict { package_id: String, version: String },
+    NoActiveContext,
+    UnknownTarget(String),
+    InvalidTargetDraft(&'static str),
+    InvalidSearch,
+    ActiveContextChanged,
 }
 
 impl fmt::Display for StoreError {
@@ -52,6 +77,15 @@ impl fmt::Display for StoreError {
                 formatter,
                 "context version is immutable: {package_id} version {version} already has different bytes"
             ),
+            Self::NoActiveContext => write!(formatter, "no active context"),
+            Self::UnknownTarget(target_id) => {
+                write!(formatter, "target does not belong to the active context: {target_id}")
+            }
+            Self::InvalidTargetDraft(reason) => write!(formatter, "invalid target draft: {reason}"),
+            Self::InvalidSearch => write!(formatter, "target search is outside supported limits"),
+            Self::ActiveContextChanged => {
+                write!(formatter, "active context changed; reload targets before writing")
+            }
         }
     }
 }
@@ -61,7 +95,12 @@ impl Error for StoreError {
         match self {
             Self::Sqlite(error) => Some(error),
             Self::Json(error) => Some(error),
-            Self::ImmutableVersionConflict { .. } => None,
+            Self::ImmutableVersionConflict { .. }
+            | Self::NoActiveContext
+            | Self::UnknownTarget(_)
+            | Self::InvalidTargetDraft(_)
+            | Self::InvalidSearch
+            | Self::ActiveContextChanged => None,
         }
     }
 }
@@ -105,6 +144,12 @@ impl ContextStore {
             CREATE TABLE IF NOT EXISTS context_state (
                 singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                 active_sequence INTEGER REFERENCES activation_history(sequence)
+            );
+            CREATE TABLE IF NOT EXISTS target_drafts (
+                package_sha256 TEXT NOT NULL REFERENCES context_versions(package_sha256),
+                target_id TEXT NOT NULL,
+                payload_json TEXT NOT NULL,
+                PRIMARY KEY(package_sha256, target_id)
             );
             INSERT OR IGNORE INTO context_state(singleton, active_sequence) VALUES (1, NULL);
             ",
@@ -161,20 +206,7 @@ impl ContextStore {
     }
 
     pub fn current(&self) -> Result<Option<StoredContext>, StoreError> {
-        let payload = self
-            .connection
-            .query_row(
-                "SELECT versions.payload_json
-                 FROM context_state AS state
-                 JOIN activation_history AS history ON history.sequence = state.active_sequence
-                 JOIN context_versions AS versions
-                   ON versions.package_sha256 = history.package_sha256
-                 WHERE state.singleton = 1",
-                [],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()?;
-        payload.map(|payload| serde_json::from_str(&payload).map_err(StoreError::from)).transpose()
+        active_context(&self.connection)
     }
 
     pub fn rollback(&mut self) -> Result<Option<StoredContext>, StoreError> {
@@ -205,8 +237,165 @@ impl ContextStore {
         transaction.commit()?;
         Ok(Some(restored))
     }
+
+    pub fn find_targets(&self, query: &str, limit: usize) -> Result<Vec<TargetRecord>, StoreError> {
+        if limit == 0
+            || limit > MAX_TARGET_SEARCH_RESULTS
+            || query.chars().count() > MAX_EXPRESSION_CHARS
+        {
+            return Err(StoreError::InvalidSearch);
+        }
+        let context = self.current()?.ok_or(StoreError::NoActiveContext)?;
+        let normalized_query = normalize_search(query);
+        let drafts = self.target_drafts(&context.package_sha256)?;
+        let mut records = Vec::with_capacity(limit);
+
+        for published in &context.targets {
+            let draft = drafts.get(&published.id);
+            let target = draft.unwrap_or(published);
+            let matches = normalized_query.is_empty()
+                || std::iter::once(&target.canonical)
+                    .chain(target.aliases.iter())
+                    .any(|expression| normalize_search(expression).contains(&normalized_query));
+            if matches {
+                records.push(TargetRecord {
+                    id: target.id.clone(),
+                    canonical: target.canonical.clone(),
+                    aliases: target.aliases.clone(),
+                    is_draft: draft.is_some(),
+                    package_sha256: context.package_sha256.clone(),
+                });
+            }
+            if records.len() == limit {
+                break;
+            }
+        }
+        Ok(records)
+    }
+
+    pub fn save_target_draft(
+        &mut self,
+        package_sha256: &str,
+        target: AnswerTarget,
+    ) -> Result<TargetRecord, StoreError> {
+        validate_target_draft(&target)?;
+        let payload = serde_json::to_string(&target)?;
+        let transaction =
+            self.connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let context = active_context(&transaction)?.ok_or(StoreError::NoActiveContext)?;
+        ensure_active_package(&context, package_sha256)?;
+        if !context.targets.iter().any(|published| published.id == target.id) {
+            return Err(StoreError::UnknownTarget(target.id));
+        }
+        transaction.execute(
+            "INSERT INTO target_drafts(package_sha256, target_id, payload_json)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(package_sha256, target_id)
+             DO UPDATE SET payload_json = excluded.payload_json",
+            params![context.package_sha256, target.id, payload],
+        )?;
+        transaction.commit()?;
+        Ok(TargetRecord {
+            id: target.id,
+            canonical: target.canonical,
+            aliases: target.aliases,
+            is_draft: true,
+            package_sha256: context.package_sha256,
+        })
+    }
+
+    pub fn discard_target_draft(
+        &mut self,
+        package_sha256: &str,
+        target_id: &str,
+    ) -> Result<bool, StoreError> {
+        let transaction =
+            self.connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let context = active_context(&transaction)?.ok_or(StoreError::NoActiveContext)?;
+        ensure_active_package(&context, package_sha256)?;
+        let removed = transaction.execute(
+            "DELETE FROM target_drafts WHERE package_sha256 = ?1 AND target_id = ?2",
+            params![context.package_sha256, target_id],
+        )?;
+        transaction.commit()?;
+        Ok(removed > 0)
+    }
+
+    fn target_drafts(
+        &self,
+        package_sha256: &str,
+    ) -> Result<HashMap<String, AnswerTarget>, StoreError> {
+        let mut statement = self.connection.prepare(
+            "SELECT target_id, payload_json FROM target_drafts WHERE package_sha256 = ?1",
+        )?;
+        let rows = statement.query_map([package_sha256], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        let mut drafts = HashMap::new();
+        for row in rows {
+            let (target_id, payload) = row?;
+            let target = serde_json::from_str(&payload)?;
+            drafts.insert(target_id, target);
+        }
+        Ok(drafts)
+    }
 }
 
+fn active_context(connection: &Connection) -> Result<Option<StoredContext>, StoreError> {
+    let payload = connection
+        .query_row(
+            "SELECT versions.payload_json
+             FROM context_state AS state
+             JOIN activation_history AS history ON history.sequence = state.active_sequence
+             JOIN context_versions AS versions
+               ON versions.package_sha256 = history.package_sha256
+             WHERE state.singleton = 1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    payload.map(|payload| serde_json::from_str(&payload).map_err(StoreError::from)).transpose()
+}
+
+fn ensure_active_package(
+    context: &StoredContext,
+    expected_package_sha256: &str,
+) -> Result<(), StoreError> {
+    if context.package_sha256 == expected_package_sha256 {
+        Ok(())
+    } else {
+        Err(StoreError::ActiveContextChanged)
+    }
+}
+fn validate_target_draft(target: &AnswerTarget) -> Result<(), StoreError> {
+    let unique_aliases = target.aliases.iter().collect::<HashSet<_>>();
+    let valid = !target.id.is_empty()
+        && target.id.chars().count() <= MAX_IDENTIFIER_CHARS
+        && !target.canonical.trim().is_empty()
+        && target.canonical.chars().count() <= MAX_EXPRESSION_CHARS
+        && target.aliases.len() <= MAX_ALIASES_PER_TARGET
+        && unique_aliases.len() == target.aliases.len()
+        && target
+            .aliases
+            .iter()
+            .all(|alias| !alias.trim().is_empty() && alias.chars().count() <= MAX_EXPRESSION_CHARS);
+    if valid {
+        Ok(())
+    } else {
+        Err(StoreError::InvalidTargetDraft(
+            "identifier, canonical title, or aliases exceed the context limits",
+        ))
+    }
+}
+
+fn normalize_search(input: &str) -> String {
+    input
+        .nfkd()
+        .filter(|character| !is_combining_mark(*character))
+        .flat_map(char::to_lowercase)
+        .filter(|character| character.is_alphanumeric())
+        .collect()
+}
 fn current_pointer(connection: &Connection) -> Result<Option<(i64, String)>, rusqlite::Error> {
     connection
         .query_row(

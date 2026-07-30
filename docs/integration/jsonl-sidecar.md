@@ -22,10 +22,17 @@ des points.
 Les schémas stables sont dans :
 
 - `contracts/submission.schema.json` ;
-- `contracts/validation.schema.json`.
+- `contracts/validation.schema.json` ;
+- `contracts/operator-resolution.schema.json`.
 
 La validation contient toujours l’identité du round, du message, du participant
 et l’ordre fourni par la source. Le moteur ne déclare jamais un vainqueur.
+
+L’application peut ensuite émettre une `OperatorResolution` à partir d’une
+validation conservée côté backend. Sa clé d’idempotence est
+`(round_id, message_id)` ; participant et ordre source sont recopiés depuis la
+preuve backend, jamais depuis la requête d’arbitrage. Un exemple versionnable se
+trouve dans `examples/operator-resolution.json`.
 
 ```mermaid
 flowchart LR

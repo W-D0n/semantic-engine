@@ -1,0 +1,8 @@
+{
+  "version": "150.0.4078.105",
+  "architecture": "x64",
+  "filename": "Microsoft.WebView2.FixedVersionRuntime.150.0.4078.105.x64.cab",
+  "source": "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/b401c036-cfb8-4dc4-a58e-8766441df4ac/Microsoft.WebView2.FixedVersionRuntime.150.0.4078.105.x64.cab",
+  "sha256": "26c07cad95615a672cde8c1843a326e18ad25d691f004347544e5e099bff9b92",
+  "documentation": "https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution"
+}

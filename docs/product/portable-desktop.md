@@ -1,98 +1,125 @@
 # Application portable
 
 Le client bureau est une application **Tauri 2 + Svelte 5**. Le moteur Rust est
-appelé directement par IPC : aucune API distante, aucun serveur local et aucune
-clé ne sont nécessaires pour valider une réponse.
+appelé directement par IPC : aucun serveur local, service distant ou clé API
+n’est nécessaire pour valider une réponse.
 
-## Deux distributions portables
+## Lancer sans installation
+
+Depuis la racine du dépôt, double-cliquer sur **`SemanticEngine Portable.cmd`**.
+Ce lanceur ouvre `portable/SemanticEngine/Start-SemanticEngine.cmd`, applique les
+droits Windows nécessaires au runtime fixe, puis démarre l’application.
+
+Le dossier `portable/SemanticEngine` est autonome : il contient l’exécutable, le
+runtime WebView2 et `SHA256SUMS.txt`. Il ne doit pas être lancé depuis un partage
+réseau ou un chemin UNC. Les données opérateur restent dans l’AppData Windows ;
+déplacer le dossier portable ne déplace donc pas le contexte actif ni les
+brouillons locaux.
+
+## Deux distributions
 
 ### Légère
 
-Distribuer `semantic-engine-desktop.exe` seul. Il utilise WebView2 déjà présent
-sur Windows 10/11. C’est le chemin prioritaire pour les tests et les pilotes :
-un fichier à copier, aucun installateur.
+`SemanticEngine.exe` à la racine utilise le runtime WebView2 déjà installé sur
+Windows. Cette variante est petite et pratique sur une machine moderne, mais
+elle n’est pas autonome sur un Windows dépourvu de WebView2.
 
 ### Hors ligne stricte
 
-Distribuer l’exécutable avec une version fixe de WebView2. Ce mode fonctionne
-sans composant préinstallé mais ajoute environ 180 Mo. Le runtime Microsoft doit
-être téléchargé au moment de préparer la release, puis son chemin déclaré avec
-`webviewInstallMode.type = "fixedRuntime"`.
+`SemanticEngine Portable.cmd` utilise exclusivement le runtime WebView2 Fixed
+Version placé à côté de l’exécutable. Le package validé contient la version
+`150.0.4078.105` x64 et pèse environ 690 Mo une fois extraite. Le runtime est
+verrouillé par version, URL officielle et SHA-256 dans
+`scripts/webview2-runtime.json`.
 
-La CI devra produire les deux variantes et publier leur somme SHA-256.
+Microsoft indique que Fixed Version doit être distribué avec l’application, que
+son volume dépasse 250 Mo et qu’une app non empaquetée sur Windows 10 peut devoir
+accorder des ACL au runtime. Le lanceur fourni applique ces ACL aux deux SID
+Microsoft documentés. Les chemins réseau ne sont pas supportés.
 
-## Construire
+## Construire la portable hors ligne
 
-Prérequis de développement Windows : Rust MSVC, Microsoft C++ Build Tools,
-Windows SDK, Node.js et WebView2.
+Prérequis : Rust MSVC, Microsoft C++ Build Tools, Windows SDK, Node.js et le CAB
+WebView2 exact référencé par `scripts/webview2-runtime.json`.
 
 ```powershell
-cd apps/desktop
-npm install
-npm run check
-npm run tauri -- build --no-bundle
-Copy-Item ..\..\target\release\semantic-engine-desktop.exe ..\..\SemanticEngine.exe -Force
+.\scripts\build-portable.ps1 `
+  -WebView2Cab C:\tmp\Microsoft.WebView2.FixedVersionRuntime.150.0.4078.105.x64.cab
 ```
 
-Sortie de compilation : `target/release/semantic-engine-desktop.exe`.
-La livraison locale place aussi une copie nommée `SemanticEngine.exe` à la
-racine du dépôt : c’est le point d’entrée portable destiné à l’opérateur. Cette
-copie est un artefact généré et reste ignorée par Git.
+Le script :
 
-## Interface
+1. vérifie le nom et le SHA-256 du CAB ;
+2. extrait le runtime dans un dossier temporaire ;
+3. compile Tauri avec `tauri.portable.conf.json` ;
+4. génère le dossier portable, le lanceur racine et les checksums ;
+5. retire systématiquement le lien de build et le dossier temporaire.
 
-La console suit le parcours d’une régie de direct :
+Il refuse d’écraser un package existant. Déplacer ou supprimer explicitement
+`portable/SemanticEngine` avant une nouvelle génération.
 
-1. sélectionner un `datapackage.json` et contrôler son aperçu ;
-2. vérifier identité, version, licence, langues, provenance et empreinte ;
-3. activer explicitement le paquet ou restaurer la version précédente ;
-4. configurer le titre canonique et ses alias pour la manche ;
-5. injecter un message non fiable ;
-6. lire la décision, le score, la preuve et la latence ;
-7. observer le journal éphémère de la session.
+## Voir et régler le dictionnaire
+
+Dans le produit, le « dictionnaire » est un **paquet de contexte** versionné.
+L’opérateur suit ce parcours :
+
+1. **Choisir `datapackage.json`**, vérifier l’aperçu, puis **Activer ce paquet** ;
+2. ouvrir **Voir et régler le dictionnaire** ;
+3. rechercher un titre ou un alias ; seuls 25 résultats sont rendus ;
+4. sélectionner une cible ;
+5. modifier le titre canonique et les alias, un alias par ligne ;
+6. **Enregistrer localement** pour conserver le réglage après redémarrage ;
+7. **Utiliser pour la manche** pour injecter immédiatement cette cible dans le round ;
+8. **Revenir au publié** pour supprimer le brouillon local.
+
+Le paquet publié n’est jamais modifié. Les réglages sont un calque SQLite local,
+indexé par empreinte du paquet et identifiant de cible. Une future commande
+d’export créera une nouvelle version diffusable au lieu de réécrire une release.
 
 ```mermaid
 flowchart LR
-    P["Choisir datapackage.json"] --> I["Inspection Rust"]
-    I --> V{"Format, limites et empreintes valides ?"}
-    V -- non --> R["Refus expliqué"]
-    V -- oui --> A["Aperçu non actif"]
-    A --> T["Activation SQLite"]
-    T --> B["Rollback possible"]
-    T --> C["Configurer la manche"]
-    C --> D["Décision explicable"]
+    P["Paquet publié immuable"] --> A["Activation"]
+    A --> S["Recherche bornée"]
+    S --> D["Brouillon local"]
+    D --> R["Cible de la manche"]
+    D --> X["Future nouvelle version exportée"]
 ```
 
-Sous 700 px, ces zones deviennent un parcours vertical dans le même ordre ;
-l’état « non actif » reste visible avant la configuration de manche.
+## Arbitrer une validation
 
-Elle ne contient volontairement ni points, ni classement, ni connexion Twitch.
-Ces consommateurs reçoivent le contrat `Validation` sans modifier le moteur.
+Après **Valider la réponse**, la carte conserve la décision, le score et la
+preuve produits par le moteur. Le bloc **Arbitrage manuel** permet ensuite :
+
+- d’accepter la soumission en choisissant une cible appartenant au round ;
+- de la rejeter ;
+- d’ajouter une note facultative limitée à 512 caractères.
+
+La décision moteur originale n’est jamais écrasée. La résolution opérateur
+contient aussi `round_id`, `message_id`, `participant_id` et `source_sequence`,
+ce qui permet à un workflow externe de compter les points ou de désigner un
+gagnant de façon idempotente. Dans cet incrément, la résolution reste dans la
+session UI ; sa persistance d’audit appartient au prochain jalon.
 
 ## Sécurité par défaut
 
-- politique CSP restrictive ;
-- capabilities Tauri limitées à `core:default` et `dialog:allow-open` ;
-- aucun accès générique aux fichiers, au shell ou au réseau exposé au frontend ;
-- le dialogue fournit seulement le chemin choisi ; le backend Rust canonise,
-  borne, parse et vérifie le paquet avant de retourner des métadonnées ;
-- le frontend ne reçoit aucune capability d’écriture : seul le backend ouvre SQLite ;
-- l’activation est refusée si le paquet ne correspond plus à l’empreinte inspectée ;
-- activation et rollback utilisent une transaction immédiate et des versions immuables ;
-- longueur des champs bornée côté UI et dans le moteur ;
-- journal conservé en mémoire seulement pour ce premier incrément.
+- CSP restrictive et aucune capability shell ou réseau exposée au frontend ;
+- dialogue de fichier limité, puis canonisation et validation Rust ;
+- limites appliquées côté moteur aux messages, titres, alias, recherches et notes ;
+- cible d’une acceptation opérateur obligatoirement présente dans le round ;
+- identité participant/ordre recopiée depuis la validation conservée côté backend ;
+- paquet publié immuable, activation transactionnelle et rollback SQLite ;
+- recherche bornée et brouillons chargés en une requête groupée ;
+- checksums de tous les fichiers de la distribution portable.
 
 ## Prochain durcissement
 
-- valider les limites dans le cœur Rust, pas seulement dans l’UI ;
-- signer le binaire et publier SBOM + checksums ;
-- tester sur une machine Windows propre ;
-- proposer le runtime WebView2 fixe pour le paquet hors ligne ;
-- rendre les cibles du contexte actif sélectionnables par un round ;
-- mesurer p50/p95/p99 sur le corpus cible.
+- signer les binaires et publier SBOM + checksums dans une release ;
+- automatiser le test sur une machine Windows propre ;
+- exporter les brouillons comme nouvelle version de paquet ;
+- persister le journal d’arbitrage avec rétention et consentement explicites ;
+- mesurer p50/p95/p99 sur des corpus de 500 à 50 000 cibles.
 
-## Référence Tauri
+## Références
 
-La documentation Tauri décrit les modes WebView2 `skip`, `offlineInstaller` et
-`fixedRuntime`, ainsi que leur compromis taille/autonomie :
-<https://v2.tauri.app/distribute/windows-installer/>.
+- [Tauri — Windows Installer / WebView2](https://v2.tauri.app/distribute/windows-installer/)
+- [Microsoft — Distribute your app and the WebView2 Runtime](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)

@@ -57,9 +57,9 @@ déplacer ensuite le moteur dans un sidecar, un processus local ou un microservi
 Rust et l’architecture de services sont donc dans la cible ; seul le découpage
 distribué avant preuve de besoin est différé.
 
-Sur Windows, un dossier portable peut utiliser le WebView2 déjà livré avec les
-versions modernes de Windows, ou embarquer un runtime fixe pour un vrai mode hors
-ligne au prix d’environ 180 Mo supplémentaires.
+Sur Windows, un dossier portable peut utiliser WebView2 système ou embarquer un
+runtime fixe pour un vrai mode hors ligne. Le package x64 actuellement vérifié
+pèse environ 690 Mo extrait ; cette taille doit être mesurée à chaque version.
 
 ## Validation réutilisable
 

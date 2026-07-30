@@ -7,6 +7,7 @@ pub const MAX_IDENTIFIER_CHARS: usize = 256;
 pub const MAX_EXPRESSION_CHARS: usize = 256;
 pub const MAX_ALIASES_PER_TARGET: usize = 64;
 pub const MAX_TARGETS_PER_ROUND: usize = 256;
+pub const MAX_RESOLUTION_NOTE_CHARS: usize = 512;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct AnswerTarget {
@@ -98,6 +99,86 @@ pub struct Validation {
     pub issue: Option<ValidationIssue>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResolutionVerdict {
+    Accepted,
+    Rejected,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OperatorResolutionRequest {
+    pub round_id: String,
+    pub message_id: String,
+    pub verdict: ResolutionVerdict,
+    pub target_id: Option<String>,
+    #[serde(default)]
+    pub note: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OperatorResolution {
+    pub round_id: String,
+    pub message_id: String,
+    pub participant_id: String,
+    pub source_sequence: u64,
+    pub original_decision: Decision,
+    pub final_decision: Decision,
+    pub target_id: Option<String>,
+    pub note: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResolutionIssue {
+    ValidationMismatch,
+    InvalidTarget,
+    InvalidNote,
+}
+
+pub fn resolve_validation(
+    round: &Round,
+    validation: &Validation,
+    request: OperatorResolutionRequest,
+) -> Result<OperatorResolution, ResolutionIssue> {
+    if validation.round_id != round.id
+        || request.round_id != round.id
+        || validation.message_id != request.message_id
+        || request.message_id.is_empty()
+    {
+        return Err(ResolutionIssue::ValidationMismatch);
+    }
+    if request.note.chars().count() > MAX_RESOLUTION_NOTE_CHARS {
+        return Err(ResolutionIssue::InvalidNote);
+    }
+
+    let (final_decision, target_id) = match request.verdict {
+        ResolutionVerdict::Accepted => {
+            let target_id = request.target_id.ok_or(ResolutionIssue::InvalidTarget)?;
+            if !round.targets.iter().any(|target| target.id == target_id) {
+                return Err(ResolutionIssue::InvalidTarget);
+            }
+            (Decision::Accepted, Some(target_id))
+        }
+        ResolutionVerdict::Rejected => {
+            if request.target_id.is_some() {
+                return Err(ResolutionIssue::InvalidTarget);
+            }
+            (Decision::Rejected, None)
+        }
+    };
+
+    Ok(OperatorResolution {
+        round_id: validation.round_id.clone(),
+        message_id: validation.message_id.clone(),
+        participant_id: validation.participant_id.clone(),
+        source_sequence: validation.source_sequence,
+        original_decision: validation.decision.clone(),
+        final_decision,
+        target_id,
+        note: request.note,
+    })
+}
 #[derive(Clone, Debug, Default)]
 pub struct Validator {
     _private: (),

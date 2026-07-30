@@ -2,6 +2,17 @@
   import { invoke } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
+  import ArbitrationPanel from './lib/ArbitrationPanel.svelte';
+  import ContextWorkshop from './lib/ContextWorkshop.svelte';
+  import type {
+    ContextPackagePreview,
+    Decision,
+    HistoryItem,
+    OperatorResolution,
+    Round,
+    TargetRecord,
+    Validation,
+  } from './lib/contracts';
   import {
     Braces,
     Check,
@@ -17,41 +28,6 @@
     X,
     Zap,
   } from '@lucide/svelte';
-
-  type Decision = 'accepted' | 'rejected' | 'abstained';
-
-  type Validation = {
-    round_id: string;
-    message_id: string;
-    participant_id: string;
-    source_sequence: number;
-    decision: Decision;
-    target_id: string | null;
-    score: number;
-    evidence: Array<{
-      kind: 'configured_expression' | 'normalized_expression' | 'fuzzy_expression' | 'ambiguous_expression';
-      matched_expression: string;
-    }>;
-    issue?: 'invalid_policy' | 'invalid_round' | 'invalid_submission';
-  };
-
-  type HistoryItem = Validation & { input: string; latency: number };
-
-  type ContextPackagePreview = {
-    name: string;
-    id: string;
-    version: string;
-    license: string;
-    locales: string[];
-    sources: Array<{
-      title: string;
-      path: string | null;
-      version: string | null;
-    }>;
-    target_count: number;
-    package_sha256: string;
-    targets_sha256: string;
-  };
 
   const samples = [
     { label: 'Exact', value: 'Elden Ring' },
@@ -69,6 +45,7 @@
   let error = $state('');
   let history = $state<HistoryItem[]>([]);
   let result = $state<HistoryItem | null>(null);
+  let lastRound = $state<Round | null>(null);
   let contextOperation = $state<'idle' | 'load' | 'inspect' | 'activate' | 'rollback'>('idle');
   let packageError = $state('');
   let packagePreview = $state<ContextPackagePreview | null>(null);
@@ -80,6 +57,23 @@
   const selectedIsActive = $derived(
     packagePreview?.package_sha256 === activeContext?.package_sha256,
   );
+
+  function configuredRound(): Round {
+    return {
+      id: 'desktop-round',
+      targets: [
+        {
+          id: canonical.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-|-$/g, ''),
+          canonical: canonical.trim(),
+          aliases: aliases
+            .split('\n')
+            .map((alias) => alias.trim())
+            .filter(Boolean),
+        },
+      ],
+      policy: { accept_threshold: 0.87, review_threshold: 0.72, ambiguity_margin: 0.05 },
+    };
+  }
 
   async function runValidation() {
     if (!message.trim() || !canonical.trim() || busy) return;
@@ -93,21 +87,9 @@
     const startedAt = performance.now();
 
     try {
+      const round = configuredRound();
       const validation = await invoke<Validation>('validate', {
-        round: {
-          id: 'desktop-round',
-          targets: [
-            {
-              id: canonical.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-|-$/g, ''),
-              canonical: canonical.trim(),
-              aliases: aliases
-                .split('\n')
-                .map((alias) => alias.trim())
-                .filter(Boolean),
-            },
-          ],
-          policy: { accept_threshold: 0.87, review_threshold: 0.72, ambiguity_margin: 0.05 },
-        },
+        round,
         submission: {
           message_id: `desktop-${sequence}`,
           participant_id: participant.trim() || 'anonymous',
@@ -116,6 +98,7 @@
         },
       });
       const item = { ...validation, input: message, latency: performance.now() - startedAt };
+      lastRound = round;
       result = item;
       history = [item, ...history].slice(0, 8);
       sequence += 1;
@@ -214,6 +197,7 @@
 
   function resetSession() {
     result = null;
+    lastRound = null;
     history = [];
     error = '';
     sequence = 101;
@@ -221,6 +205,21 @@
 
   function decisionLabel(decision: Decision) {
     return { accepted: 'Acceptée', abstained: 'À arbitrer', rejected: 'Rejetée' }[decision];
+  }
+  function applyResolution(resolution: OperatorResolution) {
+    if (!result || result.message_id !== resolution.message_id) return;
+    result = { ...result, resolution };
+    history = history.map((item) =>
+      item.message_id === resolution.message_id ? { ...item, resolution } : item,
+    );
+  }
+
+  function useTargetForRound(target: TargetRecord) {
+    canonical = target.canonical;
+    aliases = target.aliases.join('\n');
+    result = null;
+    lastRound = null;
+    requestAnimationFrame(() => document.querySelector<HTMLInputElement>('#canonical')?.focus());
   }
 </script>
 
@@ -325,6 +324,8 @@
     {/if}
   </section>
 
+  <ContextWorkshop {activeContext} onUseTarget={useTargetForRound} />
+
   <section class="workspace" aria-label="Console de validation">
     <aside class="panel configuration">
       <div class="panel-heading">
@@ -402,7 +403,7 @@
           <div class="decision-icon">
             {#if result.decision === 'accepted'}<Check size={24} />{:else if result.decision === 'abstained'}<TriangleAlert size={23} />{:else}<X size={24} />{/if}
           </div>
-          <div><span>Résultat</span><strong>{decisionLabel(result.decision)}</strong></div>
+          <div><span>Résultat moteur</span><strong>{decisionLabel(result.decision)}</strong></div>
           <b>{Math.round(result.score * 100)}%</b>
         </div>
 
@@ -412,6 +413,8 @@
           <div><dt>Ordre source</dt><dd>#{result.source_sequence}</dd></div>
           <div><dt>Preuve</dt><dd>{result.evidence[0]?.kind ?? 'aucune'}</dd></div>
         </dl>
+
+        <ArbitrationPanel {result} round={lastRound} onResolved={applyResolution} />
       {:else}
         <div class="empty-result">
           <Database size={30} strokeWidth={1.5} />
@@ -439,7 +442,10 @@
             <span class="decision-pip {item.decision}"></span>
             <code>{item.input}</code>
             <span>{item.participant_id}</span>
-            <span class="history-decision">{decisionLabel(item.decision)}</span>
+            <span class="history-decision">
+              Moteur : {decisionLabel(item.decision)}
+              {#if item.resolution}<small>Opérateur : {decisionLabel(item.resolution.final_decision)}</small>{/if}
+            </span>
             <strong>{Math.round(item.score * 100)}%</strong>
             <time>{item.latency.toFixed(1)} ms</time>
           </div>

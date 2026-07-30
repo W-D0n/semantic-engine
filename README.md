@@ -4,9 +4,9 @@ Moteur local-first, explicable et modulaire qui transforme des messages de chat
 imparfaits en interprétations configurées : fautes, abréviations, initiales et
 formulations proches comprises.
 
-> État actuel : moteur Rust, CLI JSONL et client Tauri portable avec inspection,
-> activation SQLite et rollback des paquets. Le corpus contractuel couvre 84 titres
-> et 28 cas de validation.
+> État actuel : moteur Rust, CLI JSONL et client Tauri portable hors ligne avec
+> inspection/rollback des paquets, tuning local des titres et arbitrage opérateur.
+> Le corpus contractuel couvre 84 titres et 28 cas de validation.
 
 ## Pourquoi ce projet
 
@@ -26,7 +26,7 @@ quand la réponse n’est pas assez sûre.
 - [Sécurité, safety et cadre légal](docs/product/security-and-legal.md)
 - [Ouvertures produit et marché](docs/product/market.md)
 - [Solutions et corpus existants](docs/research/existing-solutions-and-data.md)
-- [Intégration MyVault / JSONL](docs/integration/jsonl-sidecar.md)
+- [Intégration MyVault / JSONL et contrat de résolution](docs/integration/jsonl-sidecar.md)
 - [Application portable](docs/product/portable-desktop.md)
 - [Roadmap](docs/roadmap.md)
 - [Continuité entre sessions et outils IA](docs/contributing/session-continuity.md)
@@ -69,12 +69,15 @@ npm install
 npm run tauri dev
 ```
 
-L’exécutable portable release est produit par `npm run tauri -- build --no-bundle`
-depuis `apps/desktop`, puis copié en `SemanticEngine.exe` à la racine. La sortie
-de compilation reste `target/release/semantic-engine-desktop.exe`.
-Cette variante légère n’installe rien, mais utilise WebView2 présent sur Windows.
-La distribution hors ligne stricte avec runtime WebView2 fixe est planifiée et
-sera nécessaire pour garantir l’exécution sur une machine totalement vierge.
+Pour l’usage opérateur, double-cliquer sur **`SemanticEngine Portable.cmd`** à la
+racine. Le dossier `portable/SemanticEngine` contient l’exécutable, WebView2 fixe
+et les checksums : aucune installation ni aucun téléchargement au premier lancement.
+La variante légère `SemanticEngine.exe` reste disponible et utilise WebView2 système.
+
+Dans l’app : activer un paquet, ouvrir **Voir et régler le dictionnaire**, rechercher
+un titre, modifier canonique/alias et enregistrer le brouillon local. Après une
+validation, **Arbitrage manuel** permet d’accepter ou rejeter sans effacer la
+décision du moteur. Voir le [guide portable](docs/product/portable-desktop.md).
 
 ## Documentation locale
 

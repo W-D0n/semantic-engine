@@ -36,7 +36,7 @@ gantt
 - [ ] étendre à 200–500 messages annotés, notamment ambiguïtés et hors sujet ;
 - [ ] décider la licence publique après comparaison gouvernance/monétisation.
 
-**Sortie actuelle** : corpus versionné, vingt tests Rust, contrats JSON, CLI,
+**Sortie actuelle** : corpus versionné, suite Rust reproductible, contrats JSON, CLI,
 paquet de 84 titres importable et ADR de déploiement évolutif.
 
 ## M1 — MVP local sans vecteurs
@@ -49,7 +49,10 @@ paquet de 84 titres importable et ADR de déploiement évolutif.
 - [x] limites défensives côté cœur pour messages, cibles, alias et politiques ;
 - [x] sélecteur natif et aperçu inactif d’un paquet dans le client ;
 - [x] activation idempotente, versions immuables, rollback et SQLite ;
-- [ ] sélection d’une cible active, déduplication et cache borné ;
+- [x] recherche bornée, sélection de cible et brouillons locaux persistants ;
+- [x] résolution opérateur accepter/rejeter sans effacer la décision moteur ;
+- [x] portable Windows hors ligne avec WebView2 fixe et checksums ;
+- [ ] déduplication, cache borné et audit persistant des résolutions ;
 - [ ] export, commandes d’évaluation et paquets multi-OS ;
 - [ ] index public, signatures et règles de révocation des paquets de contexte.
 
@@ -59,7 +62,7 @@ paquet de 84 titres importable et ADR de déploiement évolutif.
 
 - embeddings locaux optionnels et index par version ;
 - benchmark qualité/latence/taille et calibration ;
-- correction opérateur, provenance, validation, rollback ;
+- mémoire issue de corrections validées, provenance, consentement et rollback ;
 - TTL/LRU, quotas, export/import minimisé.
 
 **Sortie** : comparaison M1/M2 ; activation par défaut seulement si la couverture
@@ -104,7 +107,7 @@ frontière gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-Rendre les cibles du paquet actif recherchables et sélectionnables pour configurer
-une manche, puis terminer déduplication, cache LRU/TTL versionné et benchmark
-p50/p95/p99. Étendre ensuite le corpus avant d’ajouter les embeddings. Préparer en
-parallèle l’adaptateur MyVault au contrat JSONL, sans implémenter le scoreboard.
+Exporter les brouillons locaux comme nouvelle version de paquet et définir la
+persistance d’audit des résolutions opérateur. Terminer ensuite déduplication,
+cache LRU/TTL versionné et benchmark p50/p95/p99. Étendre le corpus avant les
+embeddings et préparer l’adaptateur MyVault JSONL sans implémenter le scoreboard.
