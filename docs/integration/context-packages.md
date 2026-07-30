@@ -111,11 +111,12 @@ Un site statique ou un stockage objet fonctionne de la même façon. Le futur
 catalogue public sera un index, pas un entrepôt imposé : les éditeurs gardent
 leur hébergement, Semantic Engine découvre et vérifie leurs paquets.
 
-Le nom conseillé pour le dépôt public de données est **Answer Atlas**
-(`answer-atlas`). « Atlas » évoque une collection organisée et extensible, tandis
-que le moteur reste libre de consommer d’autres atlas. Si la priorité absolue
-devient la découvrabilité technique, `semantic-context-packs` reste l’alternative
-descriptive. Le dépôt de données doit rester séparé du code du moteur.
+Le dépôt public de référence est
+[Answer Atlas](https://github.com/W-D0n/answer-atlas). Il publie un catalogue
+machine-readable, des sources éditables, des benchmarks et un paquet
+`core-titles` de 84 cibles directement compatible. « Atlas » évoque une
+collection organisée et extensible, tandis que le moteur reste libre de
+consommer d’autres atlas. Le dépôt de données reste séparé du code du moteur.
 
 ## Flux produit visé
 

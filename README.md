@@ -79,6 +79,11 @@ un titre, modifier canonique/alias et enregistrer le brouillon local. Après une
 validation, **Arbitrage manuel** permet d’accepter ou rejeter sans effacer la
 décision du moteur. Voir le [guide portable](docs/product/portable-desktop.md).
 
+Le catalogue public de titres vit dans
+[Answer Atlas](https://github.com/W-D0n/answer-atlas). Son paquet
+`packages/core-titles/datapackage.json` est directement importable ; le corpus
+embarqué ici reste un fixture contractuel du moteur.
+
 ## Documentation locale
 
 La documentation est lisible directement sur GitHub. Pour une navigation locale

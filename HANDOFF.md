@@ -11,6 +11,8 @@ cache LRU/TTL et benchmark p50/p95/p99.
 - moteur Rust déterministe avec normalisation, alias, fautes, marge et abstention ;
 - contrats `Submission`, `Validation` et résolution opérateur ;
 - corpus CC0 de 84 titres et suite contractuelle Rust reproductible ;
+- dépôt public [Answer Atlas](https://github.com/W-D0n/answer-atlas) propriétaire
+  du catalogue diffusable, avec IDs qualifiés, build, validation et CI ;
 - paquet Data Package v2 vérifié par SemVer, SPDX, limites, chemins et SHA-256 ;
 - inspection, activation SQLite immuable, état actif au redémarrage et rollback ;
 - recherche bornée dans le contexte actif et brouillons locaux persistants ;
@@ -28,10 +30,12 @@ cache LRU/TTL et benchmark p50/p95/p99.
 4. `docs/integration/context-packages.md`
 5. `docs/adr/0005-local-context-drafts.md`
 6. `docs/roadmap.md`
-7. `crates/semantic-engine-context-store/src/lib.rs`
-8. `crates/semantic-engine-core/src/lib.rs`
-9. `apps/desktop/src/lib/ContextWorkshop.svelte`
-10. `apps/desktop/src/lib/ArbitrationPanel.svelte`
+7. `C:\DEV\answer-atlas\CONTEXT.md`
+8. `C:\DEV\answer-atlas\docs\conventions.md`
+9. `crates/semantic-engine-context-store/src/lib.rs`
+10. `crates/semantic-engine-core/src/lib.rs`
+11. `apps/desktop/src/lib/ContextWorkshop.svelte`
+12. `apps/desktop/src/lib/ArbitrationPanel.svelte`
 
 ## Décisions à préserver
 
