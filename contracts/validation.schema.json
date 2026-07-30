@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/validation.schema.json",
+  "title": "Semantic Engine Validation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "round_id",
+    "message_id",
+    "participant_id",
+    "source_sequence",
+    "decision",
+    "target_id",
+    "score",
+    "evidence"
+  ],
+  "properties": {
+    "round_id": { "type": "string", "minLength": 1 },
+    "message_id": { "type": "string", "minLength": 1 },
+    "participant_id": { "type": "string", "minLength": 1 },
+    "source_sequence": { "type": "integer", "minimum": 0 },
+    "decision": { "enum": ["accepted", "rejected", "abstained"] },
+    "target_id": { "type": ["string", "null"] },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "matched_expression"],
+        "properties": {
+          "kind": {
+            "enum": ["configured_expression", "normalized_expression", "fuzzy_expression", "ambiguous_expression"]
+          },
+          "matched_expression": { "type": "string" }
+        }
+      }
+    },
+    "issue": { "enum": ["invalid_policy", "invalid_round", "invalid_submission"] }
+  }
+}

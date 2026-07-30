@@ -1,0 +1,21 @@
+[workspace]
+members = [
+  "crates/semantic-engine-core",
+  "crates/semantic-engine-package",
+  "apps/semantic-engine-cli",
+  "apps/desktop/src-tauri",
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.97"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+strsim = "0.11"
+unicode-normalization = "0.1"
+semver = "1"
+sha2 = "0.10"
+spdx = "0.13.4"

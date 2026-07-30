@@ -1,0 +1,21 @@
+# Rust
+/target/
+
+# Desktop frontend
+/apps/desktop/node_modules/
+/apps/desktop/dist/
+/site/
+
+/apps/desktop/src-tauri/gen/schemas/
+# Local build and preview logs
+/.tauri-build.*.log
+/.vite.*.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Editor and OS noise
+.DS_Store
+Thumbs.db

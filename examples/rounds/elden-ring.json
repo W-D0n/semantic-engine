@@ -1,0 +1,15 @@
+{
+  "id": "demo-elden-ring",
+  "targets": [
+    {
+      "id": "elden-ring",
+      "canonical": "Elden Ring",
+      "aliases": []
+    }
+  ],
+  "policy": {
+    "accept_threshold": 0.87,
+    "review_threshold": 0.72,
+    "ambiguity_margin": 0.05
+  }
+}

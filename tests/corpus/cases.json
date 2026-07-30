@@ -1,0 +1,145 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "targetId": "spirited-away",
+      "input": "le voyage de chihiro",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "lotr-fellowship",
+      "input": "la communaute de lanneau",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "back-to-the-future",
+      "input": "retour vers le futur",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "die-hard",
+      "input": "piege de cristal",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "home-alone",
+      "input": "maman jai rate lavion",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "star-wars-4",
+      "input": "sw4",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "baldurs-gate-3",
+      "input": "bg3",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "witcher-3",
+      "input": "witchr 3",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "elden-ring",
+      "input": "eldern ring",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "hollow-knight",
+      "input": "hollow nite",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "cyberpunk-2077",
+      "input": "cyberpunk2077",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "skyrim",
+      "input": "skirym",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "fallout-new-vegas",
+      "input": "fallout new vgas",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "mass-effect-2",
+      "input": "mass efect 2",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "dark-souls-3",
+      "input": "dark souls 3",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "mgs-v",
+      "input": "mgs5",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "gta-v",
+      "input": "gta5",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "god-of-war-ragnarok",
+      "input": "god of war ragnarok",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "final-fantasy-7",
+      "input": "ff7",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "breath-wild",
+      "input": "botw",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "tears-kingdom",
+      "input": "totk",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "civilization-6",
+      "input": "civ6",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "age-empires-2",
+      "input": "aoe2",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "world-warcraft",
+      "input": "wow",
+      "expected": "accepted"
+    },
+    {
+      "targetId": "elden-ring",
+      "input": "elden kings",
+      "expected": "abstained"
+    },
+    {
+      "targetId": "elden-ring",
+      "input": "dark souls",
+      "expected": "rejected"
+    },
+    {
+      "targetId": "portal",
+      "input": "portal 2",
+      "expected": "rejected"
+    },
+    {
+      "targetId": "hades",
+      "input": "had",
+      "expected": "rejected"
+    }
+  ]
+}

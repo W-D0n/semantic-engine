@@ -1,0 +1,22 @@
+[package]
+name = "semantic-engine-desktop"
+version = "0.1.0"
+description = "Portable local-first Semantic Engine console"
+edition.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "semantic_engine_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+semantic-engine-core = { path = "../../../crates/semantic-engine-core" }
+serde.workspace = true
+tauri = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

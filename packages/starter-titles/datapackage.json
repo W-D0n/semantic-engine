@@ -1,0 +1,55 @@
+{
+  "$schema": "profile/context-package.schema.json",
+  "name": "semantic-engine-starter-titles",
+  "id": "urn:semantic-engine:context:starter-titles",
+  "title": "Semantic Engine Starter Titles",
+  "description": "Curated movie and video-game targets for demos and contract tests.",
+  "version": "0.1.0",
+  "created": "2026-07-30T00:00:00Z",
+  "licenses": [
+    {
+      "name": "CC0-1.0",
+      "path": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "title": "Creative Commons Zero v1.0 Universal"
+    }
+  ],
+  "contributors": [
+    {
+      "title": "Semantic Engine contributors",
+      "roles": [
+        "creator",
+        "dataCurator"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "title": "Manually curated Semantic Engine test corpus",
+      "version": "0.1.0"
+    }
+  ],
+  "semanticEngine": {
+    "formatVersion": "0.1.0",
+    "kind": "recognition-context",
+    "locales": [
+      "en",
+      "fr"
+    ],
+    "spdxLicenseExpression": "CC0-1.0"
+  },
+  "resources": [
+    {
+      "name": "titles",
+      "path": "data/titles.json",
+      "format": "json",
+      "mediatype": "application/json",
+      "encoding": "utf-8",
+      "bytes": 12465,
+      "hash": "sha256:062cc8a6223685ac8fb0d6112b8393a5d849dd8d4dcba648dac719679a82b8c1",
+      "semanticEngine": {
+        "role": "targets",
+        "schema": "profile/title-resource.schema.json"
+      }
+    }
+  ]
+}

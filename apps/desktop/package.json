@@ -1,0 +1,24 @@
+{
+  "name": "semantic-engine-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "@lucide/svelte": "latest",
+    "@tauri-apps/api": "^2",
+    "svelte": "^5"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "latest",
+    "@tauri-apps/cli": "^2",
+    "svelte-check": "latest",
+    "typescript": "latest",
+    "vite": "latest"
+  }
+}

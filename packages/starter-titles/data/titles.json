@@ -1,0 +1,648 @@
+{
+  "version": 1,
+  "titles": [
+    {
+      "id": "spirited-away",
+      "kind": "movie",
+      "canonical": "Spirited Away",
+      "aliases": [
+        "Le Voyage de Chihiro"
+      ]
+    },
+    {
+      "id": "lotr-fellowship",
+      "kind": "movie",
+      "canonical": "The Lord of the Rings: The Fellowship of the Ring",
+      "aliases": [
+        "Le Seigneur des anneaux : La Communauté de l’anneau",
+        "La Communauté de l’anneau",
+        "LOTR 1"
+      ]
+    },
+    {
+      "id": "matrix",
+      "kind": "movie",
+      "canonical": "The Matrix",
+      "aliases": [
+        "Matrix"
+      ]
+    },
+    {
+      "id": "back-to-the-future",
+      "kind": "movie",
+      "canonical": "Back to the Future",
+      "aliases": [
+        "Retour vers le futur"
+      ]
+    },
+    {
+      "id": "die-hard",
+      "kind": "movie",
+      "canonical": "Die Hard",
+      "aliases": [
+        "Piège de cristal"
+      ]
+    },
+    {
+      "id": "the-hangover",
+      "kind": "movie",
+      "canonical": "The Hangover",
+      "aliases": [
+        "Very Bad Trip"
+      ]
+    },
+    {
+      "id": "jaws",
+      "kind": "movie",
+      "canonical": "Jaws",
+      "aliases": [
+        "Les Dents de la mer"
+      ]
+    },
+    {
+      "id": "inside-out",
+      "kind": "movie",
+      "canonical": "Inside Out",
+      "aliases": [
+        "Vice-Versa",
+        "Vice Versa"
+      ]
+    },
+    {
+      "id": "home-alone",
+      "kind": "movie",
+      "canonical": "Home Alone",
+      "aliases": [
+        "Maman, j’ai raté l’avion !"
+      ]
+    },
+    {
+      "id": "groundhog-day",
+      "kind": "movie",
+      "canonical": "Groundhog Day",
+      "aliases": [
+        "Un jour sans fin"
+      ]
+    },
+    {
+      "id": "shawshank",
+      "kind": "movie",
+      "canonical": "The Shawshank Redemption",
+      "aliases": [
+        "Les Évadés"
+      ]
+    },
+    {
+      "id": "frozen",
+      "kind": "movie",
+      "canonical": "Frozen",
+      "aliases": [
+        "La Reine des neiges"
+      ]
+    },
+    {
+      "id": "sound-of-music",
+      "kind": "movie",
+      "canonical": "The Sound of Music",
+      "aliases": [
+        "La Mélodie du bonheur"
+      ]
+    },
+    {
+      "id": "raiders",
+      "kind": "movie",
+      "canonical": "Raiders of the Lost Ark",
+      "aliases": [
+        "Les Aventuriers de l’arche perdue"
+      ]
+    },
+    {
+      "id": "star-wars-4",
+      "kind": "movie",
+      "canonical": "Star Wars: Episode IV – A New Hope",
+      "aliases": [
+        "La Guerre des étoiles",
+        "Star Wars 4",
+        "SW4"
+      ]
+    },
+    {
+      "id": "dark-knight",
+      "kind": "movie",
+      "canonical": "The Dark Knight",
+      "aliases": [
+        "The Dark Knight : Le Chevalier noir"
+      ]
+    },
+    {
+      "id": "good-morning-england",
+      "kind": "movie",
+      "canonical": "The Boat That Rocked",
+      "aliases": [
+        "Good Morning England"
+      ]
+    },
+    {
+      "id": "eternal-sunshine",
+      "kind": "movie",
+      "canonical": "Eternal Sunshine of the Spotless Mind",
+      "aliases": [
+        "Eternal Sunshine"
+      ]
+    },
+    {
+      "id": "alien",
+      "kind": "movie",
+      "canonical": "Alien",
+      "aliases": [
+        "Alien, le huitième passager"
+      ]
+    },
+    {
+      "id": "avengers",
+      "kind": "movie",
+      "canonical": "The Avengers",
+      "aliases": [
+        "Avengers"
+      ]
+    },
+    {
+      "id": "portal",
+      "kind": "game",
+      "canonical": "Portal",
+      "aliases": []
+    },
+    {
+      "id": "portal-2",
+      "kind": "game",
+      "canonical": "Portal 2",
+      "aliases": [
+        "Portal II"
+      ]
+    },
+    {
+      "id": "half-life",
+      "kind": "game",
+      "canonical": "Half-Life",
+      "aliases": [
+        "Half Life"
+      ]
+    },
+    {
+      "id": "half-life-2",
+      "kind": "game",
+      "canonical": "Half-Life 2",
+      "aliases": [
+        "HL2"
+      ]
+    },
+    {
+      "id": "witcher-3",
+      "kind": "game",
+      "canonical": "The Witcher 3: Wild Hunt",
+      "aliases": [
+        "Witcher 3",
+        "The Witcher III"
+      ]
+    },
+    {
+      "id": "baldurs-gate-3",
+      "kind": "game",
+      "canonical": "Baldur’s Gate 3",
+      "aliases": [
+        "BG3",
+        "Baldurs Gate III"
+      ]
+    },
+    {
+      "id": "elden-ring",
+      "kind": "game",
+      "canonical": "Elden Ring",
+      "aliases": []
+    },
+    {
+      "id": "hollow-knight",
+      "kind": "game",
+      "canonical": "Hollow Knight",
+      "aliases": [
+        "Hollow Nite"
+      ]
+    },
+    {
+      "id": "celeste",
+      "kind": "game",
+      "canonical": "Celeste",
+      "aliases": []
+    },
+    {
+      "id": "hades",
+      "kind": "game",
+      "canonical": "Hades",
+      "aliases": []
+    },
+    {
+      "id": "stardew",
+      "kind": "game",
+      "canonical": "Stardew Valley",
+      "aliases": []
+    },
+    {
+      "id": "minecraft",
+      "kind": "game",
+      "canonical": "Minecraft",
+      "aliases": []
+    },
+    {
+      "id": "terraria",
+      "kind": "game",
+      "canonical": "Terraria",
+      "aliases": []
+    },
+    {
+      "id": "cyberpunk-2077",
+      "kind": "game",
+      "canonical": "Cyberpunk 2077",
+      "aliases": [
+        "Cyberpunk"
+      ]
+    },
+    {
+      "id": "skyrim",
+      "kind": "game",
+      "canonical": "The Elder Scrolls V: Skyrim",
+      "aliases": [
+        "Skyrim",
+        "TES V"
+      ]
+    },
+    {
+      "id": "fallout-new-vegas",
+      "kind": "game",
+      "canonical": "Fallout: New Vegas",
+      "aliases": [
+        "Fallout New Vegas",
+        "FNV"
+      ]
+    },
+    {
+      "id": "mass-effect-2",
+      "kind": "game",
+      "canonical": "Mass Effect 2",
+      "aliases": [
+        "Mass Effect II",
+        "ME2"
+      ]
+    },
+    {
+      "id": "bioshock",
+      "kind": "game",
+      "canonical": "BioShock",
+      "aliases": []
+    },
+    {
+      "id": "dishonored",
+      "kind": "game",
+      "canonical": "Dishonored",
+      "aliases": []
+    },
+    {
+      "id": "doom-eternal",
+      "kind": "game",
+      "canonical": "Doom Eternal",
+      "aliases": []
+    },
+    {
+      "id": "halo-ce",
+      "kind": "game",
+      "canonical": "Halo: Combat Evolved",
+      "aliases": [
+        "Halo CE"
+      ]
+    },
+    {
+      "id": "dark-souls-3",
+      "kind": "game",
+      "canonical": "Dark Souls III",
+      "aliases": [
+        "Dark Souls 3",
+        "DS3"
+      ]
+    },
+    {
+      "id": "sekiro",
+      "kind": "game",
+      "canonical": "Sekiro: Shadows Die Twice",
+      "aliases": [
+        "Sekiro"
+      ]
+    },
+    {
+      "id": "control",
+      "kind": "game",
+      "canonical": "Control",
+      "aliases": []
+    },
+    {
+      "id": "alan-wake-2",
+      "kind": "game",
+      "canonical": "Alan Wake 2",
+      "aliases": [
+        "Alan Wake II"
+      ]
+    },
+    {
+      "id": "dead-space",
+      "kind": "game",
+      "canonical": "Dead Space",
+      "aliases": []
+    },
+    {
+      "id": "resident-evil-4",
+      "kind": "game",
+      "canonical": "Resident Evil 4",
+      "aliases": [
+        "RE4"
+      ]
+    },
+    {
+      "id": "silent-hill-2",
+      "kind": "game",
+      "canonical": "Silent Hill 2",
+      "aliases": [
+        "SH2"
+      ]
+    },
+    {
+      "id": "mgs-v",
+      "kind": "game",
+      "canonical": "Metal Gear Solid V: The Phantom Pain",
+      "aliases": [
+        "MGS V",
+        "MGS5"
+      ]
+    },
+    {
+      "id": "death-stranding",
+      "kind": "game",
+      "canonical": "Death Stranding",
+      "aliases": []
+    },
+    {
+      "id": "rdr-2",
+      "kind": "game",
+      "canonical": "Red Dead Redemption 2",
+      "aliases": [
+        "RDR2"
+      ]
+    },
+    {
+      "id": "gta-v",
+      "kind": "game",
+      "canonical": "Grand Theft Auto V",
+      "aliases": [
+        "GTA V",
+        "GTA 5",
+        "GTAV"
+      ]
+    },
+    {
+      "id": "assassins-creed-2",
+      "kind": "game",
+      "canonical": "Assassin’s Creed II",
+      "aliases": [
+        "Assassins Creed 2",
+        "AC2"
+      ]
+    },
+    {
+      "id": "prince-persia-sot",
+      "kind": "game",
+      "canonical": "Prince of Persia: The Sands of Time",
+      "aliases": [
+        "Prince of Persia Sands of Time"
+      ]
+    },
+    {
+      "id": "tomb-raider",
+      "kind": "game",
+      "canonical": "Tomb Raider",
+      "aliases": []
+    },
+    {
+      "id": "uncharted-4",
+      "kind": "game",
+      "canonical": "Uncharted 4: A Thief’s End",
+      "aliases": [
+        "Uncharted 4"
+      ]
+    },
+    {
+      "id": "god-of-war-ragnarok",
+      "kind": "game",
+      "canonical": "God of War Ragnarök",
+      "aliases": [
+        "God of War Ragnarok",
+        "GOW Ragnarok"
+      ]
+    },
+    {
+      "id": "horizon-zero-dawn",
+      "kind": "game",
+      "canonical": "Horizon Zero Dawn",
+      "aliases": [
+        "HZD"
+      ]
+    },
+    {
+      "id": "final-fantasy-7",
+      "kind": "game",
+      "canonical": "Final Fantasy VII",
+      "aliases": [
+        "Final Fantasy 7",
+        "FF7"
+      ]
+    },
+    {
+      "id": "persona-5-royal",
+      "kind": "game",
+      "canonical": "Persona 5 Royal",
+      "aliases": [
+        "P5R"
+      ]
+    },
+    {
+      "id": "nier-automata",
+      "kind": "game",
+      "canonical": "NieR: Automata",
+      "aliases": [
+        "Nier Automata"
+      ]
+    },
+    {
+      "id": "chrono-trigger",
+      "kind": "game",
+      "canonical": "Chrono Trigger",
+      "aliases": []
+    },
+    {
+      "id": "breath-wild",
+      "kind": "game",
+      "canonical": "The Legend of Zelda: Breath of the Wild",
+      "aliases": [
+        "Breath of the Wild",
+        "BOTW"
+      ]
+    },
+    {
+      "id": "tears-kingdom",
+      "kind": "game",
+      "canonical": "The Legend of Zelda: Tears of the Kingdom",
+      "aliases": [
+        "Tears of the Kingdom",
+        "TOTK"
+      ]
+    },
+    {
+      "id": "mario-odyssey",
+      "kind": "game",
+      "canonical": "Super Mario Odyssey",
+      "aliases": [
+        "Mario Odyssey"
+      ]
+    },
+    {
+      "id": "sonic-mania",
+      "kind": "game",
+      "canonical": "Sonic Mania",
+      "aliases": []
+    },
+    {
+      "id": "metroid-dread",
+      "kind": "game",
+      "canonical": "Metroid Dread",
+      "aliases": []
+    },
+    {
+      "id": "pokemon-red",
+      "kind": "game",
+      "canonical": "Pokémon Red",
+      "aliases": [
+        "Pokemon Red"
+      ]
+    },
+    {
+      "id": "civilization-6",
+      "kind": "game",
+      "canonical": "Sid Meier’s Civilization VI",
+      "aliases": [
+        "Civilization 6",
+        "Civ 6"
+      ]
+    },
+    {
+      "id": "age-empires-2",
+      "kind": "game",
+      "canonical": "Age of Empires II",
+      "aliases": [
+        "Age of Empires 2",
+        "AOE2"
+      ]
+    },
+    {
+      "id": "starcraft-2",
+      "kind": "game",
+      "canonical": "StarCraft II",
+      "aliases": [
+        "Starcraft 2",
+        "SC2"
+      ]
+    },
+    {
+      "id": "world-warcraft",
+      "kind": "game",
+      "canonical": "World of Warcraft",
+      "aliases": [
+        "WoW"
+      ]
+    },
+    {
+      "id": "diablo-2",
+      "kind": "game",
+      "canonical": "Diablo II",
+      "aliases": [
+        "Diablo 2",
+        "D2"
+      ]
+    },
+    {
+      "id": "path-exile",
+      "kind": "game",
+      "canonical": "Path of Exile",
+      "aliases": [
+        "POE"
+      ]
+    },
+    {
+      "id": "slay-spire",
+      "kind": "game",
+      "canonical": "Slay the Spire",
+      "aliases": []
+    },
+    {
+      "id": "dead-cells",
+      "kind": "game",
+      "canonical": "Dead Cells",
+      "aliases": []
+    },
+    {
+      "id": "cuphead",
+      "kind": "game",
+      "canonical": "Cuphead",
+      "aliases": []
+    },
+    {
+      "id": "outer-wilds",
+      "kind": "game",
+      "canonical": "Outer Wilds",
+      "aliases": []
+    },
+    {
+      "id": "subnautica",
+      "kind": "game",
+      "canonical": "Subnautica",
+      "aliases": []
+    },
+    {
+      "id": "factorio",
+      "kind": "game",
+      "canonical": "Factorio",
+      "aliases": []
+    },
+    {
+      "id": "satisfactory",
+      "kind": "game",
+      "canonical": "Satisfactory",
+      "aliases": []
+    },
+    {
+      "id": "rimworld",
+      "kind": "game",
+      "canonical": "RimWorld",
+      "aliases": [
+        "Rim World"
+      ]
+    },
+    {
+      "id": "disco-elysium",
+      "kind": "game",
+      "canonical": "Disco Elysium",
+      "aliases": []
+    },
+    {
+      "id": "undertale",
+      "kind": "game",
+      "canonical": "Undertale",
+      "aliases": []
+    }
+  ]
+}

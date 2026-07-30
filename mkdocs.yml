@@ -1,0 +1,43 @@
+site_name: Semantic Engine
+site_description: Moteur local-first de reconnaissance sémantique pour chats
+theme:
+  name: material
+  language: fr
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+nav:
+  - Accueil: index.md
+  - Langage du domaine: domain-language.md
+  - Produit:
+      - Vision: product/vision.md
+      - Sécurité et cadre légal: product/security-and-legal.md
+      - Marché: product/market.md
+      - Application portable: product/portable-desktop.md
+  - Architecture:
+      - Vue d’ensemble: architecture/overview.md
+      - Pipeline: architecture/recognition-pipeline.md
+  - Intégration:
+      - Sidecar JSONL et MyVault: integration/jsonl-sidecar.md
+      - Paquets de contexte: integration/context-packages.md
+  - Recherche:
+      - Solutions et données existantes: research/existing-solutions-and-data.md
+      - Conventions des paquets: research/context-package-conventions.md
+  - Exécution:
+      - Roadmap: roadmap.md
+      - Continuité: contributing/session-continuity.md
+  - Décisions:
+      - Moteur et adaptateurs: adr/0001-separate-engine-from-adapters.md
+      - Pipeline hybride: adr/0002-hybrid-recognition.md
+      - Déploiement évolutif: adr/0003-evolutive-deployment.md
+      - Paquets Data Package: adr/0004-context-data-package.md

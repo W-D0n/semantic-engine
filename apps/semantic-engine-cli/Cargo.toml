@@ -1,0 +1,9 @@
+[package]
+name = "semantic-engine-cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+semantic-engine-core = { path = "../../crates/semantic-engine-core" }
+serde_json.workspace = true
+semantic-engine-package = { path = "../../crates/semantic-engine-package" }
