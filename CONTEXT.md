@@ -26,6 +26,23 @@ Unité importable et diffusable contenant un contexte, ses métadonnées, sa lic
 ses schémas et ses empreintes d’intégrité.
 _Avoid_: Dictionnaire global, dump
 
+**Inspection de paquet**:
+Vérification locale du format, des limites, de la licence et des empreintes d’un paquet,
+sans modifier le contexte actif.
+_Avoid_: Import, activation
+
+**Activation de contexte**:
+Action explicite et atomique qui rend actif le paquet exactement inspecté.
+_Avoid_: Import, sélection de fichier
+
+**Contexte actif**:
+Version persistée du contexte de reconnaissance utilisée par les workflows locaux.
+_Avoid_: Dernier paquet ouvert, cible du round
+
+**Restauration de contexte**:
+Activation atomique de la version qui précédait directement le contexte actif.
+_Avoid_: Annulation de fichier, arbitrage, rollback
+
 **Interprétation**:
 Sens métier stable que le moteur peut attribuer à un énoncé.
 _Avoid_: Intent, réponse, label

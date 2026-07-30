@@ -2,8 +2,8 @@
 
 ## Objectif de la prochaine session
 
-Ajouter l’activation atomique du paquet déjà inspecté, persister la version
-active dans SQLite et conserver la version précédente pour un rollback explicite.
+Exposer les cibles du contexte actif par une API bornée, puis permettre à
+l’opérateur de rechercher un titre et de l’injecter dans la manche manuelle.
 
 ## État au 30 juillet 2026
 
@@ -14,9 +14,11 @@ active dans SQLite et conserver la version précédente pour un rollback explici
 - contrôle SemVer, SPDX, tailles, chemins confinés, SHA-256 et structure ;
 - console Tauri/Svelte et sidecar JSONL opérationnels ;
 - sélection native de `datapackage.json`, inspection Rust et aperçu inactif ;
+- crate `semantic-engine-context-store`, activation SQLite idempotente et rollback ;
+- état actif relu au démarrage, sans capability d’écriture accordée au frontend ;
 - exécutable léger compilé dans `target/release` puis copié en
   `SemanticEngine.exe` à la racine pour l’opérateur ;
-- Twitch, YouTube, auth, cache, SQLite et scoreboard non implémentés.
+- Twitch, YouTube, auth, cache et scoreboard non implémentés.
 
 ## Lire d’abord
 
@@ -25,8 +27,9 @@ active dans SQLite et conserver la version précédente pour un rollback explici
 3. `docs/integration/context-packages.md`
 4. `docs/adr/0004-context-data-package.md`
 5. `docs/roadmap.md`
-6. `crates/semantic-engine-package/src/lib.rs`
-7. `crates/semantic-engine-core/src/lib.rs`
+6. `crates/semantic-engine-context-store/src/lib.rs`
+7. `crates/semantic-engine-package/src/lib.rs`
+8. `crates/semantic-engine-core/src/lib.rs`
 
 ## Décisions à préserver
 
@@ -34,6 +37,8 @@ active dans SQLite et conserver la version précédente pour un rollback explici
 - aucune ressource de paquet ne contient ni n’exécute du code ;
 - une version publiée est immuable ; hash et signature ont des rôles distincts ;
 - import, aperçu et activation sont trois opérations séparées ;
+- une activation pointe vers son parent ; un rollback ne réimporte aucun fichier ;
+- les versions sont stockées dans l’AppData local, pas à côté de l’exécutable ;
 - le moteur ne désigne pas le gagnant et ne compte pas les points ;
 - vecteurs et microservices restent possibles, mais après benchmark/justification ;
 - la variante portable actuelle dépend de WebView2 système ; fixed runtime est à faire.
@@ -62,7 +67,7 @@ Depuis la racine, `python -m mkdocs build --strict` vérifie le guide. Le géné
 
 ## Première action recommandée
 
-Écrire d’abord le test du flux `inspect → activate → rollback` contre une copie
-temporaire de SQLite. Réutiliser `inspect_context_package` comme frontière validée,
-puis exposer une commande d’activation séparée et idempotente. Ne pas élargir les
-capabilities du frontend : le backend reste seul responsable des écritures.
+Écrire d’abord un test public `current → find target → configure round` sans lire
+SQLite directement. Retourner des résultats bornés et stables depuis le store,
+puis raccorder un champ de recherche opérateur. Ne pas charger les 50 000 cibles
+dans le DOM et ne pas coupler le moteur de validation à Tauri.

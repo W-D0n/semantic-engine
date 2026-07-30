@@ -40,8 +40,12 @@ La commande ne modifie aucun contexte actif.
 Dans l’application portable, la bande **Contexte de reconnaissance** ouvre le
 sélecteur Windows, puis transmet uniquement le chemin choisi au backend Rust.
 L’aperçu affiche nom, version, licence, langues, sources, nombre de réponses et
-empreinte. Le statut **Contrôle valide — non actif** est intentionnel : fermer
-l’application ou sélectionner un autre fichier ne modifie aucun contexte de manche.
+empreinte. L’opérateur active ensuite explicitement le paquet ; le contexte actif
+est persisté dans SQLite et relu au démarrage. À l’activation, le backend relit le
+paquet et refuse l’opération si son empreinte diffère de celle de l’aperçu.
+**Version précédente** restaure
+atomiquement le parent de l’activation courante. La cible manuelle de la manche
+reste indépendante tant qu’un workflow ne la sélectionne pas dans le paquet actif.
 
 ```json
 {
@@ -113,10 +117,10 @@ flowchart LR
     T --> B["Rollback vers la version précédente"]
 ```
 
-Aujourd’hui, la validation/import technique est disponible dans la crate Rust,
-la CLI et le sélecteur graphique Tauri avec aperçu inactif. L’activation
-persistante, la conservation de la version précédente et le rollback SQLite
-forment le prochain incrément.
+Aujourd’hui, validation, aperçu, activation idempotente et rollback sont disponibles
+dans des modules Rust séparés et dans le client Tauri. SQLite conserve les versions
+immuables, le contexte actif et le lien vers l’activation précédente. Le prochain
+incrément rendra les cibles du paquet actif sélectionnables par un round.
 
 ## Compatibilité et mises à jour
 

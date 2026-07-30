@@ -2,6 +2,7 @@
 members = [
   "crates/semantic-engine-core",
   "crates/semantic-engine-package",
+  "crates/semantic-engine-context-store",
   "apps/semantic-engine-cli",
   "apps/desktop/src-tauri",
 ]
@@ -19,3 +20,4 @@ unicode-normalization = "0.1"
 semver = "1"
 sha2 = "0.10"
 spdx = "0.13.4"
+rusqlite = { version = "0.40.1", features = ["bundled"] }

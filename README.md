@@ -4,8 +4,9 @@ Moteur local-first, explicable et modulaire qui transforme des messages de chat
 imparfaits en interprétations configurées : fautes, abréviations, initiales et
 formulations proches comprises.
 
-> État actuel : premier vertical slice exécutable en Rust, CLI JSONL et client
-> portable Tauri. Le corpus contractuel couvre 84 titres et 28 cas de validation.
+> État actuel : moteur Rust, CLI JSONL et client Tauri portable avec inspection,
+> activation SQLite et rollback des paquets. Le corpus contractuel couvre 84 titres
+> et 28 cas de validation.
 
 ## Pourquoi ce projet
 
@@ -69,7 +70,8 @@ npm run tauri dev
 ```
 
 L’exécutable portable release est produit par `npm run tauri -- build --no-bundle`
-depuis `apps/desktop` et se trouve dans `target/release/semantic-engine-desktop.exe`.
+depuis `apps/desktop`, puis copié en `SemanticEngine.exe` à la racine. La sortie
+de compilation reste `target/release/semantic-engine-desktop.exe`.
 Cette variante légère n’installe rien, mais utilise WebView2 présent sur Windows.
 La distribution hors ligne stricte avec runtime WebView2 fixe est planifiée et
 sera nécessaire pour garantir l’exécution sur une machine totalement vierge.

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
   import { open } from '@tauri-apps/plugin-dialog';
+  import { onMount } from 'svelte';
   import {
     Braces,
     Check,
@@ -68,11 +69,17 @@
   let error = $state('');
   let history = $state<HistoryItem[]>([]);
   let result = $state<HistoryItem | null>(null);
-  let packageBusy = $state(false);
+  let contextOperation = $state<'idle' | 'load' | 'inspect' | 'activate' | 'rollback'>('idle');
   let packageError = $state('');
   let packagePreview = $state<ContextPackagePreview | null>(null);
+  let selectedPackagePath = $state('');
+  let activeContext = $state<ContextPackagePreview | null>(null);
 
   const inTauri = '__TAURI_INTERNALS__' in window;
+  const contextBusy = $derived(contextOperation !== 'idle');
+  const selectedIsActive = $derived(
+    packagePreview?.package_sha256 === activeContext?.package_sha256,
+  );
 
   async function runValidation() {
     if (!message.trim() || !canonical.trim() || busy) return;
@@ -119,11 +126,29 @@
     }
   }
 
-  async function chooseContextPackage() {
-    if (!inTauri || packageBusy) return;
+  onMount(() => {
+    if (inTauri) void loadCurrentContext();
+  });
+
+  async function loadCurrentContext() {
+    if (!inTauri || contextBusy) return;
 
     packageError = '';
-    packageBusy = true;
+    contextOperation = 'load';
+    try {
+      activeContext = await invoke<ContextPackagePreview | null>('current_context_ipc');
+    } catch (cause) {
+      packageError = `Impossible de relire le contexte actif : ${cause instanceof Error ? cause.message : String(cause)}`;
+    } finally {
+      contextOperation = 'idle';
+    }
+  }
+
+  async function chooseContextPackage() {
+    if (!inTauri || contextBusy) return;
+
+    packageError = '';
+    contextOperation = 'inspect';
     try {
       const selected = await open({
         multiple: false,
@@ -137,11 +162,49 @@
       packagePreview = await invoke<ContextPackagePreview>('inspect_context_package_ipc', {
         path: selected,
       });
+      selectedPackagePath = selected;
     } catch (cause) {
       packagePreview = null;
+      selectedPackagePath = '';
       packageError = cause instanceof Error ? cause.message : String(cause);
     } finally {
-      packageBusy = false;
+      contextOperation = 'idle';
+    }
+  }
+
+  async function activateSelectedContext() {
+    if (!selectedPackagePath || contextBusy || selectedIsActive) return;
+
+    packageError = '';
+    contextOperation = 'activate';
+    try {
+      activeContext = await invoke<ContextPackagePreview>('activate_context_package_ipc', {
+        path: selectedPackagePath,
+        expectedPackageSha256: packagePreview?.package_sha256,
+      });
+    } catch (cause) {
+      packageError = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      contextOperation = 'idle';
+    }
+  }
+
+  async function rollbackContext() {
+    if (!activeContext || contextBusy) return;
+
+    packageError = '';
+    contextOperation = 'rollback';
+    try {
+      const restored = await invoke<ContextPackagePreview | null>('rollback_context_ipc');
+      if (!restored) {
+        packageError = 'Aucune version précédente n’est disponible pour ce contexte.';
+        return;
+      }
+      activeContext = restored;
+    } catch (cause) {
+      packageError = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      contextOperation = 'idle';
     }
   }
 
@@ -200,23 +263,49 @@
       <span class="context-icon"><FolderOpen size={20} /></span>
       <div>
         <p class="eyebrow">Contexte de reconnaissance</p>
-        <h2 id="context-heading">Inspecter un paquet avant de l&rsquo;utiliser</h2>
-        <p>Le moteur v&eacute;rifie le format, les limites et les empreintes. Aucun contexte n&rsquo;est activ&eacute; &agrave; cette &eacute;tape.</p>
+        <h2 id="context-heading">Inspecter puis activer un paquet</h2>
+        <p>Le moteur v&eacute;rifie d&rsquo;abord le format, les limites et les empreintes. L&rsquo;activation reste une action locale, explicite et r&eacute;versible.</p>
       </div>
     </div>
 
     <div class="context-action">
-      <button onclick={chooseContextPackage} disabled={packageBusy || !inTauri}>
-        <FolderOpen size={16} /> {packageBusy ? 'V\u00e9rification\u2026' : 'Choisir datapackage.json'}
+      <button onclick={chooseContextPackage} disabled={contextBusy || !inTauri}>
+        <FolderOpen size={16} /> {contextOperation === 'inspect' ? 'V\u00e9rification\u2026' : 'Choisir datapackage.json'}
       </button>
+      {#if packagePreview}
+        <button class="activate-context-button" onclick={activateSelectedContext} disabled={contextBusy || selectedIsActive}>
+          <Check size={16} /> {contextOperation === 'activate' ? 'Activation\u2026' : selectedIsActive ? 'Paquet d\u00e9j\u00e0 actif' : 'Activer ce paquet'}
+        </button>
+      {/if}
       {#if !inTauri}<small>Disponible dans l&rsquo;application locale.</small>{/if}
+    </div>
+
+    <div class:empty={!activeContext} class="active-context" aria-live="polite">
+      <div class="active-context-state">
+        <span><CircleDot size={15} /> Contexte actif</span>
+        {#if activeContext}
+          <strong>{activeContext.name} &middot; v{activeContext.version}</strong>
+          <code>{activeContext.id}</code>
+          <p>Persist&eacute; localement. La cible manuelle de la manche reste ind&eacute;pendante.</p>
+        {:else}
+          <strong>{contextOperation === 'load' ? 'Lecture de l&rsquo;&eacute;tat local&hellip;' : 'Aucun paquet actif'}</strong>
+          <p>Inspectez un paquet, puis activez-le explicitement.</p>
+        {/if}
+      </div>
+      <button class="rollback-context-button" onclick={rollbackContext} disabled={!activeContext || contextBusy}>
+        <RotateCcw size={15} /> {contextOperation === 'rollback' ? 'Restauration\u2026' : 'Version pr\u00e9c\u00e9dente'}
+      </button>
     </div>
 
     {#if packagePreview}
       <div class="package-preview" aria-live="polite">
         <div class="package-status">
           <PackageCheck size={19} />
-          <div><strong>V&eacute;rifi&eacute; &middot; non activ&eacute;</strong><span>{packagePreview.name} &middot; v{packagePreview.version}</span><code>{packagePreview.id}</code></div>
+          <div>
+            {#if selectedIsActive}<strong>Actif &middot; s&eacute;lection courante</strong>{:else}<strong>V&eacute;rifi&eacute; &middot; non activ&eacute;</strong>{/if}
+            <span>{packagePreview.name} &middot; v{packagePreview.version}</span>
+            <code>{packagePreview.id}</code>
+          </div>
         </div>
         <dl>
           <div><dt>R&eacute;ponses</dt><dd>{packagePreview.target_count}</dd></div>
@@ -231,7 +320,7 @@
     {#if packageError}
       <p class="context-error" role="alert">
         <TriangleAlert size={17} />
-        <span><strong>Paquet refus&eacute;.</strong> {packageError}</span>
+        <span><strong>Action interrompue.</strong> {packageError}</span>
       </p>
     {/if}
   </section>

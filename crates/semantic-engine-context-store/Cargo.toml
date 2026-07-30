@@ -1,0 +1,16 @@
+[package]
+name = "semantic-engine-context-store"
+version = "0.1.0"
+description = "Transactional local context activation for Semantic Engine"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rusqlite.workspace = true
+semantic-engine-core = { path = "../semantic-engine-core" }
+semantic-engine-package = { path = "../semantic-engine-package" }
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

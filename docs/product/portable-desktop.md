@@ -43,13 +43,13 @@ copie est un artefact généré et reste ignorée par Git.
 
 La console suit le parcours d’une régie de direct :
 
-1. sélectionner éventuellement un `datapackage.json` et contrôler son aperçu ;
-2. vérifier identité, version, licence, langues, provenance et empreinte sans
-   activer le paquet ;
-3. configurer le titre canonique et ses alias pour la manche ;
-4. injecter un message non fiable ;
-5. lire la décision, le score, la preuve et la latence ;
-6. observer le journal éphémère de la session.
+1. sélectionner un `datapackage.json` et contrôler son aperçu ;
+2. vérifier identité, version, licence, langues, provenance et empreinte ;
+3. activer explicitement le paquet ou restaurer la version précédente ;
+4. configurer le titre canonique et ses alias pour la manche ;
+5. injecter un message non fiable ;
+6. lire la décision, le score, la preuve et la latence ;
+7. observer le journal éphémère de la session.
 
 ```mermaid
 flowchart LR
@@ -57,7 +57,9 @@ flowchart LR
     I --> V{"Format, limites et empreintes valides ?"}
     V -- non --> R["Refus expliqué"]
     V -- oui --> A["Aperçu non actif"]
-    A --> C["Configurer la manche"]
+    A --> T["Activation SQLite"]
+    T --> B["Rollback possible"]
+    T --> C["Configurer la manche"]
     C --> D["Décision explicable"]
 ```
 
@@ -74,6 +76,9 @@ Ces consommateurs reçoivent le contrat `Validation` sans modifier le moteur.
 - aucun accès générique aux fichiers, au shell ou au réseau exposé au frontend ;
 - le dialogue fournit seulement le chemin choisi ; le backend Rust canonise,
   borne, parse et vérifie le paquet avant de retourner des métadonnées ;
+- le frontend ne reçoit aucune capability d’écriture : seul le backend ouvre SQLite ;
+- l’activation est refusée si le paquet ne correspond plus à l’empreinte inspectée ;
+- activation et rollback utilisent une transaction immédiate et des versions immuables ;
 - longueur des champs bornée côté UI et dans le moteur ;
 - journal conservé en mémoire seulement pour ce premier incrément.
 
@@ -83,7 +88,7 @@ Ces consommateurs reçoivent le contrat `Validation` sans modifier le moteur.
 - signer le binaire et publier SBOM + checksums ;
 - tester sur une machine Windows propre ;
 - proposer le runtime WebView2 fixe pour le paquet hors ligne ;
-- ajouter activation atomique, conservation de l’ancienne version et rollback ;
+- rendre les cibles du contexte actif sélectionnables par un round ;
 - mesurer p50/p95/p99 sur le corpus cible.
 
 ## Référence Tauri
