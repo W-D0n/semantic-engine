@@ -1,10 +1,13 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
+  import { open } from '@tauri-apps/plugin-dialog';
   import {
     Braces,
     Check,
     CircleDot,
     Database,
+    FolderOpen,
+    PackageCheck,
     Play,
     Radio,
     RotateCcw,
@@ -33,6 +36,22 @@
 
   type HistoryItem = Validation & { input: string; latency: number };
 
+  type ContextPackagePreview = {
+    name: string;
+    id: string;
+    version: string;
+    license: string;
+    locales: string[];
+    sources: Array<{
+      title: string;
+      path: string | null;
+      version: string | null;
+    }>;
+    target_count: number;
+    package_sha256: string;
+    targets_sha256: string;
+  };
+
   const samples = [
     { label: 'Exact', value: 'Elden Ring' },
     { label: 'Faute', value: 'eldern ring' },
@@ -49,6 +68,9 @@
   let error = $state('');
   let history = $state<HistoryItem[]>([]);
   let result = $state<HistoryItem | null>(null);
+  let packageBusy = $state(false);
+  let packageError = $state('');
+  let packagePreview = $state<ContextPackagePreview | null>(null);
 
   const inTauri = '__TAURI_INTERNALS__' in window;
 
@@ -97,6 +119,36 @@
     }
   }
 
+  async function chooseContextPackage() {
+    if (!inTauri || packageBusy) return;
+
+    packageError = '';
+    packageBusy = true;
+    try {
+      const selected = await open({
+        multiple: false,
+        directory: false,
+        title: 'Choisir un paquet de contexte Semantic Engine',
+        filters: [{ name: 'Descripteur de contexte', extensions: ['json'] }],
+      });
+
+      if (typeof selected !== 'string') return;
+
+      packagePreview = await invoke<ContextPackagePreview>('inspect_context_package_ipc', {
+        path: selected,
+      });
+    } catch (cause) {
+      packagePreview = null;
+      packageError = cause instanceof Error ? cause.message : String(cause);
+    } finally {
+      packageBusy = false;
+    }
+  }
+
+  function shortHash(hash: string) {
+    return `${hash.slice(0, 12)}...${hash.slice(-8)}`;
+  }
+
   function resetSession() {
     result = null;
     history = [];
@@ -141,6 +193,47 @@
       <span><ShieldCheck size={15} /> Hors réseau</span>
       <span><Braces size={15} /> Contrat JSON</span>
     </div>
+  </section>
+
+  <section class="context-inspector" aria-labelledby="context-heading">
+    <div class="context-intro">
+      <span class="context-icon"><FolderOpen size={20} /></span>
+      <div>
+        <p class="eyebrow">Contexte de reconnaissance</p>
+        <h2 id="context-heading">Inspecter un paquet avant de l&rsquo;utiliser</h2>
+        <p>Le moteur v&eacute;rifie le format, les limites et les empreintes. Aucun contexte n&rsquo;est activ&eacute; &agrave; cette &eacute;tape.</p>
+      </div>
+    </div>
+
+    <div class="context-action">
+      <button onclick={chooseContextPackage} disabled={packageBusy || !inTauri}>
+        <FolderOpen size={16} /> {packageBusy ? 'V\u00e9rification\u2026' : 'Choisir datapackage.json'}
+      </button>
+      {#if !inTauri}<small>Disponible dans l&rsquo;application locale.</small>{/if}
+    </div>
+
+    {#if packagePreview}
+      <div class="package-preview" aria-live="polite">
+        <div class="package-status">
+          <PackageCheck size={19} />
+          <div><strong>V&eacute;rifi&eacute; &middot; non activ&eacute;</strong><span>{packagePreview.name} &middot; v{packagePreview.version}</span><code>{packagePreview.id}</code></div>
+        </div>
+        <dl>
+          <div><dt>R&eacute;ponses</dt><dd>{packagePreview.target_count}</dd></div>
+          <div><dt>Langues</dt><dd>{packagePreview.locales.join(', ')}</dd></div>
+          <div><dt>Licence</dt><dd>{packagePreview.license}</dd></div>
+          <div><dt>Sources</dt><dd>{packagePreview.sources.map((source) => source.title).join(' / ') || 'Non renseign\u00e9e'}</dd></div>
+          <div><dt>Empreinte</dt><dd title={packagePreview.package_sha256}>{shortHash(packagePreview.package_sha256)}</dd></div>
+        </dl>
+      </div>
+    {/if}
+
+    {#if packageError}
+      <p class="context-error" role="alert">
+        <TriangleAlert size={17} />
+        <span><strong>Paquet refus&eacute;.</strong> {packageError}</span>
+      </p>
+    {/if}
   </section>
 
   <section class="workspace" aria-label="Console de validation">

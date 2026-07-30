@@ -37,6 +37,12 @@ Une sortie valide fournit identité, version, provenance, nombre de cibles et de
 SHA-256 : la ressource seule et l’ensemble des octets manifeste+ressource.
 La commande ne modifie aucun contexte actif.
 
+Dans l’application portable, la bande **Contexte de reconnaissance** ouvre le
+sélecteur Windows, puis transmet uniquement le chemin choisi au backend Rust.
+L’aperçu affiche nom, version, licence, langues, sources, nombre de réponses et
+empreinte. Le statut **Contrôle valide — non actif** est intentionnel : fermer
+l’application ou sélectionner un autre fichier ne modifie aucun contexte de manche.
+
 ```json
 {
   "status": "valid",
@@ -89,6 +95,12 @@ Un site statique ou un stockage objet fonctionne de la même façon. Le futur
 catalogue public sera un index, pas un entrepôt imposé : les éditeurs gardent
 leur hébergement, Semantic Engine découvre et vérifie leurs paquets.
 
+Le nom conseillé pour le dépôt public de données est **Answer Atlas**
+(`answer-atlas`). « Atlas » évoque une collection organisée et extensible, tandis
+que le moteur reste libre de consommer d’autres atlas. Si la priorité absolue
+devient la découvrabilité technique, `semantic-context-packs` reste l’alternative
+descriptive. Le dépôt de données doit rester séparé du code du moteur.
+
 ## Flux produit visé
 
 ```mermaid
@@ -101,9 +113,10 @@ flowchart LR
     T --> B["Rollback vers la version précédente"]
 ```
 
-Aujourd’hui, la validation/import technique est disponible dans la crate Rust et
-la CLI. Le sélecteur graphique, l’activation persistante et le rollback SQLite
-font partie du prochain incrément.
+Aujourd’hui, la validation/import technique est disponible dans la crate Rust,
+la CLI et le sélecteur graphique Tauri avec aperçu inactif. L’activation
+persistante, la conservation de la version précédente et le rollback SQLite
+forment le prochain incrément.
 
 ## Compatibilité et mises à jour
 

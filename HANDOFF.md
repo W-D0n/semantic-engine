@@ -2,9 +2,8 @@
 
 ## Objectif de la prochaine session
 
-Ajouter au client Tauri un import **inactif** de `datapackage.json`, un écran
-d’aperçu (éditeur, licence, version, locales, nombre de cibles, hash), puis une
-activation atomique avec conservation de la version précédente.
+Ajouter l’activation atomique du paquet déjà inspecté, persister la version
+active dans SQLite et conserver la version précédente pour un rollback explicite.
 
 ## État au 30 juillet 2026
 
@@ -14,7 +13,9 @@ activation atomique avec conservation de la version précédente.
 - profil Data Package v2 / JSON Schema 2020-12 et corpus CC0 de 84 titres ;
 - contrôle SemVer, SPDX, tailles, chemins confinés, SHA-256 et structure ;
 - console Tauri/Svelte et sidecar JSONL opérationnels ;
-- exécutable léger : `target/release/semantic-engine-desktop.exe` ;
+- sélection native de `datapackage.json`, inspection Rust et aperçu inactif ;
+- exécutable léger compilé dans `target/release` puis copié en
+  `SemanticEngine.exe` à la racine pour l’opérateur ;
 - Twitch, YouTube, auth, cache, SQLite et scoreboard non implémentés.
 
 ## Lire d’abord
@@ -62,6 +63,6 @@ Depuis la racine, `python -m mkdocs build --strict` vérifie le guide. Le géné
 ## Première action recommandée
 
 Écrire d’abord le test du flux `inspect → activate → rollback` contre une copie
-temporaire de SQLite, puis exposer uniquement `inspect` à Tauri. Ne donner aucune
-capability fichier générique au frontend : utiliser un dialogue natif borné et une
-commande backend qui reçoit un chemin sélectionné par l’opérateur.
+temporaire de SQLite. Réutiliser `inspect_context_package` comme frontière validée,
+puis exposer une commande d’activation séparée et idempotente. Ne pas élargir les
+capabilities du frontend : le backend reste seul responsable des écritures.

@@ -1,10 +1,12 @@
 # Rust
 /target/
+/SemanticEngine.exe
 
 # Desktop frontend
 /apps/desktop/node_modules/
 /apps/desktop/dist/
 /site/
+/skill-observations/
 
 /apps/desktop/src-tauri/gen/schemas/
 # Local build and preview logs

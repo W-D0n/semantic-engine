@@ -31,26 +31,38 @@ cd apps/desktop
 npm install
 npm run check
 npm run tauri -- build --no-bundle
+Copy-Item ..\..\target\release\semantic-engine-desktop.exe ..\..\SemanticEngine.exe -Force
 ```
 
-Sortie : `target/release/semantic-engine-desktop.exe`.
+Sortie de compilation : `target/release/semantic-engine-desktop.exe`.
+La livraison locale place aussi une copie nommée `SemanticEngine.exe` à la
+racine du dépôt : c’est le point d’entrée portable destiné à l’opérateur. Cette
+copie est un artefact généré et reste ignorée par Git.
 
 ## Interface
 
 La console suit le parcours d’une régie de direct :
 
-1. configurer le titre canonique et ses alias ;
-2. injecter un message non fiable ;
-3. lire la décision, le score, la preuve et la latence ;
-4. observer le journal éphémère de la session.
+1. sélectionner éventuellement un `datapackage.json` et contrôler son aperçu ;
+2. vérifier identité, version, licence, langues, provenance et empreinte sans
+   activer le paquet ;
+3. configurer le titre canonique et ses alias pour la manche ;
+4. injecter un message non fiable ;
+5. lire la décision, le score, la preuve et la latence ;
+6. observer le journal éphémère de la session.
 
-![Console Semantic Engine sur écran desktop](../assets/desktop-console.png)
+```mermaid
+flowchart LR
+    P["Choisir datapackage.json"] --> I["Inspection Rust"]
+    I --> V{"Format, limites et empreintes valides ?"}
+    V -- non --> R["Refus expliqué"]
+    V -- oui --> A["Aperçu non actif"]
+    A --> C["Configurer la manche"]
+    C --> D["Décision explicable"]
+```
 
-??? example "Aperçu étroit"
-
-    L’interface devient un parcours vertical sans perdre la décision principale.
-
-    ![Console Semantic Engine en largeur mobile](../assets/desktop-console-mobile.png)
+Sous 700 px, ces zones deviennent un parcours vertical dans le même ordre ;
+l’état « non actif » reste visible avant la configuration de manche.
 
 Elle ne contient volontairement ni points, ni classement, ni connexion Twitch.
 Ces consommateurs reçoivent le contrat `Validation` sans modifier le moteur.
@@ -58,8 +70,10 @@ Ces consommateurs reçoivent le contrat `Validation` sans modifier le moteur.
 ## Sécurité par défaut
 
 - politique CSP restrictive ;
-- capability Tauri limitée à `core:default` ;
-- aucun accès fichier, shell ou réseau exposé au frontend ;
+- capabilities Tauri limitées à `core:default` et `dialog:allow-open` ;
+- aucun accès générique aux fichiers, au shell ou au réseau exposé au frontend ;
+- le dialogue fournit seulement le chemin choisi ; le backend Rust canonise,
+  borne, parse et vérifie le paquet avant de retourner des métadonnées ;
 - longueur des champs bornée côté UI et dans le moteur ;
 - journal conservé en mémoire seulement pour ce premier incrément.
 
@@ -69,7 +83,7 @@ Ces consommateurs reçoivent le contrat `Validation` sans modifier le moteur.
 - signer le binaire et publier SBOM + checksums ;
 - tester sur une machine Windows propre ;
 - proposer le runtime WebView2 fixe pour le paquet hors ligne ;
-- ajouter le sélecteur graphique au mécanisme d’import de contexte déjà disponible en CLI ;
+- ajouter activation atomique, conservation de l’ancienne version et rollback ;
 - mesurer p50/p95/p99 sur le corpus cible.
 
 ## Référence Tauri
