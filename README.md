@@ -26,7 +26,7 @@ quand la réponse n’est pas assez sûre.
 - [Sécurité, safety et cadre légal](docs/product/security-and-legal.md)
 - [Ouvertures produit et marché](docs/product/market.md)
 - [Solutions et corpus existants](docs/research/existing-solutions-and-data.md)
-- [Intégration MyVault / JSONL et contrat de résolution](docs/integration/jsonl-sidecar.md)
+- [Intégration locale JSONL et contrat de résolution](docs/integration/jsonl-sidecar.md)
 - [Application portable](docs/product/portable-desktop.md)
 - [Roadmap](docs/roadmap.md)
 - [Continuité entre sessions et outils IA](docs/contributing/session-continuity.md)
@@ -48,6 +48,8 @@ quand la réponse n’est pas assez sûre.
    sont validés avant usage.
 6. **Ouvert publiquement dès le départ** : documentation, exemples, décisions et
    critères d’acceptation font partie du produit.
+7. **Autonome par construction** : MyVault, Media Catalog, Answer Atlas et les
+   autres clients restent des ressources ou consommateurs facultatifs.
 
 ## Essai rapide
 

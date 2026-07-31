@@ -1,5 +1,19 @@
 # Handoff — Semantic Engine
 
+## Mise à jour d'architecture du 31 juillet 2026
+
+Semantic Engine est un produit autonome. MyVault, OBS, les bots et les webapps
+sont des consommateurs optionnels équivalents ; aucun n'appartient au chemin
+critique. Answer Atlas et le nouveau dépôt `C:\DEV\media-catalog` sont des
+ressources facultatives, jamais des dépendances d'exécution.
+
+Les contrats publics vivent dans `contracts/`. JSONL est le transport disponible.
+HTTP/WebSocket sera un adaptateur embarqué, opt-in, lié à `127.0.0.1` et
+désactivé par défaut. Tauri continuera d'appeler le moteur en mémoire.
+
+Lire en priorité `docs/architecture/overview.md`,
+`docs/adr/0006-autonomous-public-interface.md` et `docs/roadmap.md`.
+
 ## Objectif de la prochaine session
 
 Exporter les brouillons locaux comme une nouvelle version immuable de paquet,

@@ -1,9 +1,9 @@
 # Intégration locale JSONL
 
-La CLI expose le moteur comme un **sidecar local** : le client garde le processus
-ouvert, écrit une soumission JSON par ligne sur l’entrée standard et reçoit une
-validation JSON par ligne sur la sortie standard. Il n’y a ni réseau, ni compte,
-ni coût par requête.
+La CLI expose le moteur comme un **sidecar local générique** : tout client peut
+garder le processus ouvert, écrire une soumission JSON par ligne sur l'entrée
+standard et recevoir une validation JSON par ligne sur la sortie standard. Il
+n'y a ni réseau, ni compte, ni coût par requête.
 
 ## Essai rapide
 
@@ -12,10 +12,9 @@ Get-Content examples/submissions.jsonl |
   cargo run -q -p semantic-engine-cli -- validate --round examples/rounds/elden-ring.json
 ```
 
-La sortie contient, dans le même ordre, une acceptation, une abstention et un
-rejet. `source_sequence` demeure inchangé : le workflow appelant peut donc
-arbitrer le premier message accepté sans confondre reconnaissance et attribution
-des points.
+La sortie conserve l'ordre des entrées. `source_sequence` demeure inchangé : le
+workflow appelant peut arbitrer le premier message accepté sans confondre
+reconnaissance et attribution des points.
 
 ## Contrat
 
@@ -25,37 +24,46 @@ Les schémas stables sont dans :
 - `contracts/validation.schema.json` ;
 - `contracts/operator-resolution.schema.json`.
 
-La validation contient toujours l’identité du round, du message, du participant
-et l’ordre fourni par la source. Le moteur ne déclare jamais un vainqueur.
+La validation contient toujours l'identité du round, du message, du participant
+et l'ordre fourni par la source. Le moteur ne déclare jamais un vainqueur.
 
-L’application peut ensuite émettre une `OperatorResolution` à partir d’une
-validation conservée côté backend. Sa clé d’idempotence est
+Une application peut ensuite émettre une `OperatorResolution` à partir d'une
+validation conservée côté backend. Sa clé d'idempotence est
 `(round_id, message_id)` ; participant et ordre source sont recopiés depuis la
-preuve backend, jamais depuis la requête d’arbitrage. Un exemple versionnable se
-trouve dans `examples/operator-resolution.json`.
+preuve backend, jamais depuis une requête d'arbitrage non fiable.
 
 ```mermaid
 flowchart LR
-    A["Twitch / YouTube / WebSocket"] --> B["Adaptateur MyVault"]
+    A["Twitch / YouTube / fichier / WebSocket"] --> B["Adaptateur du client"]
     B -->|"Submission JSONL"| C["semantic-engine-cli"]
     C -->|"Validation JSONL"| B
-    B --> D["Arbitre premier accepté"]
-    D --> E["Points / gagnant / scoreboard"]
+    B --> D["Workflow externe"]
+    D --> E["Points / gagnant / overlay"]
 ```
 
-## Intégration MyVault
+## Propriété de l'adaptateur
 
-MyVault possède déjà un bus d’événements typé et une couche WebSocket. Un
-adaptateur peut démarrer le sidecar une fois, traduire les messages du chat en
-`Submission`, puis republier chaque `Validation` sur ce bus. Cette frontière
-évite de coupler le moteur au modèle de score du jeu.
+L'adaptateur spécifique appartient au client ou à un dépôt d'intégration séparé.
+Semantic Engine ne doit importer ni son bus d'événements, ni ses types, ni ses
+règles de score. Cette direction de dépendance garantit que l'application
+portable reste complète quand aucun client externe n'est présent.
 
-Pour une webapp distante, trois modes conservent le même contrat :
+MyVault peut, par exemple, démarrer le sidecar, traduire ses messages de chat en
+`Submission`, puis republier les `Validation` sur son propre bus. Il s'agit
+d'un exemple de consommation, sans statut privilégié dans l'architecture.
 
-1. sidecar lancé par le serveur MyVault ;
-2. microservice Rust exposant le même appel ;
-3. bibliothèque compilée en WebAssembly lorsque les contraintes navigateur le
-   justifient.
+## Évolution vers HTTP/WebSocket
 
-Le mode 1 est prioritaire pour le prototype : faible latence, aucun port réseau
-à sécuriser et diagnostic simple.
+Le sidecar JSONL est le transport public disponible aujourd'hui. Le futur
+adaptateur HTTP/WebSocket local exposera les mêmes concepts et les mêmes schémas.
+Un client pourra donc changer de transport sans déplacer la reconnaissance ou le
+scoreboard.
+
+Trois modes resteront possibles :
+
+1. sidecar lancé par un client local ;
+2. passerelle loopback activée explicitement dans l'application portable ;
+3. hôte headless ou microservice lorsqu'un déploiement distant le justifie.
+
+Le mode JSONL demeure pertinent pour les prototypes : faible latence, aucun port
+réseau à sécuriser et diagnostic simple.

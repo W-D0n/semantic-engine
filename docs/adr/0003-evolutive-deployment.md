@@ -6,9 +6,9 @@
 ## Contexte
 
 Le produit doit d’abord être facile à lancer en local et réactif pendant un
-live. Il doit aussi pouvoir être appelé par MyVault, évoluer vers plusieurs
-sources et soutenir une offre hébergée. Rust et les microservices ne sont donc
-pas hors périmètre.
+live. Il doit aussi pouvoir être appelé par des clients indépendants, évoluer
+vers plusieurs sources et soutenir une offre hébergée. Rust et les microservices
+ne sont donc pas hors périmètre.
 
 ## Décision
 
@@ -17,7 +17,7 @@ scoreboard. Trois façades partagent les mêmes types `Round`, `Submission` et
 `Validation` :
 
 1. appel embarqué dans Tauri ;
-2. sidecar JSONL pour MyVault et l’automatisation locale ;
+2. sidecar JSONL pour les clients et l’automatisation locale ;
 3. service réseau futur lorsque le déploiement l’exige.
 
 Le premier livrable est un **monolithe modulaire déployé localement**, pas parce
@@ -38,8 +38,8 @@ Un microservice devient justifié si au moins une condition mesurée apparaît :
 
 - Rust est le runtime principal du moteur et des façades natives.
 - Tauri appelle la bibliothèque en mémoire, sans HTTP loopback.
-- MyVault peut utiliser le sidecar dès maintenant, puis une API sans changer son
-  modèle d’événement.
+- Tout client peut utiliser le sidecar dès maintenant, puis l’adaptateur réseau
+  sans changer les concepts du contrat.
 - Le service futur doit préserver les schémas versionnés et l’idempotence.
 - La frontière réseau ajoutera authentification, rate limiting, TLS, audit et
   politiques de rétention ; elle ne sera pas simulée prématurément.

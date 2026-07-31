@@ -1,89 +1,159 @@
-# Architecture modulaire
+# Architecture autonome et modulaire
 
-Le moteur est un module profond : une petite interface cache normalisation,
-candidats, scores, calibration, abstention et mémoire. Les plateformes restent
-dans des adaptateurs.
+Semantic Engine est un produit autonome. L'application portable contient le
+moteur, l'interface opérateur, le stockage local et les outils de gestion des
+paquets de contexte. Aucun autre projet, catalogue ou service distant n'est
+nécessaire pour créer un contexte, reconnaître une réponse ou arbitrer une
+décision.
 
 ```mermaid
 flowchart TB
-    subgraph Sources["Adaptateurs de source"]
-        CLI["Terminal"]
-        WEB["Webhook"]
-        TW["Twitch EventSub"]
-        YT["YouTube Live Chat"]
+    subgraph Product["Semantic Engine portable"]
+        UI["Interface opérateur"] --> HOST["Module d'application"]
+        HOST --> CORE["Moteur de reconnaissance"]
+        HOST <--> STORE["SQLite local"]
+        HOST <--> PACKS["Paquets de contexte"]
     end
-    subgraph Control["Plan de contrôle"]
-        REST["API HTTP"]
-        UI["Interface opérateur"]
-        AUTH["Auth et secrets"]
+    subgraph Inputs["Adaptateurs de source optionnels"]
+        MANUAL["Saisie manuelle"]
+        TWITCH["Twitch"]
+        YOUTUBE["YouTube"]
     end
-    subgraph Core["Moteur"]
-        CONTRACT["recognize<br/>feedback"] --> PIPE["Pipeline hybride"] --> POLICY["Décision"]
+    subgraph Public["Transports publics optionnels"]
+        JSONL["Sidecar JSONL"]
+        HTTP["HTTP / WebSocket local"]
     end
-    Sources --> REST --> CONTRACT
-    UI --> REST
-    AUTH --> REST
-    PIPE <--> STORE["SQLite"]
-    PIPE <--> EMB["Embeddings optionnels"]
+    subgraph Consumers["Consommateurs externes"]
+        WEBAPP["Webapp"]
+        BOT["Bot / OBS"]
+        MYVAULT["MyVault"]
+    end
+    MANUAL --> HOST
+    TWITCH --> HOST
+    YOUTUBE --> HOST
+    JSONL --> HOST
+    HTTP --> HOST
+    WEBAPP --> HTTP
+    BOT --> JSONL
+    MYVAULT --> JSONL
+    ATLAS["Answer Atlas"] -.->|"paquet facultatif"| PACKS
+    CATALOG["Media Catalog"] -.->|"aide à l'édition facultative"| PACKS
 ```
 
-## Interface
+Les flèches de dépendance vont vers Semantic Engine. Le moteur n'importe aucun
+type, code ou identifiant d'un consommateur externe.
+
+## Modules et interfaces
+
+Le moteur est un module profond : une petite interface cache normalisation,
+sélection des candidats, scores, calibration, abstention et mémoire.
 
 ```text
 recognize(request) -> RecognitionResult
 feedback(correction) -> FeedbackReceipt
 ```
 
-Une correction n’entraîne rien silencieusement : elle crée une version révocable.
-OAuth, webhooks et affichage restent hors de cette interface.
+Une correction n'entraîne rien silencieusement : elle crée une version révocable.
+OAuth, transport réseau, webhooks, score et affichage restent hors de cette
+interface.
 
 | Module | Responsabilité | Ignore |
 |---|---|---|
-| `engine` | reconnaître, s’abstenir, expliquer | Twitch, HTTP, utilisateurs |
-| `context` | valider et versionner les sens | transport |
-| `memory` | cache et exemples validés | règles plateforme |
-| `source` | enveloppe d’entrée canonique | algorithmes |
-| `control-plane` | configurer, autoriser, superviser | détails des scores |
+| `semantic-engine-core` | reconnaître, s'abstenir, expliquer | Tauri, HTTP, Twitch, utilisateurs |
+| `semantic-engine-package` | vérifier et importer un paquet | sessions et transports |
+| `semantic-engine-context-store` | versions, activation, brouillons et rollback | plateformes externes |
+| module d'application | sessions, audit et orchestration des modules | règles métier des consommateurs |
+| adaptateur de transport | traduire IPC, JSONL ou HTTP vers l'interface commune | algorithmes de reconnaissance |
+| adaptateur de source | traduire une plateforme vers `Submission` | score et victoire |
 
-## Socle recommandé
+## Où se situe l'interface publique ?
 
-Rust porte le moteur, ses contrats et le chemin critique. Tauri 2 fournit
-l’application portable, avec une interface web réutilisable dans le navigateur.
-SQLite conserve contextes et mémoire locale.
+Elle appartient à ce dépôt et se compose de trois niveaux :
 
-Le premier déploiement est un monolithe modulaire embarqué : moins de latence,
-moins de processus et un dossier portable. Les mêmes interfaces permettent de
-déplacer ensuite le moteur dans un sidecar, un processus local ou un microservice.
-Rust et l’architecture de services sont donc dans la cible ; seul le découpage
-distribué avant preuve de besoin est différé.
+1. `contracts/` contient les schémas JSON versionnés qui forment le contrat
+   indépendant du langage ;
+2. la CLI expose aujourd'hui ce contrat par un sidecar JSONL local ;
+3. un futur adaptateur `semantic-engine-http` exposera le même contrat en HTTP
+   et WebSocket, sans déplacer la logique hors du produit.
 
-Sur Windows, un dossier portable peut utiliser WebView2 système ou embarquer un
-runtime fixe pour un vrai mode hors ligne. Le package x64 actuellement vérifié
-pèse environ 690 Mo extrait ; cette taille doit être mesurée à chaque version.
+Dans l'application portable, l'adaptateur réseau sera embarqué dans le même
+exécutable et désactivé par défaut. Quand l'opérateur l'active, il écoute
+uniquement sur `127.0.0.1`, avec un jeton local, des origines autorisées
+explicitement, des limites de débit et un journal d'audit. « Publique » signifie
+ici documentée, stable et utilisable par tout client ; cela ne signifie pas
+exposée publiquement sur Internet.
+
+Un binaire headless pourra plus tard héberger le même adaptateur. Une exposition
+LAN ou Internet exigera une configuration explicite, TLS, une authentification
+adaptée et les protections décrites dans la documentation de sécurité.
+
+L'interface réseau initiale doit rester petite :
+
+- créer, consulter et terminer une session ;
+- charger une version de contexte dans une session ;
+- soumettre un message et obtenir sa validation ;
+- enregistrer une résolution opérateur ;
+- suivre les événements de session ;
+- vérifier santé, version et compatibilité du contrat.
+
+Les endpoints précis seront figés par tests de contrat avant implémentation.
+
+## Modes d'utilisation
+
+| Mode | Processus | Réseau | Usage |
+|---|---:|---:|---|
+| application portable | 1 | aucun par défaut | produit complet pour l'opérateur |
+| sidecar JSONL | 1 enfant | non | automatisation locale et intégration immédiate |
+| passerelle loopback | 1 | `127.0.0.1` opt-in | webapps et outils locaux |
+| serveur headless | 1 ou plusieurs | explicite | hébergement ou offre de service future |
+
+Tauri appelle le module d'application en mémoire. Il ne doit jamais dépendre de
+sa propre passerelle HTTP pour fonctionner.
+
+## Ressources externes
+
+- Answer Atlas est un fournisseur facultatif de paquets diffusables. Un paquet
+  entièrement créé dans l'application reste un cas de premier rang.
+- Media Catalog est une source facultative de métadonnées et de titres localisés
+  pendant la préparation d'un paquet. Il n'est jamais interrogé sur le chemin
+  temps réel d'une validation.
+- MyVault, OBS, les bots et les webapps sont des consommateurs optionnels des
+  interfaces publiques. Leur indisponibilité ne dégrade pas le produit autonome.
+
+## Socle et évolution
+
+Rust porte le moteur, les contrats et le chemin critique. Tauri 2 fournit
+l'application portable, avec une interface web embarquée. SQLite conserve les
+contextes, les brouillons, la mémoire locale et l'audit.
+
+Le premier déploiement reste un monolithe modulaire : moins de latence, moins de
+processus et un dossier portable. Les mêmes interfaces permettent ensuite de
+déplacer un adaptateur dans un sidecar ou un microservice si un besoin mesuré le
+justifie.
+
+L'arborescence ne doit évoluer que lorsqu'un premier code la traverse :
+
+```text
+crates/
+  semantic-engine-core/
+  semantic-engine-package/
+  semantic-engine-context-store/
+  semantic-engine-service/       # futur module d'application
+  semantic-engine-http/          # futur adaptateur HTTP/WebSocket
+apps/
+  desktop/
+  semantic-engine-cli/
+  semantic-engine-server/        # futur hôte headless
+contracts/
+tests/
+```
+
+Éviter les modules `utils` ou `common`, les squelettes vides et tout adaptateur
+nommé d'après un consommateur particulier dans le cœur du produit.
 
 ## Validation réutilisable
 
 Le moteur ne compte pas les points. Il produit un événement idempotent contenant
 `round_id`, `message_id`, `participant_id`, ordre source, décision, cible reconnue,
-confiance, indices et temps de traitement. MyVault ou un autre workflow peut alors
+confiance, indices et temps de traitement. Tout workflow externe peut ensuite
 attribuer exactement une fois le point à la première acceptation.
-
-## Arborescence cible
-
-```text
-crates/{semantic-engine-core,semantic-engine-service}
-apps/{desktop,cli}
-contracts/
-tests/{corpus,contract}
-```
-
-Ne créer ces dossiers qu’avec du code traversant. Éviter `utils`, `common` et les
-squelettes vides.
-
-## API envisagée
-
-- `POST/PUT /v1/contexts`
-- `POST /v1/recognitions`
-- `POST /v1/corrections`
-- `POST/DELETE /v1/source-connections`
-- `GET /v1/health` et `/v1/metrics`

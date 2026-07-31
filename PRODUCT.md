@@ -25,9 +25,9 @@ explicable, prudent et portable, plutôt qu’un chatbot ou un LLM distant gén�
 
 ## Operating Context
 
-Application Tauri portable pendant un live Twitch, utilisable seule ou pilotée
-par une webapp telle que `C:\DEV\vault-workspace\myvault`. Les messages arrivent
-en rafale ; l’ordre, la déduplication et l’idempotence sont critiques.
+Application Tauri portable pendant un live Twitch, complète sans autre projet et
+pilotable facultativement par n’importe quel client via ses contrats publics. Les
+messages arrivent en rafale ; l’ordre, la déduplication et l’idempotence sont critiques.
 
 ## Capabilities and Constraints
 
@@ -35,7 +35,8 @@ en rafale ; l’ordre, la déduplication et l’idempotence sont critiques.
 - Accepter titres VO/VF et alias configurés.
 - Répondre assez vite pour arbitrer le premier participant.
 - Fonctionner hors ligne sans installation obligatoire ni compte cloud.
-- Exposer un contrat stable à Tauri, HTTP/WebSocket et futurs microservices.
+- Exposer des contrats stables à Tauri, JSONL, HTTP/WebSocket et futurs microservices.
+- Ne dépendre d’aucun consommateur, catalogue ou dépôt de données externe.
 - Rust, Tauri et une évolution en services font partie de la cible.
 - Scoreboard et règles de victoire restent des consommateurs externes.
 - Choix de licence et stratégie exacte de modèle sémantique encore ouverts.
@@ -43,8 +44,8 @@ en rafale ; l’ordre, la déduplication et l’idempotence sont critiques.
 ## Evidence on Hand
 
 - Catalogue local de 1 207 jeux dans `myvault-games-import.json`.
-- MyVault possède déjà SvelteKit, un EventBus typé, WebSocket, Twitch EventSub,
-  workflows et une primitive Levenshtein.
+- Des clients externes peuvent déjà fournir chat, workflows et scoreboard, mais
+  aucun n’appartient au chemin critique du produit.
 - Aucun benchmark réel de messages Twitch n’est encore disponible.
 
 ## Product Principles

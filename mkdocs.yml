@@ -28,7 +28,7 @@ nav:
       - Vue d’ensemble: architecture/overview.md
       - Pipeline: architecture/recognition-pipeline.md
   - Intégration:
-      - Sidecar JSONL et MyVault: integration/jsonl-sidecar.md
+      - Sidecar JSONL générique: integration/jsonl-sidecar.md
       - Paquets de contexte: integration/context-packages.md
   - Recherche:
       - Solutions et données existantes: research/existing-solutions-and-data.md
@@ -42,3 +42,4 @@ nav:
       - Déploiement évolutif: adr/0003-evolutive-deployment.md
       - Paquets Data Package: adr/0004-context-data-package.md
       - Brouillons locaux et décision opérateur: adr/0005-local-context-drafts.md
+      - Produit autonome et interface publique: adr/0006-autonomous-public-interface.md
