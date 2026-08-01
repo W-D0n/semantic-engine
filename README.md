@@ -7,7 +7,8 @@ formulations proches comprises.
 > État actuel : moteur Rust, CLI JSONL et client Tauri portable hors ligne avec
 > inspection/rollback des paquets, tuning local des titres, export de versions,
 > arbitrage opérateur, audit SQLite à rétention bornée et service d’application
-> avec déduplication/cache TTL-LRU.
+> avec déduplication/cache TTL-LRU, API locale opt-in et source Twitch EventSub
+> protégée par le coffre natif du système.
 > Le corpus contractuel couvre 84 titres et 28 cas de validation.
 
 ## Pourquoi ce projet
@@ -29,6 +30,7 @@ quand la réponse n’est pas assez sûre.
 - [Ouvertures produit et marché](docs/product/market.md)
 - [Solutions et corpus existants](docs/research/existing-solutions-and-data.md)
 - [Intégration locale JSONL et contrat de résolution](docs/integration/jsonl-sidecar.md)
+- [Connecter Twitch](docs/integration/twitch.md)
 - [Application portable](docs/product/portable-desktop.md)
 - [Audit local et confidentialité](docs/product/audit.md)
 - [Performance et benchmark](docs/product/performance.md)
@@ -98,6 +100,12 @@ décision du moteur. Voir le [guide portable](docs/product/portable-desktop.md).
 Les huit dernières validations sont relues au redémarrage depuis un audit local :
 le texte brut du chat n’y est jamais enregistré et l’opérateur peut purger le
 journal depuis l’application.
+
+La section **Sources de chat** ajoute Twitch par Device Code Grant : saisir le
+Client ID public d’une application Twitch, autoriser le compte, tester puis
+cliquer **Écouter**. Les réponses live utilisent la même session et le même
+panneau d’arbitrage ; les jetons restent dans le coffre du système et le texte du
+chat n’est pas persisté. Voir le [guide Twitch](docs/integration/twitch.md).
 
 Le catalogue public de titres vit dans
 [Answer Atlas](https://github.com/W-D0n/answer-atlas). Son paquet

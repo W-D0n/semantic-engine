@@ -262,6 +262,8 @@ mod tests {
             include_str!("../../../contracts/operator-resolution-request.schema.json"),
             include_str!("../../../contracts/protocol-request.schema.json"),
             include_str!("../../../contracts/protocol-response.schema.json"),
+            include_str!("../../../contracts/input-source.schema.json"),
+            include_str!("../../../contracts/source-message.schema.json"),
         ];
         for schema in schemas {
             let parsed: Value = serde_json::from_str(schema).expect("schema must be valid JSON");

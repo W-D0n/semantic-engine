@@ -5,6 +5,7 @@
   import ArbitrationPanel from './lib/ArbitrationPanel.svelte';
   import ContextWorkshop from './lib/ContextWorkshop.svelte';
   import LoopbackPanel from './lib/LoopbackPanel.svelte';
+  import SourcePanel from './lib/SourcePanel.svelte';
   import type {
     AuditEntry,
     ContextPackagePreview,
@@ -14,6 +15,8 @@
     ResumableSession,
     Round,
     SessionSnapshot,
+    SessionEventsPage,
+    SourceView,
     TargetRecord,
     Validation,
   } from './lib/contracts';
@@ -60,6 +63,8 @@
   let sessionSnapshot = $state<SessionSnapshot | null>(null);
   let sessionDefinitionKey = '';
   let sessionBusy = $state(false);
+  let sessionEventsBusy = false;
+  let lastSessionEventSequence = 0;
 
   const inTauri = '__TAURI_INTERNALS__' in window;
   const contextBusy = $derived(contextOperation !== 'idle');
@@ -105,6 +110,7 @@
     }
 
     if (sessionSnapshot?.state === 'active') {
+      await pauseSourcesForSession(sessionId);
       sessionSnapshot = await invoke<SessionSnapshot>('end_session_ipc', { sessionId });
     }
 
@@ -119,8 +125,15 @@
     });
     sessionId = nextSessionId;
     sessionSnapshot = snapshot;
+    lastRound = round;
+    lastSessionEventSequence = snapshot.latest_event_sequence;
     sessionDefinitionKey = definitionKey;
     return round;
+  }
+
+  async function ensureSessionForSource() {
+    await ensureSession();
+    return sessionId;
   }
 
   async function runValidation() {
@@ -162,6 +175,7 @@
     sessionBusy = true;
     error = '';
     try {
+      await pauseSourcesForSession(sessionId);
       sessionSnapshot = await invoke<SessionSnapshot>('end_session_ipc', { sessionId });
     } catch (cause) {
       error = `Impossible de terminer la session : ${cause instanceof Error ? cause.message : String(cause)}`;
@@ -170,10 +184,25 @@
     }
   }
 
+  async function pauseSourcesForSession(activeSessionId: string) {
+    const sources = await invoke<SourceView[]>('list_sources_ipc');
+    for (const source of sources) {
+      if (source.desired_state === 'active' && source.runtime.session_id === activeSessionId) {
+        await invoke<SourceView>('stop_source_ipc', { sourceId: source.source_id });
+      }
+    }
+  }
+
   onMount(() => {
     if (inTauri) {
       void restoreApplicationState();
       void loadAudit();
+      const eventsTimer = window.setInterval(() => void pollSessionEvents(), 750);
+      const auditTimer = window.setInterval(() => void loadAudit(), 4_000);
+      return () => {
+        window.clearInterval(eventsTimer);
+        window.clearInterval(auditTimer);
+      };
     }
   });
 
@@ -187,12 +216,67 @@
       aliases = target.aliases.join('\n');
       sessionId = resumable.snapshot.session_id;
       sessionSnapshot = resumable.snapshot;
+      lastRound = resumable.round;
+      lastSessionEventSequence = resumable.snapshot.latest_event_sequence;
       sequence = resumable.next_source_sequence;
       sessionDefinitionKey = currentSessionDefinitionKey(
         resumable.snapshot.context_package_sha256,
       );
     } catch (cause) {
       error = `Impossible de reprendre la session active : ${cause instanceof Error ? cause.message : String(cause)}`;
+    }
+  }
+
+  async function pollSessionEvents() {
+    if (!inTauri || sessionEventsBusy || sessionSnapshot?.state !== 'active') return;
+    sessionEventsBusy = true;
+    try {
+      const page = await invoke<SessionEventsPage>('session_events_ipc', {
+        sessionId,
+        afterSequence: lastSessionEventSequence,
+        limit: 100,
+      });
+      if (page.truncated) {
+        lastSessionEventSequence = Math.max(0, page.earliest_available_sequence - 1);
+        return;
+      }
+      for (const event of page.events) {
+        lastSessionEventSequence = Math.max(lastSessionEventSequence, event.sequence);
+        if (event.type === 'validation_recorded') {
+          const validation = event.payload;
+          const item: HistoryItem = {
+            round_id: validation.round_id,
+            message_id: validation.message_id,
+            participant_id: validation.participant_id,
+            source_sequence: validation.source_sequence,
+            decision: validation.decision,
+            target_id: validation.target_id,
+            score: validation.score,
+            evidence: validation.evidence_kinds.map((kind) => ({ kind, matched_expression: '' })),
+            issue: validation.issue ?? undefined,
+            input: 'Entrée live non conservée',
+            latency: 0,
+            persisted: true,
+          };
+          if (!item.message_id.startsWith('desktop-')) {
+            result = item;
+            history = [item, ...history.filter((entry) => entry.message_id !== item.message_id)].slice(0, 8);
+          }
+        } else if (event.type === 'resolution_recorded') {
+          if (result?.message_id === event.payload.message_id) {
+            result = { ...result, resolution: event.payload };
+          }
+        } else if (event.type === 'session_ended' && sessionSnapshot) {
+          sessionSnapshot = { ...sessionSnapshot, state: 'ended' };
+        }
+      }
+      if (sessionSnapshot) {
+        sessionSnapshot = { ...sessionSnapshot, latest_event_sequence: page.latest_sequence };
+      }
+    } catch (cause) {
+      error = `Impossible de suivre les événements live : ${cause instanceof Error ? cause.message : String(cause)}`;
+    } finally {
+      sessionEventsBusy = false;
     }
   }
 
@@ -619,5 +703,6 @@
     {/if}
   </section>
 
+  <SourcePanel {inTauri} onEnsureSession={ensureSessionForSource} />
   <LoopbackPanel {inTauri} />
 </main>

@@ -32,6 +32,7 @@ nav:
   - Intégration:
       - Sidecar JSONL générique: integration/jsonl-sidecar.md
       - API locale HTTP et WebSocket: integration/loopback-api.md
+      - Chat Twitch: integration/twitch.md
       - Paquets de contexte: integration/context-packages.md
   - Recherche:
       - Solutions et données existantes: research/existing-solutions-and-data.md
@@ -49,3 +50,4 @@ nav:
       - Audit minimisé et persistant: adr/0007-privacy-minimized-audit.md
       - Service d’application et cache borné: adr/0008-application-service-cache.md
       - Cycle de session et événements: adr/0009-session-cycle-and-events.md
+      - Coffre natif et OAuth Twitch: adr/0010-native-vault-and-twitch-device-flow.md

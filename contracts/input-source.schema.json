@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:semantic-engine:schema:input-source:1",
+  "title": "Semantic Engine input source",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "source_id",
+    "adapter",
+    "display_name",
+    "settings",
+    "credential_id",
+    "desired_state",
+    "revision",
+    "created_at_ms",
+    "updated_at_ms"
+  ],
+  "properties": {
+    "contract_version": { "const": 1 },
+    "source_id": { "$ref": "#/$defs/identifier" },
+    "adapter": { "$ref": "#/$defs/identifier" },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "settings": {
+      "type": "object",
+      "description": "Public adapter settings only. Tokens, passwords, cookies, authorization values and private keys are forbidden.",
+      "maxProperties": 32,
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": { "type": "string", "maxLength": 512 }
+    },
+    "credential_id": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/identifier" }
+      ]
+    },
+    "desired_state": { "enum": ["paused", "active"] },
+    "revision": { "type": "integer", "minimum": 1 },
+    "created_at_ms": { "type": "integer", "minimum": 0 },
+    "updated_at_ms": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$"
+    }
+  }
+}

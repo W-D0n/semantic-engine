@@ -8,18 +8,18 @@ critique. Answer Atlas et le nouveau dépôt `C:\DEV\media-catalog` sont des
 ressources facultatives, jamais des dépendances d'exécution.
 
 Les contrats publics vivent dans `contracts/`. JSONL est le transport disponible.
-HTTP/WebSocket sera un adaptateur embarqué, opt-in, lié à `127.0.0.1` et
-désactivé par défaut. Tauri continuera d'appeler le moteur en mémoire.
+HTTP/WebSocket est un adaptateur embarqué, opt-in, lié à `127.0.0.1` et
+désactivé par défaut. Tauri continue d'appeler le moteur en mémoire.
 
 Lire en priorité `docs/architecture/overview.md`,
 `docs/adr/0006-autonomous-public-interface.md` et `docs/roadmap.md`.
 
 ## Objectif de la prochaine session
 
-Construire l'interface de source générique puis l'adaptateur Twitch sur les
-contrats existants. Le cycle public v1, sa reprise SQLite, ses transports JSONL
-et loopback, ses clients Node indépendants, le cache, l’audit minimisé et
-l’export immuable sont livrés.
+Étendre le protocole public à la gestion des sources sans exposer les jetons,
+puis ajouter une séquence globale durable pour plusieurs sources. Le contrat et
+store génériques, le coffre natif, OAuth Device Code, EventSub, l’UI Twitch et
+l’arbitrage live sont livrés côté application portable.
 
 ## État au 1er août 2026
 
@@ -55,7 +55,13 @@ l’export immuable sont livrés.
   le p50 du service de 583,1 µs à 399,8 µs sur la machine de référence ;
 - portable Tauri hors ligne avec WebView2 fixe, checksums et lanceur racine ;
 - variante légère `SemanticEngine.exe` toujours disponible ;
-- Twitch, YouTube, OAuth plateforme et scoreboard ne sont pas implémentés.
+- source générique SQLite révisionnée, sans secrets dans les paramètres ;
+- coffre natif Windows/macOS/Linux avec buffers bornés, redaction et zeroization ;
+- OAuth Twitch Device Code public, scope `user:read:chat`, validation horaire et rotation ;
+- EventSub WebSocket avec reconnexion, déduplication bornée et backpressure ;
+- UI d’ajout, autorisation, test, écoute, pause et suppression Twitch ;
+- validations live visibles et arbitrables sans conserver le texte du chat ;
+- YouTube, agrégation multi-source, API publique de source et scoreboard restent à faire.
 
 ## Lire d’abord
 
@@ -77,6 +83,10 @@ l’export immuable sont livrés.
 16. `docs/product/performance.md`
 17. `crates/semantic-engine-protocol/src/lib.rs`
 18. `docs/integration/jsonl-sidecar.md`
+19. `docs/integration/twitch.md`
+20. `crates/semantic-engine-source/src/lib.rs`
+21. `crates/semantic-engine-twitch/src/lib.rs`
+22. `apps/desktop/src/lib/SourcePanel.svelte`
 
 ## Décisions à préserver
 
@@ -124,6 +134,7 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Construire l'interface générique de source et son coffre local avant Twitch. Ne
-pas réintroduire de dépendance vers MyVault/Tauri dans le transport, de texte brut
-persistant ni de règle de scoreboard.
+Ajouter les commandes de source au protocole public via un plan de contrôle
+séparé, puis centraliser l’attribution de `source_sequence` pour plusieurs
+adaptateurs. Ne pas faire transiter les jetons dans JSONL/HTTP et ne pas
+réintroduire de dépendance vers MyVault, de chat brut persistant ni de scoreboard.

@@ -67,6 +67,9 @@ interface.
 | `semantic-engine-session-store` | sessions, livraisons idempotentes et événements durables | règles de reconnaissance et texte du chat |
 | `semantic-engine-protocol` | commandes de session et réponses versionnées indépendantes du transport | stdin, HTTP, Tauri et plateformes |
 | `semantic-engine-loopback` | HTTP/WebSocket local, auth éphémère, origines et backpressure | moteur, Tauri et plateformes live |
+| `semantic-engine-source` | contrat, configuration durable et cycle pause/actif des sources | secrets et algorithmes de reconnaissance |
+| `semantic-engine-credential-vault` | interface bornée vers le coffre natif du système | SQLite, chat et logique Twitch |
+| `semantic-engine-twitch` | OAuth public, EventSub, reconnexion et traduction vers `SourceMessage` | score, victoire et contexte métier |
 | adaptateur de transport | traduire IPC, JSONL ou HTTP vers l'interface commune | algorithmes de reconnaissance |
 | adaptateur de source | traduire une plateforme vers `Submission` | score et victoire |
 
@@ -80,6 +83,11 @@ Elle appartient à ce dépôt et se compose de trois niveaux :
 3. la CLI expose ce contrat par un sidecar JSONL local ;
 4. `semantic-engine-loopback` expose le même contrat en HTTP et WebSocket, sans
    déplacer la logique hors du produit.
+
+Les contrats d’adaptateur `input-source.schema.json` et
+`source-message.schema.json` sont déjà publiés dans ce même dossier. Leur plan de
+contrôle réseau reste à raccorder : un client public ne recevra jamais la valeur
+d’un jeton, seulement l’état d’autorisation et un `credential_id` opaque.
 
 Dans l'application portable, l'adaptateur réseau sera embarqué dans le même
 exécutable et désactivé par défaut. Quand l'opérateur l'active, il écoute
@@ -149,6 +157,9 @@ crates/
   semantic-engine-service/
   semantic-engine-protocol/
   semantic-engine-loopback/      # adaptateur HTTP/WebSocket local
+  semantic-engine-source/        # contrat générique et stockage des sources
+  semantic-engine-credential-vault/
+  semantic-engine-twitch/        # adaptateur Twitch facultatif
 apps/
   desktop/
   semantic-engine-cli/

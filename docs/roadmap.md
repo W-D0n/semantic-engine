@@ -10,7 +10,8 @@ devenir nécessaire au fonctionnement de l'application portable.
 | M0 | terminé — corpus initial, contrats et décisions techniques |
 | M1 | en cours — produit portable autonome et atelier opérateur |
 | M2 | terminé — cycle v1 durable, JSONL, HTTP/WebSocket et conformité indépendante |
-| M3–M6 | planifiés, non démarrés |
+| M3 | en cours — source générique, coffre, OAuth et EventSub intégrés |
+| M4–M6 | planifiés, non démarrés |
 
 ```mermaid
 gantt
@@ -81,13 +82,17 @@ contractuelle, tandis que l'application portable fonctionne API réseau désacti
 
 ## M3 — Twitch de bout en bout
 
-- OAuth minimal et coffre local de secrets ;
-- EventSub WebSocket, reconnexion et reprise ;
-- traduction vers `Submission` sans modifier le cœur ;
-- déduplication, ordre source et backpressure ;
-- ajout, test, pause et suppression d'une source dans l'application ;
-- mesures p50/p95/p99 sur un flux réaliste ;
-- pilote privé et suppression vérifiée des données.
+- [x] OAuth Device Code minimal et coffre natif de secrets ;
+- [x] EventSub WebSocket, reconnexion Twitch et reprise après perte ;
+- [x] traduction vers `Submission` sans modifier le cœur ;
+- [x] déduplication, ordre source et backpressure ;
+- [x] ajout, test, pause et suppression d'une source dans l'application ;
+- [x] arbitrage des validations live depuis l’application ;
+- [ ] exposer la gestion des sources dans l’API publique, sans exposer les jetons ;
+- [ ] agréger plusieurs sources avec une séquence globale durable ;
+- [ ] valider avec un Client ID de distribution et un compte pilote réel ;
+- [ ] mesures p50/p95/p99 sur un flux réaliste ;
+- [ ] pilote privé et suppression vérifiée des données.
 
 **Critère de sortie** : un utilisateur non auteur connecte Twitch depuis
 l'application autonome et peut exploiter les validations via l'interface publique.
@@ -140,9 +145,9 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Construire l'interface de source générique (ajout, test, pause, suppression).
-2. Ajouter le coffre local et le flux OAuth minimal avant Twitch.
-3. Implémenter EventSub avec reconnexion, reprise et backpressure.
+1. Ajouter la gestion de sources au protocole public sans faire transiter de secret.
+2. Construire l’agrégateur d’ordre global multi-source et son test de reprise.
+3. Mesurer un flux Twitch simulé puis réaliser un pilote avec un Client ID public.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et
 consomment uniquement des contrats publics ; elles ne bloquent aucun de ces jalons.

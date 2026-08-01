@@ -16,6 +16,8 @@ use semver::Version;
 use serde::Serialize;
 use tauri::{Manager, State};
 
+mod sources;
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ContextPackagePreview {
     pub name: String,
@@ -370,6 +372,11 @@ pub fn run() {
             ));
             app.manage(Mutex::new(store));
             app.manage(service);
+            let service = app.state::<SharedService>().inner().clone();
+            app.manage(sources::SourceAppState::open(
+                data_directory.join("sources.sqlite3"),
+                service,
+            )?);
             app.manage(LoopbackRuntime(tokio::sync::Mutex::new(None)));
             Ok(())
         })
@@ -386,6 +393,14 @@ pub fn run() {
             loopback_status_ipc,
             start_loopback_ipc,
             stop_loopback_ipc,
+            sources::list_sources_ipc,
+            sources::create_twitch_source_ipc,
+            sources::begin_twitch_authorization_ipc,
+            sources::poll_twitch_authorization_ipc,
+            sources::test_twitch_source_ipc,
+            sources::start_twitch_source_ipc,
+            sources::stop_source_ipc,
+            sources::delete_source_ipc,
             inspect_context_package_ipc,
             activate_context_package_ipc,
             current_context_ipc,

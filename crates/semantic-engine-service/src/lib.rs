@@ -441,18 +441,26 @@ impl SemanticEngineService {
     }
 
     pub fn latest_active_session(&self) -> Option<ResumableSession> {
-        self.sessions.iter().rev().find(|session| session.state == SessionState::Active).map(
-            |session| ResumableSession {
-                snapshot: session_snapshot(session),
-                round: session.round.clone(),
-                next_source_sequence: session
-                    .deliveries
-                    .iter()
-                    .map(|delivery| delivery.validation.source_sequence)
-                    .max()
-                    .map_or(0, |sequence| sequence.saturating_add(1)),
-            },
-        )
+        self.sessions
+            .iter()
+            .rev()
+            .find(|session| session.state == SessionState::Active)
+            .map(resumable_session)
+    }
+
+    pub fn resumable_session(&self, session_id: &str) -> Result<ResumableSession, ServiceError> {
+        if !valid_session_identifier(session_id) {
+            return Err(ServiceError::InvalidSession);
+        }
+        let session = self
+            .sessions
+            .iter()
+            .find(|session| session.session_id == session_id)
+            .ok_or(ServiceError::SessionMissing)?;
+        if session.state == SessionState::Ended {
+            return Err(ServiceError::SessionEnded);
+        }
+        Ok(resumable_session(session))
     }
 
     pub fn submit(
@@ -695,6 +703,19 @@ impl SemanticEngineService {
             self.cache.pop_front();
             self.stats.cache_evictions = self.stats.cache_evictions.saturating_add(1);
         }
+    }
+}
+
+fn resumable_session(session: &SessionRecord) -> ResumableSession {
+    ResumableSession {
+        snapshot: session_snapshot(session),
+        round: session.round.clone(),
+        next_source_sequence: session
+            .deliveries
+            .iter()
+            .map(|delivery| delivery.validation.source_sequence)
+            .max()
+            .map_or(0, |sequence| sequence.saturating_add(1)),
     }
 }
 

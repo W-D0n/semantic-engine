@@ -14,7 +14,9 @@ Le dossier `portable/SemanticEngine` est autonome : il contient l’exécutable,
 runtime WebView2 et `SHA256SUMS.txt`. Il ne doit pas être lancé depuis un partage
 réseau ou un chemin UNC. Les données opérateur restent dans l’AppData Windows ;
 déplacer le dossier portable ne déplace donc pas le contexte actif ni les
-brouillons locaux.
+brouillons locaux. Les jetons de plateformes restent dans le coffre du compte
+Windows et ne suivent pas non plus le dossier : c’est intentionnel, une nouvelle
+machine exige une nouvelle autorisation.
 
 ## Deux distributions
 
@@ -115,6 +117,20 @@ l'interface Tauri. Elle ne peut écouter que sur `127.0.0.1`, n'autorise aucune
 origine web par défaut et reçoit une nouvelle clé à chaque activation ou
 redémarrage. L'application reste entièrement utilisable sans l'activer.
 
+## Connecter Twitch
+
+Le panneau **Sources de chat** permet d’ajouter plusieurs configurations Twitch,
+de les autoriser avec un code appareil, de tester le compte, puis d’en activer
+une pour la session courante. Aucun `client_secret` n’est demandé : seule la
+valeur publique `Client ID` de l’application Twitch est saisie.
+
+Une source active affiche son état de connexion, le nombre de messages remis au
+moteur et le nombre d’acceptations. Les validations live alimentent le panneau
+**Décision** et restent arbitrables. **Pause**, **Terminer la session** ou
+**Supprimer** arrêtent l’écoute ; la suppression retire aussi le jeton du coffre
+système. Le parcours détaillé et les limites v1 sont dans
+[Connecter un chat Twitch](../integration/twitch.md).
+
 ## Arbitrer une validation
 
 Après **Valider la réponse**, la carte conserve la décision, le score et la
@@ -140,6 +156,7 @@ journal après confirmation ; voir [Audit local et confidentialité](audit.md).
 - cible d’une acceptation opérateur obligatoirement présente dans le round ;
 - identité participant/ordre recopiée depuis la validation conservée côté backend ;
 - audit borné à 10 000 validations et 30 jours, sans texte brut du chat ;
+- paramètres de source sans secret, jetons Twitch dans le coffre OS et validation horaire ;
 - paquet publié immuable, activation transactionnelle et rollback SQLite ;
 - recherche bornée et brouillons chargés en une requête groupée ;
 - checksums de tous les fichiers de la distribution portable.
@@ -148,7 +165,8 @@ journal après confirmation ; voir [Audit local et confidentialité](audit.md).
 
 - signer les binaires et publier SBOM + checksums dans une release ;
 - automatiser le test sur une machine Windows propre ;
-- persister le journal d’arbitrage avec rétention et consentement explicites ;
+- exposer le plan de contrôle des sources dans l’API publique sans jeton ;
+- attribuer une séquence globale durable avant d’autoriser plusieurs sources live par session ;
 - mesurer p50/p95/p99 sur des corpus de 500 à 50 000 cibles.
 
 ## Références

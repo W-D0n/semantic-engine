@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:semantic-engine:schema:source-message:1",
+  "title": "Semantic Engine source message",
+  "description": "Ephemeral adapter output. The text field must not be written to source status or audit logs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "source_id",
+    "message_id",
+    "participant_id",
+    "source_sequence",
+    "text",
+    "occurred_at_ms"
+  ],
+  "properties": {
+    "source_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "message_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "participant_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "source_sequence": { "type": "integer", "minimum": 0 },
+    "text": { "type": "string", "maxLength": 1000 },
+    "occurred_at_ms": { "type": "integer", "minimum": 0 }
+  }
+}

@@ -41,6 +41,13 @@ client local. En équipe : OpenID Connect, rôles
 `viewer/operator/owner`, OAuth plateforme séparé, scopes minimaux et journal des
 changements sans contenu intégral du chat.
 
+Pour Twitch, l’application utilise un client public et le Device Code Grant :
+aucun `client_secret` n’est distribué. Access/refresh tokens vivent dans le
+coffre natif du système et leurs buffers sont masqués/effacés en mémoire. Le
+produit valide le jeton au démarrage puis toutes les 55 minutes, le renouvelle
+avant expiration, limite les hôtes OAuth/EventSub et permet de supprimer le
+jeton avec la source. Voir [Connecter un chat Twitch](../integration/twitch.md).
+
 ## Safety
 
 Une faible confiance produit une abstention. Les sanctions, paiements, diagnostics,
@@ -64,6 +71,10 @@ d’une durée adaptée à la finalité ni les obligations de la plateforme. Voi
 Twitch recommande [EventSub et Twitch API](https://dev.twitch.tv/docs/chat/) ;
 les WebSockets conviennent au local et les scopes sont détaillés dans
 [l’authentification chat](https://dev.twitch.tv/docs/chat/authenticating/).
+L’exploitant doit aussi suivre le [Developer Agreement Twitch](https://www.twitch.tv/p/en/legal/developer-agreement/),
+les changements d’API et les demandes de suppression. Twitch exige la
+[validation horaire des jetons](https://dev.twitch.tv/docs/authentication/validate-tokens/),
+contrainte appliquée par le superviseur local.
 
 YouTube propose `liveChatMessages.streamList` dans la [documentation Live
 Chat](https://developers.google.com/youtube/v3/live/docs/liveChatMessages). Ses

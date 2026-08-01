@@ -33,6 +33,39 @@ export type ResumableSession = {
   next_source_sequence: number;
 };
 
+export type SessionValidation = {
+  round_id: string;
+  message_id: string;
+  participant_id: string;
+  source_sequence: number;
+  decision: Decision;
+  target_id: string | null;
+  score: number;
+  evidence_kinds: Validation['evidence'][number]['kind'][];
+  issue: Validation['issue'] | null;
+};
+
+export type SessionEvent = {
+  contract_version: number;
+  session_id: string;
+  sequence: number;
+  occurred_at_ms: number;
+} & (
+  | { type: 'session_started'; payload: { round_id: string; context_package_sha256: string | null } }
+  | { type: 'validation_recorded'; payload: SessionValidation }
+  | { type: 'resolution_recorded'; payload: OperatorResolution }
+  | { type: 'session_ended' }
+);
+
+export type SessionEventsPage = {
+  contract_version: number;
+  session_id: string;
+  earliest_available_sequence: number;
+  latest_sequence: number;
+  truncated: boolean;
+  events: SessionEvent[];
+};
+
 export type Validation = {
   round_id: string;
   message_id: string;
@@ -124,3 +157,54 @@ export type LoopbackStatus = {
   protocol_version: number;
   allowed_origins: string[];
 };
+
+export type SourceDesiredState = 'paused' | 'active';
+export type SourceRuntimeState =
+  | 'paused'
+  | 'authentication_required'
+  | 'connecting'
+  | 'connected'
+  | 'backoff'
+  | 'faulted';
+
+export type SourceRuntimeSnapshot = {
+  state: SourceRuntimeState | null;
+  detail: string | null;
+  session_id: string | null;
+  messages_received: number;
+  accepted: number;
+  last_event_at_ms: number | null;
+};
+
+export type SourceView = {
+  contract_version: number;
+  source_id: string;
+  adapter: string;
+  display_name: string;
+  settings: Record<string, string>;
+  credential_id: string | null;
+  desired_state: SourceDesiredState;
+  revision: number;
+  created_at_ms: number;
+  updated_at_ms: number;
+  runtime: SourceRuntimeSnapshot;
+  authenticated: boolean;
+};
+
+export type DeviceAuthorizationPrompt = {
+  user_code: string;
+  verification_uri: string;
+  expires_at_ms: number;
+  poll_interval_seconds: number;
+};
+
+export type TwitchSourceTest = {
+  login: string;
+  user_id: string;
+  expires_in_seconds: number;
+};
+
+export type TwitchAuthorizationStatus =
+  | { status: 'pending'; prompt: DeviceAuthorizationPrompt }
+  | { status: 'slow_down'; prompt: DeviceAuthorizationPrompt }
+  | { status: 'authorized'; source: SourceView; identity: TwitchSourceTest };
