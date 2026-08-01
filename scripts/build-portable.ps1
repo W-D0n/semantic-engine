@@ -202,12 +202,12 @@ WebView2. Source officielle : $($runtimeLock.source)
     New-Item -ItemType Directory -Force -Path (Split-Path $outputPath) | Out-Null
     Move-Item -LiteralPath $packageStaging -Destination $outputPath
 
-    if ($null -eq $previousTauriConfig) {
-        Remove-Item Env:\TAURI_CONFIG -ErrorAction SilentlyContinue
+    $lightweightConfig = @{
+        build = @{
+            frontendDist = (Join-Path $frontendBuild 'dist')
+        }
     }
-    else {
-        $env:TAURI_CONFIG = $previousTauriConfig
-    }
+    $env:TAURI_CONFIG = $lightweightConfig | ConvertTo-Json -Depth 20 -Compress
     Push-Location $repoRoot
     try {
         & cargo.exe build --locked --release -p semantic-engine-desktop

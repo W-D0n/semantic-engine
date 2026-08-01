@@ -25,4 +25,9 @@ et les versions suivent SemVer.
 - entrées bornées et non fiables, secrets hors SQLite/UI/logs, bind loopback
   imposé, Bearer éphémère, origines exactes et backpressure.
 
+### Fixed
+
+- les deux variantes Windows utilisent le frontend isolé produit par le build
+  portable et ne dépendent plus d’un ancien `apps/desktop/dist` local.
+
 [Unreleased]: https://github.com/W-D0n/semantic-engine/compare/v0.1.0...HEAD
