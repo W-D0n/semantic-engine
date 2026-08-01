@@ -16,7 +16,9 @@ flowchart LR
     Adapter -.->|"jetons uniquement"| Vault["Coffre du système"]
 ```
 
-Le premier lot de messages sert de baseline et n’est pas soumis au moteur : une
+Le flux serveur officiel `streamList` gRPC transporte les messages ; REST sert
+uniquement à découvrir l’identifiant du chat actif. Le premier lot gRPC sert de
+baseline et n’est pas soumis au moteur : une
 réponse envoyée avant le démarrage du round ne peut donc pas gagner. Les lots
 suivants sont dédupliqués dans une fenêtre mémoire bornée, ordonnés avec les
 autres sources, puis oubliés après validation. Aucun chat brut n’est conservé.
@@ -75,8 +77,11 @@ restent obligatoires. Aucune réponse publique ne contient de jeton.
 
 ## Limites et conformité
 
-- Le transport actuel attend au moins `pollingIntervalMillis`; le passage au RPC gRPC
-  `streamList` est la prochaine optimisation réseau faible latence.
+- Le transport utilise `streamList` gRPC. Le page token est enregistré dans la
+  base locale seulement après traitement du lot, puis réutilisé après une coupure
+  ou un redémarrage. Les erreurs transitoires sont temporisées par un backoff
+  exponentiel plafonné ; une fin de live passe proprement la source en pause. Une
+  mesure avec un live YouTube réel reste nécessaire pour publier p50/p95/p99 réseau.
 - YouTube limite la conservation et interdit plusieurs formes de données
   dérivées ou de fusion inter-plateformes. Les scores/verdicts doivent rester
   désactivables et documentés dans la demande d’audit de conformité.

@@ -11,7 +11,7 @@ devenir nécessaire au fonctionnement de l'application portable.
 | M1 | en cours — produit portable autonome et atelier opérateur |
 | M2 | terminé — cycle v1 durable, JSONL, HTTP/WebSocket et conformité indépendante |
 | M3 | en cours — source générique, coffre, OAuth et EventSub intégrés |
-| M4 | en cours — YouTube Live vertical intégré, transport gRPC et conformité à finaliser |
+| M4 | en cours — YouTube Live vertical et gRPC intégrés, conformité/qualité à finaliser |
 | M5–M6 | planifiés, non démarrés |
 
 ```mermaid
@@ -106,7 +106,11 @@ l'application autonome et peut exploiter les validations via l'interface publiqu
 - alimenter une mémoire uniquement depuis des corrections validées ;
 - appliquer provenance, consentement, rollback, TTL/LRU et quotas ;
 - [x] ajouter YouTube Live Chat avec les mêmes contrats de source, OAuth PKCE, coffre, API et UI ;
-- [ ] remplacer le polling conseillé par `streamList` gRPC et mesurer la latence réelle ;
+- [x] remplacer le polling REST par `streamList` gRPC avec checkpoint de curseur
+  durable, reprise après redémarrage et rebaseline observable si le curseur est refusé ;
+- [ ] mesurer la latence p50/p95/p99 sur un live YouTube réel ;
+- [ ] découvrir les lives de la chaîne connectée et arbitrer les ambiguïtés ;
+- [ ] exposer états quota/auth typés et audit de révocation/purge ;
 - [ ] faire valider le workflow verdict/points via YouTube API Compliance Audit avant ouverture commerciale ;
 - valider le comportement avec et sans fonctionnalités avancées.
 

@@ -604,6 +604,7 @@ pub async fn start_twitch_source(
         source_id.clone(),
         session_id.clone(),
         events,
+        state.store.clone(),
         state.service.clone(),
         state.runtime.clone(),
         state.global_sequences.clone(),
@@ -683,6 +684,10 @@ pub async fn start_youtube_source(
         move |service| service.resumable_session(&session_id)
     })
     .await?;
+    let checkpoint_source_id = source_id.clone();
+    let resume_checkpoint =
+        execute_store(&state.store, move |store| store.load_checkpoint(&checkpoint_source_id))
+            .await?;
     state
         .global_sequences
         .lock()
@@ -705,6 +710,7 @@ pub async fn start_youtube_source(
             source_id: source_id.clone(),
             video_id,
             next_source_sequence: resumable.next_source_sequence,
+            resume_checkpoint,
         };
         tokio::spawn(async move {
             if run_youtube_supervisor(
@@ -729,6 +735,7 @@ pub async fn start_youtube_source(
         source_id.clone(),
         session_id.clone(),
         events,
+        state.store.clone(),
         state.service.clone(),
         state.runtime.clone(),
         state.global_sequences.clone(),
@@ -795,6 +802,23 @@ async fn run_youtube_supervisor(
                     Ok(()) => continue,
                     Err(semantic_engine_youtube::YouTubeError::Api { status: 401, .. }) => {
                         force_refresh = true;
+                    }
+                    Err(semantic_engine_youtube::YouTubeError::LiveEnded) => return Ok(()),
+                    Err(semantic_engine_youtube::YouTubeError::QuotaExhausted) => {
+                        let _ = output.try_send(SourceAdapterEvent::Fault {
+                            source_id: config.source_id.clone(),
+                            code: "youtube_quota_exhausted".to_owned(),
+                            retryable: false,
+                        });
+                        return Ok(());
+                    }
+                    Err(semantic_engine_youtube::YouTubeError::Api { status: 403, .. }) => {
+                        let _ = output.try_send(SourceAdapterEvent::Fault {
+                            source_id: config.source_id.clone(),
+                            code: "youtube_permission_denied".to_owned(),
+                            retryable: false,
+                        });
+                        return Ok(());
                     }
                     Err(semantic_engine_youtube::YouTubeError::Transport(_))
                     | Err(semantic_engine_youtube::YouTubeError::Api { status: 429 | 500..=599, .. }) => {
@@ -971,10 +995,12 @@ async fn pump_source_events(
     source_id: String,
     session_id: String,
     mut events: mpsc::Receiver<SourceAdapterEvent>,
+    store: Arc<Mutex<SourceStore>>,
     service: SharedService,
     runtime: Arc<RwLock<HashMap<String, RuntimeSnapshot>>>,
     global_sequences: Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
 ) {
+    let mut checkpoint_safe = true;
     while let Some(event) = events.recv().await {
         match event {
             SourceAdapterEvent::StateChanged { state, detail, .. } => {
@@ -997,6 +1023,8 @@ async fn pump_source_events(
                 .await;
                 if validation.is_ok() {
                     *next_sequence = next_sequence.saturating_add(1);
+                } else {
+                    checkpoint_safe = false;
                 }
                 drop(sequences);
                 let accepted = validation.is_ok_and(|validation| {
@@ -1007,6 +1035,27 @@ async fn pump_source_events(
                 snapshot.messages_received = snapshot.messages_received.saturating_add(1);
                 snapshot.accepted = snapshot.accepted.saturating_add(u64::from(accepted));
                 snapshot.last_event_at_ms = now_ms().ok();
+            }
+            SourceAdapterEvent::Checkpoint { cursor, .. } => {
+                if !checkpoint_safe {
+                    set_runtime_fault(
+                        &runtime,
+                        &source_id,
+                        "checkpoint_blocked_after_submit_error",
+                    )
+                    .await;
+                    break;
+                }
+                let checkpoint_source_id = source_id.clone();
+                let result = execute_store(&store, move |store| {
+                    store.save_checkpoint(&checkpoint_source_id, &cursor)
+                })
+                .await;
+                if result.is_err() {
+                    set_runtime_fault(&runtime, &source_id, "checkpoint_failed").await;
+                    break;
+                }
+                checkpoint_safe = true;
             }
             SourceAdapterEvent::Fault { code, .. } => {
                 set_runtime_fault(&runtime, &source_id, &code).await;
@@ -1022,6 +1071,12 @@ async fn set_runtime_fault(
 ) {
     let mut snapshots = runtime.write().await;
     let snapshot = snapshots.entry(source_id.to_owned()).or_default();
+    if code == "connector_failed"
+        && snapshot.state == Some(SourceRuntimeState::Faulted)
+        && snapshot.detail.as_deref() != Some("connector_failed")
+    {
+        return;
+    }
     snapshot.state = Some(SourceRuntimeState::Faulted);
     snapshot.detail = Some(code.to_owned());
     snapshot.last_event_at_ms = now_ms().ok();
@@ -1216,6 +1271,7 @@ mod tests {
             .expect("session");
         let service = Arc::new(tokio::sync::Mutex::new(service));
         let runtime = Arc::new(RwLock::new(HashMap::new()));
+        let store = Arc::new(Mutex::new(SourceStore::open_in_memory().expect("source store")));
         let sequences =
             Arc::new(tokio::sync::Mutex::new(HashMap::from([("session-1".to_owned(), 0)])));
         let (left_tx, left_rx) = mpsc::channel(2);
@@ -1224,6 +1280,7 @@ mod tests {
             "left".to_owned(),
             "session-1".to_owned(),
             left_rx,
+            store.clone(),
             service.clone(),
             runtime.clone(),
             sequences.clone(),
@@ -1232,6 +1289,7 @@ mod tests {
             "right".to_owned(),
             "session-1".to_owned(),
             right_rx,
+            store,
             service.clone(),
             runtime,
             sequences,

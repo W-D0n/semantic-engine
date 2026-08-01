@@ -9,6 +9,8 @@ base64.workspace = true
 futures-util.workspace = true
 getrandom.workspace = true
 reqwest.workspace = true
+prost.workspace = true
+prost-types.workspace = true
 semantic-engine-credential-vault = { path = "../semantic-engine-credential-vault" }
 semantic-engine-core = { path = "../semantic-engine-core" }
 semantic-engine-source = { path = "../semantic-engine-source" }
@@ -16,7 +18,15 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tokio.workspace = true
+tonic.workspace = true
+tonic-prost.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
+tokio-stream.workspace = true
+
+[build-dependencies]
+prost-build = "0.14.1"
+protoc-bin-vendored = "3.2.0"
+tonic-prost-build = "0.14.6"

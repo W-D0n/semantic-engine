@@ -47,6 +47,31 @@ fn source_lifecycle_is_durable_revisioned_and_safe_to_remove() {
 }
 
 #[test]
+fn source_checkpoints_survive_reopen_and_are_removed_with_the_source() {
+    let workspace = tempfile::tempdir().unwrap();
+    let database = workspace.path().join("sources.sqlite3");
+    let revision = {
+        let mut store = SourceStore::open(&database).unwrap();
+        let record = store.add(twitch_source("youtube-main")).unwrap();
+        store.save_checkpoint("youtube-main", r#"{"page_token":"cursor-1"}"#).unwrap();
+        record.revision
+    };
+
+    let mut reopened = SourceStore::open(&database).unwrap();
+    assert_eq!(
+        reopened.load_checkpoint("youtube-main").unwrap().as_deref(),
+        Some(r#"{"page_token":"cursor-1"}"#)
+    );
+    reopened.remove("youtube-main", revision).unwrap();
+
+    let connection = rusqlite::Connection::open(&database).unwrap();
+    let count: i64 = connection
+        .query_row("SELECT COUNT(*) FROM source_checkpoints", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+}
+
+#[test]
 fn edits_use_optimistic_revisions_and_do_not_replace_adapter_identity() {
     let mut store = SourceStore::open_in_memory().unwrap();
     let created = store.add(twitch_source("twitch-main")).unwrap();

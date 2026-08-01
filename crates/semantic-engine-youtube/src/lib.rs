@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, fmt, time::Duration};
+use std::{
+    collections::{HashMap, VecDeque},
+    fmt,
+    sync::Arc,
+    time::Duration,
+};
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use futures_util::StreamExt;
@@ -8,7 +13,12 @@ use semantic_engine_credential_vault::{CredentialVault, VaultError};
 use semantic_engine_source::{SourceAdapterEvent, SourceMessage, SourceRuntimeState};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{Mutex, mpsc, oneshot, watch};
+use tonic::{
+    Code, Request,
+    metadata::MetadataValue,
+    transport::{Channel as GrpcChannel, ClientTlsConfig, Endpoint},
+};
 use zeroize::Zeroize;
 
 pub const YOUTUBE_ADAPTER_ID: &str = "youtube-live-chat";
@@ -18,12 +28,16 @@ const AUTH_ENDPOINT: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 const REVOKE_ENDPOINT: &str = "https://oauth2.googleapis.com/revoke";
 const API_ENDPOINT: &str = "https://www.googleapis.com/youtube/v3/";
+const GRPC_ENDPOINT: &str = "https://youtube.googleapis.com";
 const MAX_RESPONSE_BYTES: usize = 256 * 1024;
 const MAX_TOKEN_CHARS: usize = 8_192;
 const MAX_CALLBACK_BYTES: usize = 8 * 1024;
 const AUTH_LIFETIME: Duration = Duration::from_secs(10 * 60);
-const MIN_POLL_MS: u64 = 1_000;
 const MAX_RECENT_MESSAGE_IDS: usize = 4_096;
+
+mod stream_api {
+    tonic::include_proto!("youtube.api.v3");
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct BrowserAuthorizationPrompt {
@@ -321,22 +335,43 @@ pub struct YouTubeLiveConfig {
     pub source_id: String,
     pub video_id: String,
     pub next_source_sequence: u64,
+    pub resume_checkpoint: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct YouTubeResumeState {
+    chat_id: String,
+    page_token: String,
+    baseline_complete: bool,
 }
 
 #[derive(Clone)]
 pub struct YouTubeLiveChatClient {
     client: Client,
     api_endpoint: Url,
+    grpc_endpoint: String,
+    resume: Arc<Mutex<HashMap<(String, String), YouTubeResumeState>>>,
 }
 
 impl YouTubeLiveChatClient {
     pub fn new() -> Result<Self, YouTubeError> {
-        Self::with_endpoint(API_ENDPOINT)
+        Self::with_endpoints(API_ENDPOINT, GRPC_ENDPOINT)
     }
 
     #[doc(hidden)]
     pub fn with_endpoint(endpoint: &str) -> Result<Self, YouTubeError> {
-        Ok(Self { client: secure_client()?, api_endpoint: parse_trusted_endpoint(endpoint)? })
+        Self::with_endpoints(endpoint, endpoint.trim_end_matches('/'))
+    }
+
+    #[doc(hidden)]
+    pub fn with_endpoints(api_endpoint: &str, grpc_endpoint: &str) -> Result<Self, YouTubeError> {
+        let grpc = parse_trusted_endpoint(grpc_endpoint)?;
+        Ok(Self {
+            client: secure_client()?,
+            api_endpoint: parse_trusted_endpoint(api_endpoint)?,
+            grpc_endpoint: grpc.as_str().trim_end_matches('/').to_owned(),
+            resume: Arc::new(Mutex::new(HashMap::new())),
+        })
     }
 
     pub async fn test_video(
@@ -358,88 +393,191 @@ impl YouTubeLiveChatClient {
         validate_video_id(&config.video_id)?;
         emit_state(&output, &config.source_id, SourceRuntimeState::Connecting, None)?;
         let chat_id = self.live_chat_id(&config.video_id, credential.access_token()).await?;
-        emit_state(&output, &config.source_id, SourceRuntimeState::Connected, None)?;
-        let mut page_token: Option<String> = None;
+        let resume_key = (config.source_id.clone(), chat_id.clone());
+        let checkpoint = config
+            .resume_checkpoint
+            .as_deref()
+            .and_then(parse_resume_checkpoint)
+            .filter(|state| state.chat_id == chat_id)
+            .unwrap_or_else(|| YouTubeResumeState {
+                chat_id: chat_id.clone(),
+                ..Default::default()
+            });
+        let mut resume =
+            self.resume.lock().await.entry(resume_key.clone()).or_insert(checkpoint).clone();
         let mut next_sequence = config.next_source_sequence;
         let mut recent_message_ids = VecDeque::<String>::new();
+        let mut resume_backoff = Duration::from_secs(1);
         loop {
-            let mut url = self
-                .api_endpoint
-                .join("liveChat/messages")
-                .map_err(|_| YouTubeError::InvalidResponse)?;
-            url.query_pairs_mut()
-                .append_pair("liveChatId", &chat_id)
-                .append_pair("part", "id,snippet,authorDetails")
-                .append_pair("maxResults", "200");
-            if let Some(token) = &page_token {
-                url.query_pairs_mut().append_pair("pageToken", token);
-            }
-            let response = self
-                .client
-                .get(url)
-                .bearer_auth(credential.access_token())
-                .send()
-                .await
-                .map_err(YouTubeError::transport)?;
-            let status = response.status();
-            let body = read_limited(response).await?;
-            if !status.is_success() {
-                return Err(api_error(status, &body));
-            }
-            let batch: MessageList = parse_json(&body)?;
-            let poll_ms = batch.polling_interval_millis.max(MIN_POLL_MS);
-            let baseline = page_token.is_none();
-            for item in batch.items {
-                validate_provider_identifier(&item.id)?;
-                if recent_message_ids.iter().any(|message_id| message_id == &item.id) {
-                    continue;
-                }
-                recent_message_ids.push_back(item.id.clone());
-                if recent_message_ids.len() > MAX_RECENT_MESSAGE_IDS {
-                    recent_message_ids.pop_front();
-                }
-                if baseline {
-                    continue;
-                }
-                if item.snippet.kind != "textMessageEvent" {
-                    continue;
-                }
-                let Some(details) = item.snippet.text_message_details else {
-                    continue;
-                };
-                if details.message_text.is_empty()
-                    || details.message_text.chars().count() > MAX_SUBMISSION_CHARS
-                    || details.message_text.contains('\0')
+            let channel = self.grpc_channel().await?;
+            let mut client = stream_api::v3_data_live_chat_message_service_client::V3DataLiveChatMessageServiceClient::new(channel);
+            let mut request = Request::new(stream_api::LiveChatMessageListRequest {
+                live_chat_id: chat_id.clone(),
+                hl: String::new(),
+                profile_image_size: 0,
+                page_token: resume.page_token.clone(),
+                part: vec!["snippet".to_owned()],
+            });
+            let mut authorization =
+                MetadataValue::try_from(format!("Bearer {}", credential.access_token()))
+                    .map_err(|_| YouTubeError::InvalidResponse)?;
+            authorization.set_sensitive(true);
+            request.metadata_mut().insert("authorization", authorization);
+            let mut stream = match client.stream_list(request).await {
+                Ok(response) => response.into_inner(),
+                Err(status)
+                    if status.code() == Code::InvalidArgument && !resume.page_token.is_empty() =>
                 {
+                    resume = YouTubeResumeState { chat_id: chat_id.clone(), ..Default::default() };
+                    self.queue_checkpoint(&config.source_id, &resume_key, &resume, &output).await?;
+                    emit_state(
+                        &output,
+                        &config.source_id,
+                        SourceRuntimeState::Backoff,
+                        Some("cursor_rejected_gap_rebaseline".to_owned()),
+                    )?;
                     continue;
                 }
-                validate_provider_identifier(&item.author_details.channel_id)?;
-                output
-                    .try_send(SourceAdapterEvent::Message(SourceMessage {
-                        source_id: config.source_id.clone(),
-                        message_id: format!("youtube:{}", item.id),
-                        participant_id: format!("youtube:{}", item.author_details.channel_id),
-                        source_sequence: next_sequence,
-                        text: details.message_text,
-                        // The initial provider cursor is the ordering boundary. Provider
-                        // timestamps are metadata and are not trusted as a local clock.
-                        occurred_at_ms: now_ms(),
-                    }))
-                    .map_err(|_| YouTubeError::Backpressure)?;
-                next_sequence =
-                    next_sequence.checked_add(1).ok_or(YouTubeError::InvalidResponse)?;
-            }
-            page_token = Some(batch.next_page_token);
-            tokio::select! {
-                _ = tokio::time::sleep(Duration::from_millis(poll_ms)) => {}
-                changed = shutdown.changed() => {
-                    if changed.is_err() || *shutdown.borrow() {
-                        emit_state(&output, &config.source_id, SourceRuntimeState::Paused, None)?;
-                        return Ok(());
+                Err(status) => return Err(grpc_error(status)),
+            };
+            emit_state(&output, &config.source_id, SourceRuntimeState::Connected, None)?;
+            loop {
+                let batch = tokio::select! {
+                    message = stream.message() => match message {
+                        Ok(value) => value,
+                        Err(status) if status.code() == Code::InvalidArgument && !resume.page_token.is_empty() => {
+                            resume = YouTubeResumeState { chat_id: chat_id.clone(), ..Default::default() };
+                            self.queue_checkpoint(&config.source_id, &resume_key, &resume, &output).await?;
+                            emit_state(
+                                &output,
+                                &config.source_id,
+                                SourceRuntimeState::Backoff,
+                                Some("cursor_rejected_gap_rebaseline".to_owned()),
+                            )?;
+                            break;
+                        }
+                        Err(status) => return Err(grpc_error(status)),
+                    },
+                    changed = shutdown.changed() => {
+                        if changed.is_err() || *shutdown.borrow() {
+                            emit_state(&output, &config.source_id, SourceRuntimeState::Paused, None)?;
+                            return Ok(());
+                        }
+                        continue;
                     }
+                };
+                let Some(batch) = batch else {
+                    emit_state(
+                        &output,
+                        &config.source_id,
+                        SourceRuntimeState::Backoff,
+                        Some("stream ended; resuming from provider cursor".to_owned()),
+                    )?;
+                    tokio::select! {
+                        _ = tokio::time::sleep(resume_backoff) => {}
+                        changed = shutdown.changed() => {
+                            if changed.is_err() || *shutdown.borrow() {
+                                emit_state(&output, &config.source_id, SourceRuntimeState::Paused, None)?;
+                                return Ok(());
+                            }
+                        }
+                    }
+                    resume_backoff = (resume_backoff * 2).min(Duration::from_secs(60));
+                    break;
+                };
+                resume_backoff = Duration::from_secs(1);
+                if batch.offline_at.is_some() {
+                    emit_state(
+                        &output,
+                        &config.source_id,
+                        SourceRuntimeState::Paused,
+                        Some("live_ended".to_owned()),
+                    )?;
+                    return Err(YouTubeError::LiveEnded);
                 }
+                let next_page_token = batch.next_page_token;
+                let baseline = !resume.baseline_complete;
+                for item in batch.items {
+                    validate_provider_identifier(&item.id)?;
+                    if recent_message_ids.iter().any(|message_id| message_id == &item.id) {
+                        continue;
+                    }
+                    recent_message_ids.push_back(item.id.clone());
+                    if recent_message_ids.len() > MAX_RECENT_MESSAGE_IDS {
+                        recent_message_ids.pop_front();
+                    }
+                    if baseline {
+                        continue;
+                    }
+                    let Some(snippet) = item.snippet else {
+                        continue;
+                    };
+                    if snippet.r#type != stream_api::LiveChatMessageType::TextMessageEvent as i32 {
+                        continue;
+                    }
+                    let Some(details) = snippet.text_message_details else {
+                        continue;
+                    };
+                    if details.message_text.is_empty()
+                        || details.message_text.chars().count() > MAX_SUBMISSION_CHARS
+                        || details.message_text.contains('\0')
+                    {
+                        continue;
+                    }
+                    let participant_id = snippet.author_channel_id;
+                    validate_provider_identifier(&participant_id)?;
+                    let message_id = scoped_message_id(&config.source_id, &item.id);
+                    output
+                        .try_send(SourceAdapterEvent::Message(SourceMessage {
+                            source_id: config.source_id.clone(),
+                            message_id,
+                            participant_id: format!("youtube:{participant_id}"),
+                            source_sequence: next_sequence,
+                            text: details.message_text,
+                            // The initial provider cursor is the ordering boundary. Provider
+                            // timestamps are metadata and are not trusted as a local clock.
+                            occurred_at_ms: now_ms(),
+                        }))
+                        .map_err(|_| YouTubeError::Backpressure)?;
+                    next_sequence =
+                        next_sequence.checked_add(1).ok_or(YouTubeError::InvalidResponse)?;
+                }
+                resume.page_token = next_page_token;
+                resume.baseline_complete = true;
+                self.queue_checkpoint(&config.source_id, &resume_key, &resume, &output).await?;
             }
         }
+    }
+
+    async fn queue_checkpoint(
+        &self,
+        source_id: &str,
+        resume_key: &(String, String),
+        resume: &YouTubeResumeState,
+        output: &mpsc::Sender<SourceAdapterEvent>,
+    ) -> Result<(), YouTubeError> {
+        let cursor = serde_json::to_string(resume).map_err(|_| YouTubeError::InvalidResponse)?;
+        output
+            .try_send(SourceAdapterEvent::Checkpoint { source_id: source_id.to_owned(), cursor })
+            .map_err(|_| YouTubeError::Backpressure)?;
+        self.resume.lock().await.insert(resume_key.clone(), resume.clone());
+        Ok(())
+    }
+
+    async fn grpc_channel(&self) -> Result<GrpcChannel, YouTubeError> {
+        let mut endpoint = Endpoint::from_shared(self.grpc_endpoint.clone())
+            .map_err(|_| YouTubeError::InvalidConfig("gRPC endpoint is invalid"))?
+            .connect_timeout(Duration::from_secs(10));
+        if self.grpc_endpoint.starts_with("https://") {
+            endpoint = endpoint
+                .tls_config(
+                    ClientTlsConfig::new()
+                        .with_webpki_roots()
+                        .domain_name("youtube.googleapis.com"),
+                )
+                .map_err(YouTubeError::transport)?;
+        }
+        endpoint.connect().await.map_err(YouTubeError::transport)
     }
 
     async fn live_chat_id(&self, video_id: &str, token: &str) -> Result<String, YouTubeError> {
@@ -517,6 +655,8 @@ pub enum YouTubeError {
     Expired,
     AccessDenied,
     NoActiveLiveChat,
+    LiveEnded,
+    QuotaExhausted,
     Api { status: u16, message: String },
     Transport(String),
     Vault(VaultError),
@@ -538,6 +678,8 @@ impl fmt::Display for YouTubeError {
             Self::Expired => write!(f, "YouTube authorization expired"),
             Self::AccessDenied => write!(f, "YouTube authorization was denied"),
             Self::NoActiveLiveChat => write!(f, "the video has no active YouTube live chat"),
+            Self::LiveEnded => write!(f, "the YouTube live chat has ended"),
+            Self::QuotaExhausted => write!(f, "the YouTube API quota is exhausted"),
             Self::Api { status, message } => write!(f, "YouTube API error {status}: {message}"),
             Self::Transport(message) => write!(f, "YouTube transport error: {message}"),
             Self::Vault(error) => write!(f, "YouTube credential error: {error}"),
@@ -638,40 +780,6 @@ struct LiveStreamingDetails {
     #[serde(default)]
     active_live_chat_id: Option<String>,
 }
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct MessageList {
-    next_page_token: String,
-    polling_interval_millis: u64,
-    #[serde(default)]
-    items: Vec<LiveMessage>,
-}
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LiveMessage {
-    id: String,
-    snippet: MessageSnippet,
-    author_details: AuthorDetails,
-}
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct MessageSnippet {
-    #[serde(rename = "type")]
-    kind: String,
-    #[serde(default)]
-    text_message_details: Option<TextDetails>,
-}
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct TextDetails {
-    message_text: String,
-}
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct AuthorDetails {
-    channel_id: String,
-}
-
 async fn receive_callback(
     listener: tokio::net::TcpListener,
     expected_state: String,
@@ -755,6 +863,28 @@ fn validate_provider_identifier(value: &str) -> Result<(), YouTubeError> {
     }
     Ok(())
 }
+fn scoped_message_id(source_id: &str, provider_message_id: &str) -> String {
+    let source_digest = Sha256::digest(source_id.as_bytes());
+    let message_digest = Sha256::digest(provider_message_id.as_bytes());
+    format!(
+        "youtube:{}:{}",
+        URL_SAFE_NO_PAD.encode(&source_digest[..12]),
+        URL_SAFE_NO_PAD.encode(&message_digest[..24])
+    )
+}
+fn parse_resume_checkpoint(value: &str) -> Option<YouTubeResumeState> {
+    if value.len() > MAX_RESPONSE_BYTES || value.chars().any(char::is_control) {
+        return None;
+    }
+    let state = serde_json::from_str::<YouTubeResumeState>(value).ok()?;
+    if validate_identifier(&state.chat_id).is_err()
+        || state.page_token.len() > MAX_TOKEN_CHARS
+        || state.page_token.chars().any(char::is_control)
+    {
+        return None;
+    }
+    Some(state)
+}
 fn validate_token(value: &str) -> Result<(), YouTubeError> {
     if value.is_empty()
         || value.chars().count() > MAX_TOKEN_CHARS
@@ -804,6 +934,20 @@ fn api_error(status: StatusCode, body: &[u8]) -> YouTubeError {
         .unwrap_or_else(|| "request refused".to_owned());
     YouTubeError::Api { status: status.as_u16(), message }
 }
+fn grpc_error(status: tonic::Status) -> YouTubeError {
+    match status.code() {
+        Code::Unauthenticated => {
+            YouTubeError::Api { status: 401, message: "authorization required".to_owned() }
+        }
+        Code::ResourceExhausted => YouTubeError::QuotaExhausted,
+        Code::PermissionDenied => {
+            YouTubeError::Api { status: 403, message: "permission denied".to_owned() }
+        }
+        Code::NotFound | Code::FailedPrecondition => YouTubeError::LiveEnded,
+        Code::InvalidArgument => YouTubeError::InvalidResponse,
+        _ => YouTubeError::Transport(format!("gRPC stream error: {}", status.code())),
+    }
+}
 fn emit_state(
     output: &mpsc::Sender<SourceAdapterEvent>,
     source_id: &str,
@@ -826,9 +970,11 @@ fn now_ms() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
+    use std::pin::Pin;
 
-    use axum::{Json, Router, extract::State, routing::get};
+    use axum::{Json, Router, routing::get};
+    use tokio_stream::{Stream, wrappers::TcpListenerStream};
+    use tonic::{Response, Status};
 
     use super::*;
 
@@ -871,48 +1017,102 @@ mod tests {
         assert!(!format!("{pending:?}").contains(pending.verifier.expose()));
     }
 
+    #[test]
+    fn grpc_failures_and_message_ids_keep_product_semantics() {
+        assert_eq!(grpc_error(Status::resource_exhausted("quota")), YouTubeError::QuotaExhausted);
+        assert_eq!(grpc_error(Status::not_found("ended")), YouTubeError::LiveEnded);
+        assert_ne!(
+            scoped_message_id("youtube-left", "provider-message"),
+            scoped_message_id("youtube-right", "provider-message")
+        );
+
+        let checkpoint = YouTubeResumeState {
+            chat_id: "chat-42".to_owned(),
+            page_token: "cursor-1".to_owned(),
+            baseline_complete: true,
+        };
+        let encoded = serde_json::to_string(&checkpoint).unwrap();
+        assert_eq!(parse_resume_checkpoint(&encoded).unwrap().page_token, "cursor-1");
+    }
+
     #[tokio::test]
     async fn live_chat_baselines_history_then_emits_and_deduplicates_text() {
-        let polls = Arc::new(Mutex::new(0_u8));
-        let app = Router::new()
-            .route(
-                "/videos",
-                get(|| async {
-                    Json(serde_json::json!({"items": [{
-                        "liveStreamingDetails": {"activeLiveChatId": "chat-42"}
-                    }]}))
-                }),
-            )
-            .route(
-                "/liveChat/messages",
-                get(|State(polls): State<Arc<Mutex<u8>>>| async move {
-                    let mut count = polls.lock().unwrap();
-                    *count += 1;
-                    let items = if *count == 1 {
-                        serde_json::json!([{
-                            "id": "old-message",
-                            "snippet": {"type": "textMessageEvent", "publishedAt": "2026-01-01T00:00:00Z", "textMessageDetails": {"messageText": "old answer"}},
-                            "authorDetails": {"channelId": "old-viewer"}
-                        }])
-                    } else {
-                        serde_json::json!([{
-                            "id": "new-message",
-                            "snippet": {"type": "textMessageEvent", "publishedAt": "2026-01-01T00:00:01Z", "textMessageDetails": {"messageText": "Elden Ring"}},
-                            "authorDetails": {"channelId": "viewer-42"}
-                        }])
-                    };
-                    Json(serde_json::json!({
-                        "nextPageToken": format!("page-{count}"),
-                        "pollingIntervalMillis": 1,
-                        "items": items
-                    }))
-                }),
-            )
-            .with_state(polls);
+        let app = Router::new().route(
+            "/videos",
+            get(|| async {
+                Json(serde_json::json!({"items": [{
+                    "liveStreamingDetails": {"activeLiveChatId": "chat-42"}
+                }]}))
+            }),
+        );
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        let client = YouTubeLiveChatClient::with_endpoint(&format!("http://{address}/")).unwrap();
+
+        struct MockStream;
+        #[tonic::async_trait]
+        impl stream_api::v3_data_live_chat_message_service_server::V3DataLiveChatMessageService
+            for MockStream
+        {
+            type StreamListStream = Pin<
+                Box<
+                    dyn Stream<Item = Result<stream_api::LiveChatMessageListResponse, Status>>
+                        + Send,
+                >,
+            >;
+
+            async fn stream_list(
+                &self,
+                request: Request<stream_api::LiveChatMessageListRequest>,
+            ) -> Result<Response<Self::StreamListStream>, Status> {
+                if request.metadata().get("authorization").and_then(|value| value.to_str().ok())
+                    != Some("Bearer access-token")
+                {
+                    return Err(Status::unauthenticated("missing bearer"));
+                }
+                let message =
+                    |id: &str, participant: &str, text: &str| stream_api::LiveChatMessage {
+                        id: id.to_owned(),
+                        snippet: Some(stream_api::LiveChatMessageSnippet {
+                            r#type: stream_api::LiveChatMessageType::TextMessageEvent as i32,
+                            author_channel_id: participant.to_owned(),
+                            text_message_details: Some(stream_api::LiveChatTextMessageDetails {
+                                message_text: text.to_owned(),
+                            }),
+                            ..Default::default()
+                        }),
+                    };
+                let batches = vec![
+                    Ok(stream_api::LiveChatMessageListResponse {
+                        next_page_token: "cursor-1".to_owned(),
+                        items: vec![message("old-message", "old-viewer", "old answer")],
+                        ..Default::default()
+                    }),
+                    Ok(stream_api::LiveChatMessageListResponse {
+                        next_page_token: "cursor-2".to_owned(),
+                        items: vec![message("new-message", "viewer-42", "Elden Ring")],
+                        ..Default::default()
+                    }),
+                ];
+                Ok(Response::new(Box::pin(tokio_stream::iter(batches))))
+            }
+        }
+        let grpc_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let grpc_address = grpc_listener.local_addr().unwrap();
+        let grpc_server = tokio::spawn(async move {
+            tonic::transport::Server::builder()
+                .add_service(
+                    stream_api::v3_data_live_chat_message_service_server::V3DataLiveChatMessageServiceServer::new(MockStream),
+                )
+                .serve_with_incoming(TcpListenerStream::new(grpc_listener))
+                .await
+                .unwrap();
+        });
+        let client = YouTubeLiveChatClient::with_endpoints(
+            &format!("http://{address}/"),
+            &format!("http://{grpc_address}"),
+        )
+        .unwrap();
         let credential = YouTubeCredential {
             access_token: "access-token".into(),
             refresh_token: "refresh-token".into(),
@@ -929,6 +1129,7 @@ mod tests {
                         source_id: "youtube-main".into(),
                         video_id: "dQw4w9WgXcQ".into(),
                         next_source_sequence: 7,
+                        resume_checkpoint: None,
                     },
                     &credential,
                     output,
@@ -943,12 +1144,13 @@ mod tests {
                 break message;
             }
         };
-        assert_eq!(delivered.message_id, "youtube:new-message");
+        assert_eq!(delivered.message_id, scoped_message_id("youtube-main", "new-message"));
         assert_eq!(delivered.participant_id, "youtube:viewer-42");
         assert_eq!(delivered.source_sequence, 7);
         assert_eq!(delivered.text, "Elden Ring");
         shutdown.send(true).unwrap();
         task.await.unwrap().unwrap();
         server.abort();
+        grpc_server.abort();
     }
 }

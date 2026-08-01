@@ -19,6 +19,7 @@ const MAX_DISPLAY_NAME_CHARS: usize = 80;
 const MAX_SETTING_KEY_CHARS: usize = 64;
 const MAX_SETTING_VALUE_CHARS: usize = 512;
 const MAX_SETTINGS_BYTES: usize = 8 * 1024;
+const MAX_CHECKPOINT_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -104,6 +105,7 @@ impl SourceMessage {
 pub enum SourceAdapterEvent {
     StateChanged { source_id: String, state: SourceRuntimeState, detail: Option<String> },
     Message(SourceMessage),
+    Checkpoint { source_id: String, cursor: String },
     Fault { source_id: String, code: String, retryable: bool },
 }
 
@@ -168,7 +170,13 @@ impl SourceStore {
                  updated_at_ms INTEGER NOT NULL
              );
              CREATE INDEX IF NOT EXISTS input_sources_adapter
-                 ON input_sources(adapter, source_id);",
+                 ON input_sources(adapter, source_id);
+             CREATE TABLE IF NOT EXISTS source_checkpoints (
+                 source_id TEXT PRIMARY KEY
+                     REFERENCES input_sources(source_id) ON DELETE CASCADE,
+                 cursor TEXT NOT NULL,
+                 updated_at_ms INTEGER NOT NULL
+             );",
         )?;
         Ok(Self { connection })
     }
@@ -300,6 +308,36 @@ impl SourceStore {
             params![source_id, to_i64(expected_revision)?],
         )?;
         self.expect_changed(source_id, changed).map(|_| ())
+    }
+
+    pub fn save_checkpoint(&mut self, source_id: &str, cursor: &str) -> Result<(), SourceError> {
+        validate_identifier(source_id, MAX_ID_CHARS, "source identifier is invalid")?;
+        if cursor.len() > MAX_CHECKPOINT_BYTES || cursor.chars().any(char::is_control) {
+            return Err(SourceError::Invalid("source checkpoint is invalid"));
+        }
+        self.get(source_id)?;
+        self.connection.execute(
+            "INSERT INTO source_checkpoints(source_id, cursor, updated_at_ms)
+             VALUES (?1, ?2, ?3)
+             ON CONFLICT(source_id) DO UPDATE SET
+                 cursor = excluded.cursor,
+                 updated_at_ms = excluded.updated_at_ms",
+            params![source_id, cursor, to_i64(now_ms()?)?],
+        )?;
+        Ok(())
+    }
+
+    pub fn load_checkpoint(&self, source_id: &str) -> Result<Option<String>, SourceError> {
+        validate_identifier(source_id, MAX_ID_CHARS, "source identifier is invalid")?;
+        self.get(source_id)?;
+        self.connection
+            .query_row(
+                "SELECT cursor FROM source_checkpoints WHERE source_id = ?1",
+                [source_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(SourceError::from)
     }
 
     fn expect_changed(&self, source_id: &str, changed: usize) -> Result<(), SourceError> {

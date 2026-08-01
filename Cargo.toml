@@ -41,3 +41,8 @@ reqwest = { version = "0.13.4", default-features = false, features = ["form", "r
 futures-util = "0.3.32"
 tokio-tungstenite = { version = "0.30.0", default-features = false, features = ["connect", "rustls-tls-native-roots"] }
 base64 = "0.22.1"
+prost = "0.14.1"
+prost-types = "0.14.1"
+tonic = { version = "0.14.6", features = ["transport", "tls-webpki-roots", "tls-ring"] }
+tonic-prost = "0.14.6"
+tokio-stream = { version = "0.1.17", features = ["net"] }

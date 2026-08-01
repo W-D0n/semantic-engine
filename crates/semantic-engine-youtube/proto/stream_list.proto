@@ -1,0 +1,47 @@
+// Minimal wire-compatible subset of the official YouTube Data API v3
+// streamList protocol. Unknown fields remain forward-compatible.
+// Source: https://developers.google.com/youtube/v3/live/streaming-live-chat
+syntax = "proto3";
+package youtube.api.v3;
+
+import "google/protobuf/timestamp.proto";
+
+service V3DataLiveChatMessageService {
+  rpc StreamList(LiveChatMessageListRequest) returns (stream LiveChatMessageListResponse);
+}
+
+message LiveChatMessageListRequest {
+  string live_chat_id = 1;
+  string hl = 2;
+  uint32 profile_image_size = 3;
+  string page_token = 99;
+  repeated string part = 100;
+}
+
+message LiveChatMessageListResponse {
+  google.protobuf.Timestamp offline_at = 2;
+  string next_page_token = 100602;
+  repeated LiveChatMessage items = 1007;
+}
+
+message LiveChatMessage {
+  string id = 101;
+  LiveChatMessageSnippet snippet = 2;
+}
+
+message LiveChatMessageSnippet {
+  LiveChatMessageType type = 1;
+  string live_chat_id = 201;
+  string author_channel_id = 301;
+  google.protobuf.Timestamp published_at = 4;
+  bool has_display_content = 17;
+  string display_message = 16;
+  LiveChatTextMessageDetails text_message_details = 19;
+}
+
+message LiveChatTextMessageDetails { string message_text = 1; }
+
+enum LiveChatMessageType {
+  INVALID = 0;
+  TEXT_MESSAGE_EVENT = 1;
+}
