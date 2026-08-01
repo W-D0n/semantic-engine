@@ -16,10 +16,11 @@ Lire en priorité `docs/architecture/overview.md`,
 
 ## Objectif de la prochaine session
 
-Mesurer un flux live simulé, préparer la release publique puis conduire un pilote
-réel consenti avec un Client ID de distribution. La gestion de sources est
-désormais disponible par Tauri et par l’API loopback/headless sans exposer les
-jetons ; plusieurs sources partagent un ordre de session global et durable.
+Conduire un pilote YouTube réel consenti, mesurer p50/p95/p99 réseau et préparer
+le dossier de conformité avant d’ouvrir les verdicts/points dans la distribution.
+La gestion de sources est disponible par Tauri et par l’API loopback/headless
+sans exposer les jetons ; plusieurs sources partagent un ordre de session global
+et durable.
 
 ## État au 1er août 2026
 
@@ -67,7 +68,12 @@ jetons ; plusieurs sources partagent un ordre de session global et durable.
 - CI publique, SBOM CycloneDX, threat model et politiques de contribution/sécurité ;
 - benchmark loopback live (500 messages) : p50 15,95 ms, p95 23,21 ms,
   p99 32,30 ms sur la machine de référence ;
-- YouTube, corpus annoté étendu, release signée et scoreboard restent à faire.
+- YouTube OAuth Desktop PKCE, découverte/sélection des lives de la chaîne,
+  `streamList` gRPC, checkpoint durable, reprise et fautes quota/auth typées ;
+- corpus qualité v2 : 84 titres, 328 annotations multi-catégories, quality gate
+  précision/rappel obligatoire, résultat de référence 1,0/1,0 sans faux positif ;
+- le pilote YouTube réel, l’audit de conformité, la release signée et le
+  scoreboard consommateur restent à faire.
 
 ## Lire d’abord
 
@@ -94,6 +100,8 @@ jetons ; plusieurs sources partagent un ordre de session global et durable.
 21. `crates/semantic-engine-source-runtime/src/lib.rs`
 22. `crates/semantic-engine-twitch/src/lib.rs`
 23. `apps/desktop/src/lib/SourcePanel.svelte`
+24. `docs/integration/youtube.md`
+25. `crates/semantic-engine-youtube/src/lib.rs`
 
 ## Décisions à préserver
 
@@ -124,6 +132,9 @@ jetons ; plusieurs sources partagent un ordre de session global et durable.
 cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
+cargo run -q -p semantic-engine-cli -- evaluate `
+  --titles tests/corpus/titles.json --cases tests/corpus/cases.json `
+  --minimum-precision 0.95 --minimum-recall 0.90
 cargo run -q -p semantic-engine-cli -- context validate `
   --package packages/starter-titles/datapackage.json
 node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
@@ -141,8 +152,7 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Faire arbitrer la licence du code, publier une release signée, puis réaliser un
-pilote Twitch réel consenti avec un Client ID de distribution. La CI distante
-du commit `51c0194` est verte. Ne pas faire transiter les jetons dans JSONL/HTTP
-et ne pas réintroduire de dépendance vers
-MyVault, de chat brut persistant ni de scoreboard dans le moteur.
+Réaliser un pilote YouTube réel consenti, mesurer sa latence et préparer l’audit
+de conformité ; faire ensuite arbitrer la licence du code et publier une release
+signée. Ne pas faire transiter les jetons dans JSONL/HTTP et ne pas réintroduire
+de dépendance vers MyVault, de chat brut persistant ni de scoreboard dans le moteur.

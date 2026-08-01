@@ -198,6 +198,7 @@ struct CreateTwitchSourceRequest {
 struct CreateYouTubeSourceRequest {
     display_name: String,
     client_id: String,
+    #[serde(default)]
     video_id: String,
     policy_acknowledged: bool,
 }
@@ -206,6 +207,12 @@ struct CreateYouTubeSourceRequest {
 struct StartSourceRequest {
     expected_revision: u64,
     session_id: String,
+}
+
+#[derive(Deserialize)]
+struct SelectYouTubeBroadcastRequest {
+    expected_revision: u64,
+    video_id: String,
 }
 
 #[derive(Deserialize)]
@@ -284,6 +291,8 @@ async fn start_shared_inner(
         .route("/v1/sources/{source_id}/authorization", post(begin_twitch_authorization))
         .route("/v1/sources/{source_id}/authorization/poll", post(poll_twitch_authorization))
         .route("/v1/sources/{source_id}/test", post(test_twitch_source))
+        .route("/v1/sources/{source_id}/youtube/broadcasts", get(discover_youtube_broadcasts))
+        .route("/v1/sources/{source_id}/youtube/broadcast", post(select_youtube_broadcast))
         .route("/v1/sources/{source_id}/start", post(start_twitch_source))
         .route("/v1/sources/{source_id}/pause", post(pause_source))
         .route("/v1/sources/{source_id}", delete(delete_source))
@@ -538,6 +547,65 @@ async fn test_twitch_source(
             "source_test_failed",
             "the source could not be validated",
             true,
+        ),
+    }
+}
+
+async fn discover_youtube_broadcasts(
+    State(state): State<AppState>,
+    Path(source_id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = source_runtime_for(&state, &source_id) else {
+        return source_request_unavailable(&source_id);
+    };
+    match semantic_engine_source_runtime::discover_youtube_broadcasts(source_id, sources).await {
+        Ok(result) => json_response(StatusCode::OK, result),
+        Err(_) => transport_error(
+            StatusCode::BAD_GATEWAY,
+            "youtube_broadcast_discovery_failed",
+            "active YouTube broadcasts could not be discovered",
+            true,
+        ),
+    }
+}
+
+async fn select_youtube_broadcast(
+    State(state): State<AppState>,
+    Path(source_id): Path<String>,
+    headers: HeaderMap,
+    body: Result<Bytes, BytesRejection>,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let request = match parse_json_body(&headers, body) {
+        Ok(request) => request,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = source_runtime_for(&state, &source_id) else {
+        return source_request_unavailable(&source_id);
+    };
+    let SelectYouTubeBroadcastRequest { expected_revision, video_id } = request;
+    match semantic_engine_source_runtime::select_youtube_broadcast(
+        source_id,
+        expected_revision,
+        video_id,
+        sources,
+    )
+    .await
+    {
+        Ok(result) => json_response(StatusCode::OK, result),
+        Err(_) => transport_error(
+            StatusCode::CONFLICT,
+            "youtube_broadcast_selection_failed",
+            "the YouTube broadcast could not be selected",
+            false,
         ),
     }
 }

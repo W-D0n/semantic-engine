@@ -109,7 +109,7 @@ l'application autonome et peut exploiter les validations via l'interface publiqu
 - [x] remplacer le polling REST par `streamList` gRPC avec checkpoint de curseur
   durable, reprise après redémarrage et rebaseline observable si le curseur est refusé ;
 - [ ] mesurer la latence p50/p95/p99 sur un live YouTube réel ;
-- [ ] découvrir les lives de la chaîne connectée et arbitrer les ambiguïtés ;
+- [x] découvrir les lives de la chaîne connectée et laisser l’opérateur sélectionner la diffusion ;
 - [ ] exposer états quota/auth typés et audit de révocation/purge ;
 - [ ] faire valider le workflow verdict/points via YouTube API Compliance Audit avant ouverture commerciale ;
 - valider le comportement avec et sans fonctionnalités avancées.

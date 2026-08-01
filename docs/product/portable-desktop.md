@@ -49,6 +49,11 @@ WebView2 exact référencé par `scripts/webview2-runtime.json`.
   -WebView2Cab C:\tmp\Microsoft.WebView2.FixedVersionRuntime.150.0.4078.105.x64.cab
 ```
 
+Si le volume du dépôt manque d’espace, définir `CARGO_TARGET_DIR` vers un volume
+temporaire disposant d’au moins quelques gigaoctets. Le script utilise alors ce
+répertoire aussi bien pour la compilation fixe que pour la variante légère et
+copie toujours `SemanticEngine.exe` à la racine du dépôt.
+
 Le script :
 
 1. vérifie le nom et le SHA-256 du CAB ;

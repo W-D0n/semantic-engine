@@ -42,10 +42,16 @@ expiration et tente leur révocation lors de la suppression de la source.
 Dans **Sources de chat** :
 
 1. choisir **YouTube Live (expérimental)** ;
-2. saisir le Client ID Desktop et l’ID de vidéo à 11 caractères ;
+2. saisir le Client ID Desktop ; l’ID de vidéo à 11 caractères est optionnel ;
 3. lire puis cocher la reconnaissance des règles YouTube API ;
 4. terminer l’autorisation Google dans le navigateur ;
-5. tester la source, puis cliquer sur **Écouter** pendant une session active.
+5. cliquer sur **Trouver mes lives**, puis choisir la diffusion active ;
+6. tester la source, puis cliquer sur **Écouter** pendant une session active.
+
+La découverte demande les diffusions au statut `active`, puis rejette localement
+tout résultat qui n’appartient pas à la chaîne OAuth autorisée ou dont le cycle
+de vie n’est pas `live`. L’ID peut toujours être saisi manuellement avant
+l’autorisation ; dans ce cas il est validé dès que le jeton est reçu.
 
 La vidéo doit être live et exposer un chat actif. Une URL complète n’est pas
 acceptée afin de garder la configuration non ambiguë : utilisez seulement la
@@ -65,15 +71,18 @@ La création utilise `POST /v1/sources/youtube` :
 {
   "display_name": "Live cinéma",
   "client_id": "123.apps.googleusercontent.com",
-  "video_id": "dQw4w9WgXcQ",
+  "video_id": "",
   "policy_acknowledged": true
 }
 ```
 
-Les routes génériques `/authorization`, `/authorization/poll`, `/test`, `/start`,
-`/pause` et `DELETE /v1/sources/{source_id}` dispatchent ensuite selon
-l’adaptateur. L’authentification bearer et l’en-tête de version du protocole
-restent obligatoires. Aucune réponse publique ne contient de jeton.
+Après autorisation, `GET /v1/sources/{source_id}/youtube/broadcasts` retourne les
+lives actifs et `POST /v1/sources/{source_id}/youtube/broadcast` sélectionne le
+live avec `expected_revision` et `video_id`. Les routes génériques
+`/authorization`, `/authorization/poll`, `/test`, `/start`, `/pause` et
+`DELETE /v1/sources/{source_id}` dispatchent ensuite selon l’adaptateur.
+L’authentification bearer et l’en-tête de version du protocole restent
+obligatoires. Aucune réponse publique ne contient de jeton.
 
 ## Limites et conformité
 

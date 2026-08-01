@@ -220,6 +220,13 @@ export type YouTubeSourceTest = {
   video_id: string;
 };
 
+export type YouTubeBroadcast = {
+  video_id: string;
+  title: string;
+  scheduled_start_time: string | null;
+  actual_start_time: string | null;
+};
+
 export type YouTubeAuthorizationStatus =
   | { status: 'pending'; prompt: BrowserAuthorizationPrompt }
   | { status: 'authorized'; source: SourceView; identity: YouTubeSourceTest };

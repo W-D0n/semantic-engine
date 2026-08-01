@@ -90,6 +90,7 @@ Deux entrées indépendantes doivent être proposées :
 |---|---|---|
 | live de la chaîne connectée | `liveBroadcasts.list?part=id,snippet,status&broadcastStatus=active&broadcastType=all` avec OAuth | `items[].snippet.liveChatId` |
 | URL ou ID vidéo saisi | `videos.list?part=liveStreamingDetails&id={videoId}` avec OAuth ou clé API | `items[0].liveStreamingDetails.activeLiveChatId` |
+| Chaîne OAuth autorisée | `liveBroadcasts.list?part=id,snippet,status&broadcastStatus=active&broadcastType=all` | ID, titre et horaires des diffusions actives ; filtrage défensif par `channelId` et `lifeCycleStatus=live` |
 
 `activeLiveChatId` n'existe que tant que la vidéo est réellement en direct et
 que son chat est actif ; il disparaît lorsque la diffusion est terminée. Le

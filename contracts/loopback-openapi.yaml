@@ -126,11 +126,15 @@ paths:
             schema:
               type: object
               additionalProperties: false
-              required: [display_name, client_id, video_id, policy_acknowledged]
+              required: [display_name, client_id, policy_acknowledged]
               properties:
                 display_name: { type: string, minLength: 1, maxLength: 80 }
                 client_id: { type: string, minLength: 20, maxLength: 256, pattern: "\\.apps\\.googleusercontent\\.com$" }
-                video_id: { type: string, pattern: "^[A-Za-z0-9_-]{11}$" }
+                video_id:
+                  description: Optionnel; peut être sélectionné après autorisation via la découverte des lives actifs.
+                  oneOf:
+                    - { type: string, maxLength: 0 }
+                    - { type: string, pattern: "^[A-Za-z0-9_-]{11}$" }
                 policy_acknowledged: { const: true }
       responses:
         "201":
@@ -215,6 +219,59 @@ paths:
         "426": { $ref: "#/components/responses/TransportError" }
         "429": { $ref: "#/components/responses/TransportError" }
         "502": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/{source_id}/youtube/broadcasts:
+    get:
+      operationId: discoverYouTubeBroadcasts
+      summary: Lister les lives actifs de la chaîne YouTube autorisée
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+        - { $ref: "#/components/parameters/SourceId" }
+      responses:
+        "200":
+          description: Lives actifs appartenant à la chaîne autorisée
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 50
+                items: { $ref: "#/components/schemas/YouTubeBroadcast" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "502": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/{source_id}/youtube/broadcast:
+    post:
+      operationId: selectYouTubeBroadcast
+      summary: Sélectionner et valider le live écouté par la source
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+        - { $ref: "#/components/parameters/SourceId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_revision, video_id]
+              properties:
+                expected_revision: { type: integer, minimum: 1 }
+                video_id: { type: string, pattern: "^[A-Za-z0-9_-]{11}$" }
+      responses:
+        "200":
+          description: Source mise à jour
+          content:
+            application/json:
+              schema: { $ref: ./source-view.schema.json }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "409": { $ref: "#/components/responses/TransportError" }
+        "415": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
         "503": { $ref: "#/components/responses/TransportError" }
   /v1/sources/{source_id}/start:
     post:
@@ -359,7 +416,16 @@ components:
       properties:
         channel_id: { type: string, minLength: 1, maxLength: 128 }
         display_name: { type: string, minLength: 1, maxLength: 256 }
+        video_id: { type: string, maxLength: 11 }
+    YouTubeBroadcast:
+      type: object
+      additionalProperties: false
+      required: [video_id, title, scheduled_start_time, actual_start_time]
+      properties:
         video_id: { type: string, pattern: "^[A-Za-z0-9_-]{11}$" }
+        title: { type: string, minLength: 1, maxLength: 256 }
+        scheduled_start_time: { type: [string, "null"], format: date-time }
+        actual_start_time: { type: [string, "null"], format: date-time }
     AuthorizationPending:
       type: object
       additionalProperties: false

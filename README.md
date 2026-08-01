@@ -117,8 +117,9 @@ panneau d’arbitrage ; les jetons restent dans le coffre du système et le text
 chat n’est pas persisté. Voir le [guide Twitch](docs/integration/twitch.md).
 
 Elle accepte aussi YouTube Live via OAuth Desktop + PKCE et retour loopback. Cet
-adaptateur est techniquement utilisable mais reste signalé expérimental pour les
-verdicts/points jusqu’à validation de conformité YouTube. Voir le
+adaptateur détecte dans l’application les lives actifs de la chaîne autorisée ;
+il reste signalé expérimental pour les verdicts/points jusqu’à validation de
+conformité YouTube. Voir le
 [guide YouTube](docs/integration/youtube.md).
 
 Le catalogue public de titres vit dans

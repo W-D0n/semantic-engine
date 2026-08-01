@@ -1,6 +1,7 @@
 use semantic_engine_source_runtime::{
     BrowserAuthorizationPrompt, DeviceAuthorizationPrompt, SourceRuntime, SourceView,
-    TwitchAuthorizationStatus, TwitchSourceTest, YouTubeAuthorizationStatus, YouTubeSourceTest,
+    TwitchAuthorizationStatus, TwitchSourceTest, YouTubeAuthorizationStatus, YouTubeBroadcast,
+    YouTubeSourceTest,
 };
 use std::sync::Arc;
 use tauri::State;
@@ -54,6 +55,31 @@ pub async fn test_youtube_source_ipc(
     state: State<'_, Arc<SourceRuntime>>,
 ) -> Result<YouTubeSourceTest, String> {
     semantic_engine_source_runtime::test_youtube_source(source_id, state.inner().as_ref()).await
+}
+
+#[tauri::command]
+pub async fn discover_youtube_broadcasts_ipc(
+    source_id: String,
+    state: State<'_, Arc<SourceRuntime>>,
+) -> Result<Vec<YouTubeBroadcast>, String> {
+    semantic_engine_source_runtime::discover_youtube_broadcasts(source_id, state.inner().as_ref())
+        .await
+}
+
+#[tauri::command]
+pub async fn select_youtube_broadcast_ipc(
+    source_id: String,
+    expected_revision: u64,
+    video_id: String,
+    state: State<'_, Arc<SourceRuntime>>,
+) -> Result<SourceView, String> {
+    semantic_engine_source_runtime::select_youtube_broadcast(
+        source_id,
+        expected_revision,
+        video_id,
+        state.inner().as_ref(),
+    )
+    .await
 }
 
 #[tauri::command]

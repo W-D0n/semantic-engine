@@ -21,7 +21,18 @@ if (-not (Get-Command cargo.exe -ErrorAction SilentlyContinue)) {
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $desktopRoot = Join-Path $repoRoot 'apps\desktop'
 $sourceRuntimeLink = Join-Path $desktopRoot 'src-tauri\WebView2'
-$releaseExecutable = Join-Path $repoRoot 'target\release\semantic-engine-desktop.exe'
+$cargoTargetDirectory = if ($env:CARGO_TARGET_DIR) {
+    if ([IO.Path]::IsPathRooted($env:CARGO_TARGET_DIR)) {
+        [IO.Path]::GetFullPath($env:CARGO_TARGET_DIR)
+    }
+    else {
+        [IO.Path]::GetFullPath((Join-Path $repoRoot $env:CARGO_TARGET_DIR))
+    }
+}
+else {
+    Join-Path $repoRoot 'target'
+}
+$releaseExecutable = Join-Path $cargoTargetDirectory 'release\semantic-engine-desktop.exe'
 $cabPath = (Resolve-Path -LiteralPath $WebView2Cab).Path
 $runtimeLockPath = Join-Path $PSScriptRoot 'webview2-runtime.json'
 $runtimeLock = Get-Content -LiteralPath $runtimeLockPath -Raw -Encoding UTF8 | ConvertFrom-Json

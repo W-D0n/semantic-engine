@@ -405,6 +405,8 @@ pub fn run() {
             sources::poll_youtube_authorization_ipc,
             sources::test_twitch_source_ipc,
             sources::test_youtube_source_ipc,
+            sources::discover_youtube_broadcasts_ipc,
+            sources::select_youtube_broadcast_ipc,
             sources::start_twitch_source_ipc,
             sources::start_youtube_source_ipc,
             sources::open_youtube_authorization_ipc,

@@ -178,7 +178,6 @@ async fn source_api_is_authenticated_and_never_returns_platform_tokens() {
         &json!({
             "display_name": "Live pilote",
             "client_id": "123.apps.googleusercontent.com",
-            "video_id": "dQw4w9WgXcQ",
             "policy_acknowledged": true
         })
         .to_string(),
@@ -191,6 +190,7 @@ async fn source_api_is_authenticated_and_never_returns_platform_tokens() {
     let youtube_revision = youtube_json["revision"].as_u64().unwrap();
     assert_eq!(youtube_json["adapter"], "youtube-live-chat");
     assert_eq!(youtube_json["authenticated"], false);
+    assert_eq!(youtube_json["settings"]["video_id"], "");
     assert!(!youtube.body.contains("access_token"));
     assert!(!youtube.body.contains("refresh_token"));
 
@@ -222,6 +222,18 @@ async fn source_api_is_authenticated_and_never_returns_platform_tokens() {
     )
     .await;
     assert_eq!(tested.status, 502, "{}", tested.body);
+
+    let broadcasts = authorized_request(
+        server.addr(),
+        server.token(),
+        "GET",
+        &format!("/v1/sources/{youtube_id}/youtube/broadcasts"),
+        "",
+        false,
+    )
+    .await;
+    assert_eq!(broadcasts.status, 502, "{}", broadcasts.body);
+    assert_eq!(broadcasts.json()["error"]["code"], "youtube_broadcast_discovery_failed");
 
     let started = authorized_request(
         server.addr(),

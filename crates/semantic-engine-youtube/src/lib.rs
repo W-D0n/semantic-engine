@@ -134,6 +134,14 @@ pub struct YouTubeIdentity {
     pub display_name: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct YouTubeBroadcast {
+    pub video_id: String,
+    pub title: String,
+    pub scheduled_start_time: Option<String>,
+    pub actual_start_time: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct YouTubeOAuthClient {
     client: Client,
@@ -287,6 +295,46 @@ impl YouTubeOAuthClient {
             return Err(YouTubeError::InvalidResponse);
         }
         Ok(YouTubeIdentity { channel_id: channel.id, display_name: channel.snippet.title })
+    }
+
+    pub async fn active_broadcasts(
+        &self,
+        access_token: &str,
+        expected_channel_id: &str,
+    ) -> Result<Vec<YouTubeBroadcast>, YouTubeError> {
+        validate_identifier(expected_channel_id)?;
+        let mut url =
+            self.api_endpoint.join("liveBroadcasts").map_err(|_| YouTubeError::InvalidResponse)?;
+        url.query_pairs_mut()
+            .append_pair("part", "id,snippet,status")
+            .append_pair("broadcastStatus", "active")
+            .append_pair("broadcastType", "all")
+            .append_pair("maxResults", "50");
+        let payload: BroadcastList = self.get_json(url, access_token).await?;
+        let mut broadcasts = Vec::new();
+        for item in payload.items {
+            if item.snippet.channel_id != expected_channel_id
+                || item.status.life_cycle_status != "live"
+            {
+                continue;
+            }
+            validate_video_id(&item.id)?;
+            validate_display_text(&item.snippet.title)?;
+            broadcasts.push(YouTubeBroadcast {
+                video_id: item.id,
+                title: item.snippet.title,
+                scheduled_start_time: clean_optional_text(item.snippet.scheduled_start_time)?,
+                actual_start_time: clean_optional_text(item.snippet.actual_start_time)?,
+            });
+        }
+        broadcasts.sort_by(|left, right| {
+            right
+                .actual_start_time
+                .cmp(&left.actual_start_time)
+                .then_with(|| left.title.cmp(&right.title))
+                .then_with(|| left.video_id.cmp(&right.video_id))
+        });
+        Ok(broadcasts)
     }
 
     pub async fn revoke(&self, token: &str) -> Result<(), YouTubeError> {
@@ -765,6 +813,32 @@ struct ChannelSnippet {
     title: String,
 }
 #[derive(Deserialize)]
+struct BroadcastList {
+    #[serde(default)]
+    items: Vec<Broadcast>,
+}
+#[derive(Deserialize)]
+struct Broadcast {
+    id: String,
+    snippet: BroadcastSnippet,
+    status: BroadcastStatus,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BroadcastSnippet {
+    title: String,
+    channel_id: String,
+    #[serde(default)]
+    scheduled_start_time: Option<String>,
+    #[serde(default)]
+    actual_start_time: Option<String>,
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BroadcastStatus {
+    life_cycle_status: String,
+}
+#[derive(Deserialize)]
 struct VideoList {
     #[serde(default)]
     items: Vec<Video>,
@@ -853,6 +927,21 @@ fn validate_identifier(value: &str) -> Result<(), YouTubeError> {
         return Err(YouTubeError::InvalidResponse);
     }
     Ok(())
+}
+fn validate_display_text(value: &str) -> Result<(), YouTubeError> {
+    if value.is_empty() || value.chars().count() > 256 || value.chars().any(char::is_control) {
+        return Err(YouTubeError::InvalidResponse);
+    }
+    Ok(())
+}
+fn clean_optional_text(value: Option<String>) -> Result<Option<String>, YouTubeError> {
+    match value {
+        Some(value) => {
+            validate_display_text(&value)?;
+            Ok(Some(value))
+        }
+        None => Ok(None),
+    }
 }
 fn validate_provider_identifier(value: &str) -> Result<(), YouTubeError> {
     if value.is_empty()
@@ -972,7 +1061,7 @@ fn now_ms() -> u64 {
 mod tests {
     use std::pin::Pin;
 
-    use axum::{Json, Router, routing::get};
+    use axum::{Json, Router, extract::Query, http::HeaderMap, routing::get};
     use tokio_stream::{Stream, wrappers::TcpListenerStream};
     use tonic::{Response, Status};
 
@@ -1015,6 +1104,60 @@ mod tests {
             pairs.get("redirect_uri").is_some_and(|value| value.starts_with("http://127.0.0.1:"))
         );
         assert!(!format!("{pending:?}").contains(pending.verifier.expose()));
+    }
+
+    #[tokio::test]
+    async fn active_broadcast_discovery_is_scoped_and_filters_untrusted_results() {
+        let app = Router::new().route(
+            "/liveBroadcasts",
+            get(|headers: HeaderMap, Query(query): Query<HashMap<String, String>>| async move {
+                assert_eq!(
+                    headers.get("authorization").and_then(|value| value.to_str().ok()),
+                    Some("Bearer access-token")
+                );
+                assert_eq!(query.get("broadcastStatus").map(String::as_str), Some("active"));
+                assert_eq!(query.get("broadcastType").map(String::as_str), Some("all"));
+                Json(serde_json::json!({"items": [
+                    {
+                        "id": "dQw4w9WgXcQ",
+                        "snippet": {
+                            "title": "Guess the game",
+                            "channelId": "channel-owner",
+                            "scheduledStartTime": "2026-08-01T10:00:00Z",
+                            "actualStartTime": "2026-08-01T10:02:00Z"
+                        },
+                        "status": {"lifeCycleStatus": "live"}
+                    },
+                    {
+                        "id": "abcdefghijk",
+                        "snippet": {"title": "Other channel", "channelId": "other"},
+                        "status": {"lifeCycleStatus": "live"}
+                    },
+                    {
+                        "id": "lmnopqrstuv",
+                        "snippet": {"title": "Not live", "channelId": "channel-owner"},
+                        "status": {"lifeCycleStatus": "complete"}
+                    }
+                ]}))
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let client = YouTubeOAuthClient::with_endpoints(
+            "https://accounts.google.test/auth",
+            "https://accounts.google.test/token",
+            "https://accounts.google.test/revoke",
+            &format!("http://{address}/"),
+        )
+        .unwrap();
+
+        let broadcasts = client.active_broadcasts("access-token", "channel-owner").await.unwrap();
+
+        assert_eq!(broadcasts.len(), 1);
+        assert_eq!(broadcasts[0].video_id, "dQw4w9WgXcQ");
+        assert_eq!(broadcasts[0].title, "Guess the game");
+        server.abort();
     }
 
     #[test]

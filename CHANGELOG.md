@@ -12,7 +12,9 @@ et les versions suivent SemVer.
 - sessions durables, JSONL, HTTP/WebSocket loopback et clients de conformité ;
 - application Tauri portable hors ligne avec arbitrage opérateur ;
 - Twitch Device Code Grant, coffre OS, EventSub et reconnexion ;
+- YouTube OAuth Desktop PKCE, découverte/sélection de live et chat gRPC reprenable ;
 - API publique de sources et ordre global durable multi-source ;
+- corpus annoté et quality gate précision/rappel reproductible ;
 - benchmark live reproductible, SBOM, CI et documentation de sécurité.
 
 ### Security
