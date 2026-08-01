@@ -16,10 +16,10 @@ Lire en priorité `docs/architecture/overview.md`,
 
 ## Objectif de la prochaine session
 
-Étendre le protocole public à la gestion des sources sans exposer les jetons,
-puis ajouter une séquence globale durable pour plusieurs sources. Le contrat et
-store génériques, le coffre natif, OAuth Device Code, EventSub, l’UI Twitch et
-l’arbitrage live sont livrés côté application portable.
+Mesurer un flux live simulé, préparer la release publique puis conduire un pilote
+réel consenti avec un Client ID de distribution. La gestion de sources est
+désormais disponible par Tauri et par l’API loopback/headless sans exposer les
+jetons ; plusieurs sources partagent un ordre de session global et durable.
 
 ## État au 1er août 2026
 
@@ -48,7 +48,9 @@ l’arbitrage live sont livrés côté application portable.
 - kit `conformance/` avec un client Node sans dépendance au code Rust, validant
   cycle, redémarrage, erreurs et confidentialité sur le binaire réel ;
 - crate `semantic-engine-loopback` : HTTP/WebSocket opt-in, bind loopback imposé,
-  jeton éphémère, origines exactes, quotas et refus sous backpressure ;
+  jeton éphémère, origines exactes, quotas, refus sous backpressure et API sources ;
+- crate `semantic-engine-source-runtime` : orchestration Twitch partagée entre
+  Tauri et CLI headless, séquence globale durable multi-source ;
 - second client Node indépendant couvrant santé, auth, HTTP, WebSocket,
   idempotence et absence de chat brut dans SQLite ;
 - benchmark CLI reproductible p50/p95/p99 ; sur 84 titres, le cache chaud réduit
@@ -61,7 +63,11 @@ l’arbitrage live sont livrés côté application portable.
 - EventSub WebSocket avec reconnexion, déduplication bornée et backpressure ;
 - UI d’ajout, autorisation, test, écoute, pause et suppression Twitch ;
 - validations live visibles et arbitrables sans conserver le texte du chat ;
-- YouTube, agrégation multi-source, API publique de source et scoreboard restent à faire.
+- API publique de gestion des sources et agrégation multi-source ordonnée ;
+- CI publique, SBOM CycloneDX, threat model et politiques de contribution/sécurité ;
+- benchmark loopback live (500 messages) : p50 15,95 ms, p95 23,21 ms,
+  p99 32,30 ms sur la machine de référence ;
+- YouTube, corpus annoté étendu, release signée et scoreboard restent à faire.
 
 ## Lire d’abord
 
@@ -85,8 +91,9 @@ l’arbitrage live sont livrés côté application portable.
 18. `docs/integration/jsonl-sidecar.md`
 19. `docs/integration/twitch.md`
 20. `crates/semantic-engine-source/src/lib.rs`
-21. `crates/semantic-engine-twitch/src/lib.rs`
-22. `apps/desktop/src/lib/SourcePanel.svelte`
+21. `crates/semantic-engine-source-runtime/src/lib.rs`
+22. `crates/semantic-engine-twitch/src/lib.rs`
+23. `apps/desktop/src/lib/SourcePanel.svelte`
 
 ## Décisions à préserver
 
@@ -134,7 +141,7 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Ajouter les commandes de source au protocole public via un plan de contrôle
-séparé, puis centraliser l’attribution de `source_sequence` pour plusieurs
-adaptateurs. Ne pas faire transiter les jetons dans JSONL/HTTP et ne pas
-réintroduire de dépendance vers MyVault, de chat brut persistant ni de scoreboard.
+Faire arbitrer la licence du code, exécuter la CI distante, puis réaliser un
+pilote Twitch réel consenti avec un Client ID de distribution. Ne pas faire
+transiter les jetons dans JSONL/HTTP et ne pas réintroduire de dépendance vers
+MyVault, de chat brut persistant ni de scoreboard dans le moteur.

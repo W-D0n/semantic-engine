@@ -1,8 +1,11 @@
-use std::{net::SocketAddr, time::Duration};
+use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use futures_util::StreamExt;
-use semantic_engine_loopback::{HTTP_PROTOCOL_HEADER, LoopbackConfig, WEBSOCKET_PROTOCOL, start};
+use semantic_engine_loopback::{
+    HTTP_PROTOCOL_HEADER, LoopbackConfig, WEBSOCKET_PROTOCOL, start, start_shared_with_sources,
+};
 use semantic_engine_service::SemanticEngineService;
+use semantic_engine_source_runtime::SourceRuntime;
 use serde_json::{Value, json};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -127,6 +130,68 @@ async fn quota_rejects_bursts_without_queuing_them() {
     server.shutdown().await.unwrap();
 }
 
+#[tokio::test]
+async fn source_api_is_authenticated_and_never_returns_twitch_tokens() {
+    let temporary = tempfile::tempdir().unwrap();
+    let service = Arc::new(tokio::sync::Mutex::new(SemanticEngineService::in_memory().unwrap()));
+    let sources = Arc::new(
+        SourceRuntime::open(temporary.path().join("sources.sqlite3"), service.clone()).unwrap(),
+    );
+    let server = start_shared_with_sources(
+        service,
+        sources,
+        LoopbackConfig {
+            bind_addr: "127.0.0.1:0".parse().unwrap(),
+            allowed_origins: vec!["http://localhost".into()],
+            ..LoopbackConfig::default()
+        },
+    )
+    .await
+    .unwrap();
+
+    let unauthorized = http_request(server.addr(), "GET", "/v1/sources", "", &[]).await;
+    assert_eq!(unauthorized.status, 401);
+
+    let created = authorized_request(
+        server.addr(),
+        server.token(),
+        "POST",
+        "/v1/sources/twitch",
+        &json!({"display_name": "Canal pilote", "client_id": "publicclient123"}).to_string(),
+        true,
+    )
+    .await;
+    assert_eq!(created.status, 201, "{}", created.body);
+    let created_json = created.json();
+    let source_id = created_json["source_id"].as_str().unwrap();
+    let revision = created_json["revision"].as_u64().unwrap();
+    assert_eq!(created_json["authenticated"], false);
+    assert_eq!(created_json["credential_id"], Value::Null);
+    assert!(!created.body.contains("access_token"));
+    assert!(!created.body.contains("refresh_token"));
+
+    let listed =
+        authorized_request(server.addr(), server.token(), "GET", "/v1/sources", "", false).await;
+    assert_eq!(listed.status, 200);
+    assert_eq!(listed.json().as_array().unwrap().len(), 1);
+
+    let deleted = authorized_request(
+        server.addr(),
+        server.token(),
+        "DELETE",
+        &format!("/v1/sources/{source_id}?expected_revision={revision}"),
+        "",
+        false,
+    )
+    .await;
+    assert_eq!(deleted.status, 204, "{}", deleted.body);
+
+    let listed =
+        authorized_request(server.addr(), server.token(), "GET", "/v1/sources", "", false).await;
+    assert_eq!(listed.json(), json!([]));
+    server.shutdown().await.unwrap();
+}
+
 async fn test_server(max_requests_per_second: usize) -> semantic_engine_loopback::LoopbackServer {
     let service = SemanticEngineService::in_memory().unwrap();
     start(
@@ -186,9 +251,38 @@ impl HttpResponse {
 }
 
 async fn http_post(addr: SocketAddr, body: &str, headers: &[(&str, String)]) -> HttpResponse {
+    http_request(addr, "POST", "/v1/commands", body, headers).await
+}
+
+async fn authorized_request(
+    addr: SocketAddr,
+    token: &str,
+    method: &str,
+    path: &str,
+    body: &str,
+    json_body: bool,
+) -> HttpResponse {
+    let mut headers = vec![
+        ("Authorization", format!("Bearer {token}")),
+        (HTTP_PROTOCOL_HEADER, "1".into()),
+        ("Origin", "http://localhost".into()),
+    ];
+    if json_body {
+        headers.push(("Content-Type", "application/json".into()));
+    }
+    http_request(addr, method, path, body, &headers).await
+}
+
+async fn http_request(
+    addr: SocketAddr,
+    method: &str,
+    path: &str,
+    body: &str,
+    headers: &[(&str, String)],
+) -> HttpResponse {
     let mut stream = TcpStream::connect(addr).await.unwrap();
     let mut request = format!(
-        "POST /v1/commands HTTP/1.1\r\nHost: {addr}\r\nContent-Length: {}\r\nConnection: close\r\n",
+        "{method} {path} HTTP/1.1\r\nHost: {addr}\r\nContent-Length: {}\r\nConnection: close\r\n",
         body.len()
     );
     for (name, value) in headers {

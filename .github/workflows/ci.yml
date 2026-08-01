@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+          components: rustfmt, clippy
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+      - run: cargo build -p semantic-engine-cli
+      - run: node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
+      - run: node conformance/clients/node-loopback-client.mjs target/debug/semantic-engine-cli.exe
+      - run: node scripts/generate-sbom.mjs artifacts/semantic-engine.cdx.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: semantic-engine-sbom
+          path: artifacts/semantic-engine.cdx.json
+
+  portable-core:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+      - run: >-
+          cargo test --locked
+          -p semantic-engine-core
+          -p semantic-engine-package
+          -p semantic-engine-audit-store
+          -p semantic-engine-session-store
+          -p semantic-engine-service
+          -p semantic-engine-protocol
+          -p semantic-engine-source
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r docs/requirements.txt
+      - run: mkdocs build --strict

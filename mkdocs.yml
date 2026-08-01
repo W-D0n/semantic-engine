@@ -22,6 +22,7 @@ nav:
   - Produit:
       - Vision: product/vision.md
       - Sécurité et cadre légal: product/security-and-legal.md
+      - Threat model: product/threat-model.md
       - Marché: product/market.md
       - Application portable: product/portable-desktop.md
       - Audit local: product/audit.md

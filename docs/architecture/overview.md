@@ -68,6 +68,7 @@ interface.
 | `semantic-engine-protocol` | commandes de session et réponses versionnées indépendantes du transport | stdin, HTTP, Tauri et plateformes |
 | `semantic-engine-loopback` | HTTP/WebSocket local, auth éphémère, origines et backpressure | moteur, Tauri et plateformes live |
 | `semantic-engine-source` | contrat, configuration durable et cycle pause/actif des sources | secrets et algorithmes de reconnaissance |
+| `semantic-engine-source-runtime` | orchestration réutilisable des adaptateurs, du coffre et de l'ordre global | Tauri, HTTP et règles de score |
 | `semantic-engine-credential-vault` | interface bornée vers le coffre natif du système | SQLite, chat et logique Twitch |
 | `semantic-engine-twitch` | OAuth public, EventSub, reconnexion et traduction vers `SourceMessage` | score, victoire et contexte métier |
 | adaptateur de transport | traduire IPC, JSONL ou HTTP vers l'interface commune | algorithmes de reconnaissance |
@@ -81,8 +82,10 @@ Elle appartient à ce dépôt et se compose de trois niveaux :
    indépendant du langage ;
 2. `semantic-engine-protocol` traduit ces contrats vers un service partagé ;
 3. la CLI expose ce contrat par un sidecar JSONL local ;
-4. `semantic-engine-loopback` expose le même contrat en HTTP et WebSocket, sans
-   déplacer la logique hors du produit.
+4. `semantic-engine-source-runtime` assemble les adaptateurs live et attribue
+   l'ordre global durable avant le service ;
+5. `semantic-engine-loopback` expose sessions, événements et sources en HTTP et
+   WebSocket, sans déplacer la logique hors du produit.
 
 Les contrats d’adaptateur `input-source.schema.json` et
 `source-message.schema.json` sont déjà publiés dans ce même dossier. Leur plan de
@@ -96,9 +99,10 @@ explicitement, des limites de débit et un journal d'audit. « Publique » signi
 ici documentée, stable et utilisable par tout client ; cela ne signifie pas
 exposée publiquement sur Internet.
 
-Un binaire headless pourra plus tard héberger le même adaptateur. Une exposition
-LAN ou Internet exigera une configuration explicite, TLS, une authentification
-adaptée et les protections décrites dans la documentation de sécurité.
+La CLI peut déjà héberger localement les mêmes modules source et loopback sans
+Tauri. Une exposition LAN ou Internet exigera un mode séparé, une configuration
+explicite, TLS, une authentification adaptée et les protections décrites dans la
+documentation de sécurité.
 
 L'interface réseau initiale doit rester petite :
 
@@ -107,6 +111,7 @@ L'interface réseau initiale doit rester petite :
 - soumettre un message et obtenir sa validation ;
 - enregistrer une résolution opérateur ;
 - suivre les événements de session ;
+- ajouter, autoriser, démarrer, mettre en pause et supprimer des sources ;
 - vérifier santé, version et compatibilité du contrat.
 
 Les endpoints sont décrits dans `contracts/loopback-openapi.yaml` et figés par
@@ -158,12 +163,13 @@ crates/
   semantic-engine-protocol/
   semantic-engine-loopback/      # adaptateur HTTP/WebSocket local
   semantic-engine-source/        # contrat générique et stockage des sources
+  semantic-engine-source-runtime/# orchestration live partagée Tauri/headless
   semantic-engine-credential-vault/
   semantic-engine-twitch/        # adaptateur Twitch facultatif
 apps/
   desktop/
   semantic-engine-cli/
-  semantic-engine-server/        # futur hôte headless
+  semantic-engine-server/        # futur hôte réseau TLS ; headless local déjà dans la CLI
 contracts/
 tests/
 ```

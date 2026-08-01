@@ -61,6 +61,191 @@ paths:
         "429": { $ref: "#/components/responses/TransportError" }
         "503": { $ref: "#/components/responses/TransportError" }
         "500": { $ref: "#/components/responses/TransportError" }
+  /v1/sources:
+    get:
+      operationId: listSources
+      summary: Lister les sources et leur état d'exécution sans exposer leurs jetons
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+      responses:
+        "200":
+          description: Sources configurées
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 64
+                items: { $ref: ./source-view.schema.json }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/twitch:
+    post:
+      operationId: createTwitchSource
+      summary: Ajouter une configuration Twitch publique
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [display_name, client_id]
+              properties:
+                display_name: { type: string, minLength: 1, maxLength: 80 }
+                client_id: { type: string, minLength: 8, maxLength: 64 }
+      responses:
+        "201":
+          description: Source créée, non authentifiée
+          content:
+            application/json:
+              schema: { $ref: ./source-view.schema.json }
+        "400": { $ref: "#/components/responses/TransportError" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "415": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/{source_id}/authorization:
+    post:
+      operationId: beginTwitchAuthorization
+      summary: Démarrer le Device Code Grant de la source
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+        - { $ref: "#/components/parameters/SourceId" }
+      responses:
+        "200":
+          description: Code temporaire à présenter à l'utilisateur
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeviceAuthorizationPrompt" }
+        "400": { $ref: "#/components/responses/TransportError" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "502": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/{source_id}/authorization/poll:
+    post:
+      operationId: pollTwitchAuthorization
+      summary: Interroger l'autorisation en cours au rythme indiqué par Twitch
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+        - { $ref: "#/components/parameters/SourceId" }
+      responses:
+        "200":
+          description: État de l'autorisation
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/AuthorizationPending" }
+                  - { $ref: "#/components/schemas/AuthorizationSlowDown" }
+                  - { $ref: "#/components/schemas/AuthorizationComplete" }
+                discriminator: { propertyName: status }
+        "400": { $ref: "#/components/responses/TransportError" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "502": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/{source_id}/test:
+    post:
+      operationId: testTwitchSource
+      summary: Valider le jeton et l'identité Twitch de la source
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+        - { $ref: "#/components/parameters/SourceId" }
+      responses:
+        "200":
+          description: Identité Twitch validée
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TwitchIdentity" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "502": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/{source_id}/start:
+    post:
+      operationId: startSource
+      summary: Connecter la source à une session active
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+        - { $ref: "#/components/parameters/SourceId" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_revision, session_id]
+              properties:
+                expected_revision: { type: integer, minimum: 1 }
+                session_id: { type: string, minLength: 1, maxLength: 256 }
+      responses:
+        "200":
+          description: Source active
+          content:
+            application/json:
+              schema: { $ref: ./source-view.schema.json }
+        "400": { $ref: "#/components/responses/TransportError" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "409": { $ref: "#/components/responses/TransportError" }
+        "415": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/{source_id}/pause:
+    post:
+      operationId: pauseSource
+      summary: Arrêter la source et la remettre en pause durable
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+        - { $ref: "#/components/parameters/SourceId" }
+      responses:
+        "200":
+          description: Source en pause
+          content:
+            application/json:
+              schema: { $ref: ./source-view.schema.json }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "409": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/{source_id}:
+    delete:
+      operationId: deleteSource
+      summary: Supprimer une source en pause et son secret du coffre natif
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+        - { $ref: "#/components/parameters/SourceId" }
+        - name: expected_revision
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      responses:
+        "204": { description: Source et secret supprimés }
+        "400": { $ref: "#/components/responses/TransportError" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "409": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
   /v1/events/ws:
     get:
       operationId: streamSessionEventsUpgrade
@@ -82,10 +267,65 @@ paths:
         "429": { $ref: "#/components/responses/TransportError" }
         "503": { $ref: "#/components/responses/TransportError" }
 components:
+  parameters:
+    ProtocolVersion:
+      name: X-Semantic-Engine-Protocol
+      in: header
+      required: true
+      schema: { const: "1" }
+    SourceId:
+      name: source_id
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        pattern: "^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$"
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
+  schemas:
+    DeviceAuthorizationPrompt:
+      type: object
+      additionalProperties: false
+      required: [user_code, verification_uri, expires_at_ms, poll_interval_seconds]
+      properties:
+        user_code: { type: string, minLength: 1, maxLength: 32 }
+        verification_uri: { type: string, format: uri, pattern: "^https://" }
+        expires_at_ms: { type: integer, minimum: 0 }
+        poll_interval_seconds: { type: integer, minimum: 1, maximum: 60 }
+    TwitchIdentity:
+      type: object
+      additionalProperties: false
+      required: [login, user_id, expires_in_seconds]
+      properties:
+        login: { type: string, minLength: 1, maxLength: 64 }
+        user_id: { type: string, minLength: 1, maxLength: 64 }
+        expires_in_seconds: { type: integer, minimum: 0 }
+    AuthorizationPending:
+      type: object
+      additionalProperties: false
+      required: [status, prompt]
+      properties:
+        status: { const: pending }
+        prompt: { $ref: "#/components/schemas/DeviceAuthorizationPrompt" }
+    AuthorizationSlowDown:
+      type: object
+      additionalProperties: false
+      required: [status, prompt]
+      properties:
+        status: { const: slow_down }
+        prompt: { $ref: "#/components/schemas/DeviceAuthorizationPrompt" }
+    AuthorizationComplete:
+      type: object
+      additionalProperties: false
+      required: [status, source, identity]
+      properties:
+        status: { const: authorized }
+        source: { $ref: ./source-view.schema.json }
+        identity: { $ref: "#/components/schemas/TwitchIdentity" }
   responses:
     TransportError:
       description: Erreur de transport avant exécution d'une commande

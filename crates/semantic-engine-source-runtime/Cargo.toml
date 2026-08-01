@@ -1,0 +1,18 @@
+[package]
+name = "semantic-engine-source-runtime"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+getrandom.workspace = true
+semantic-engine-core = { path = "../semantic-engine-core" }
+semantic-engine-credential-vault = { path = "../semantic-engine-credential-vault" }
+semantic-engine-service = { path = "../semantic-engine-service" }
+semantic-engine-source = { path = "../semantic-engine-source" }
+semantic-engine-twitch = { path = "../semantic-engine-twitch" }
+serde.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

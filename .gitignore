@@ -9,6 +9,7 @@
 /apps/desktop/dist/
 /site/
 /skill-observations/
+/artifacts/
 
 /apps/desktop/src-tauri/gen/schemas/
 # Local build and preview logs

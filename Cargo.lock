@@ -3610,6 +3610,7 @@ dependencies = [
  "semantic-engine-package",
  "semantic-engine-protocol",
  "semantic-engine-service",
+ "semantic-engine-source-runtime",
  "serde_json",
  "tokio",
 ]
@@ -3649,15 +3650,12 @@ dependencies = [
 name = "semantic-engine-desktop"
 version = "0.1.0"
 dependencies = [
- "getrandom 0.4.3",
  "semantic-engine-context-store",
  "semantic-engine-core",
- "semantic-engine-credential-vault",
  "semantic-engine-loopback",
  "semantic-engine-package",
  "semantic-engine-service",
- "semantic-engine-source",
- "semantic-engine-twitch",
+ "semantic-engine-source-runtime",
  "semver",
  "serde",
  "tauri",
@@ -3676,9 +3674,11 @@ dependencies = [
  "getrandom 0.4.3",
  "semantic-engine-protocol",
  "semantic-engine-service",
+ "semantic-engine-source-runtime",
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "tokio",
  "tokio-tungstenite 0.30.0",
  "tower-http 0.7.0",
@@ -3740,6 +3740,21 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+]
+
+[[package]]
+name = "semantic-engine-source-runtime"
+version = "0.1.0"
+dependencies = [
+ "getrandom 0.4.3",
+ "semantic-engine-core",
+ "semantic-engine-credential-vault",
+ "semantic-engine-service",
+ "semantic-engine-source",
+ "semantic-engine-twitch",
+ "serde",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]

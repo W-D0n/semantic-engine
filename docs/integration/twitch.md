@@ -71,10 +71,12 @@ sequenceDiagram
   et renouvelé avant expiration ;
 - après une perte de socket ordinaire, Twitch ne rejoue pas les messages perdus.
 
-Le contrat v1 autorise plusieurs configurations enregistrées mais une seule
-source live par session. Cette contrainte évite un faux ordre global entre deux
-plateformes ; un agrégateur multi-source devra attribuer une séquence globale
-durable avant de lever la limite.
+Plusieurs sources peuvent alimenter la même session. Chaque adaptateur maintient
+son ordre local ; juste avant la validation, `semantic-engine-source-runtime`
+attribue sous verrou une `source_sequence` globale. La valeur suivante est
+reconstruite depuis le journal durable de la session après un redémarrage. Deux
+messages concurrents obtiennent donc toujours des positions distinctes et le
+workflow de score peut consommer un ordre total.
 
 ## Confidentialité et suppression
 

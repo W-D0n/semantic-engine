@@ -10,19 +10,21 @@ use axum::{
     Json, Router,
     body::Bytes,
     extract::{
-        DefaultBodyLimit, Query, State, WebSocketUpgrade,
+        DefaultBodyLimit, Path, Query, State, WebSocketUpgrade,
         rejection::{BytesRejection, QueryRejection},
         ws::Message,
     },
     http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{any, get, post},
+    routing::{any, delete, get, post},
 };
 pub use semantic_engine_protocol::PROTOCOL_VERSION;
 use semantic_engine_protocol::{
     Command, RequestEnvelope, ResponseStatus, handle, handle_json_line,
 };
 use semantic_engine_service::SemanticEngineService;
+use semantic_engine_source_runtime::SourceRuntime;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -133,6 +135,7 @@ impl Drop for LoopbackServer {
 #[derive(Clone)]
 struct AppState {
     service: SharedService,
+    sources: Option<Arc<SourceRuntime>>,
     token_hash: [u8; 32],
     allowed_origins: Arc<Vec<String>>,
     request_quota: Arc<StdMutex<VecDeque<Instant>>>,
@@ -185,6 +188,23 @@ struct EventsQuery {
     limit: usize,
 }
 
+#[derive(Deserialize)]
+struct CreateTwitchSourceRequest {
+    display_name: String,
+    client_id: String,
+}
+
+#[derive(Deserialize)]
+struct StartSourceRequest {
+    expected_revision: u64,
+    session_id: String,
+}
+
+#[derive(Deserialize)]
+struct DeleteSourceQuery {
+    expected_revision: u64,
+}
+
 pub async fn start(
     service: SemanticEngineService,
     config: LoopbackConfig,
@@ -194,6 +214,22 @@ pub async fn start(
 
 pub async fn start_shared(
     service: SharedService,
+    config: LoopbackConfig,
+) -> Result<LoopbackServer, LoopbackError> {
+    start_shared_inner(service, None, config).await
+}
+
+pub async fn start_shared_with_sources(
+    service: SharedService,
+    sources: Arc<SourceRuntime>,
+    config: LoopbackConfig,
+) -> Result<LoopbackServer, LoopbackError> {
+    start_shared_inner(service, Some(sources), config).await
+}
+
+async fn start_shared_inner(
+    service: SharedService,
+    sources: Option<Arc<SourceRuntime>>,
     config: LoopbackConfig,
 ) -> Result<LoopbackServer, LoopbackError> {
     validate_config(&config)?;
@@ -212,6 +248,7 @@ pub async fn start_shared(
     let (shutdown_signal, shutdown) = watch::channel(false);
     let state = AppState {
         service,
+        sources,
         token_hash: token_hash(&token),
         allowed_origins: Arc::new(config.allowed_origins),
         request_quota: Arc::new(StdMutex::new(VecDeque::new())),
@@ -223,7 +260,7 @@ pub async fn start_shared(
     };
     let cors = CorsLayer::new()
         .allow_origin(origins)
-        .allow_methods([Method::GET, Method::POST])
+        .allow_methods([Method::GET, Method::POST, Method::DELETE])
         .allow_headers([
             header::AUTHORIZATION,
             header::CONTENT_TYPE,
@@ -233,6 +270,14 @@ pub async fn start_shared(
         .route("/v1/health", get(health))
         .route("/v1/commands", post(command))
         .route("/v1/events/ws", any(events_websocket))
+        .route("/v1/sources", get(list_sources))
+        .route("/v1/sources/twitch", post(create_twitch_source))
+        .route("/v1/sources/{source_id}/authorization", post(begin_twitch_authorization))
+        .route("/v1/sources/{source_id}/authorization/poll", post(poll_twitch_authorization))
+        .route("/v1/sources/{source_id}/test", post(test_twitch_source))
+        .route("/v1/sources/{source_id}/start", post(start_twitch_source))
+        .route("/v1/sources/{source_id}/pause", post(pause_source))
+        .route("/v1/sources/{source_id}", delete(delete_source))
         .layer(DefaultBodyLimit::max(MAX_REQUEST_BYTES))
         .layer(cors)
         .with_state(state);
@@ -331,6 +376,220 @@ async fn command(
     let mut response = Json(response).into_response();
     response.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     response
+}
+
+async fn list_sources(State(state): State<AppState>, headers: HeaderMap) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = state.sources.as_ref() else {
+        return source_runtime_unavailable();
+    };
+    match semantic_engine_source_runtime::list_sources(sources).await {
+        Ok(result) => json_response(StatusCode::OK, result),
+        Err(_) => transport_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "source_list_failed",
+            "input sources could not be listed",
+            true,
+        ),
+    }
+}
+
+async fn create_twitch_source(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Bytes, BytesRejection>,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let request = match parse_json_body(&headers, body) {
+        Ok(request) => request,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = state.sources.as_ref() else {
+        return source_runtime_unavailable();
+    };
+    let CreateTwitchSourceRequest { display_name, client_id } = request;
+    match semantic_engine_source_runtime::create_twitch_source(display_name, client_id, sources)
+        .await
+    {
+        Ok(result) => json_response(StatusCode::CREATED, result),
+        Err(_) => transport_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_source",
+            "the Twitch source configuration is invalid",
+            false,
+        ),
+    }
+}
+
+async fn begin_twitch_authorization(
+    State(state): State<AppState>,
+    Path(source_id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = source_runtime_for(&state, &source_id) else {
+        return source_request_unavailable(&source_id);
+    };
+    match semantic_engine_source_runtime::begin_twitch_authorization(source_id, sources).await {
+        Ok(result) => json_response(StatusCode::OK, result),
+        Err(_) => transport_error(
+            StatusCode::BAD_GATEWAY,
+            "source_authorization_failed",
+            "Twitch authorization could not be started",
+            true,
+        ),
+    }
+}
+
+async fn poll_twitch_authorization(
+    State(state): State<AppState>,
+    Path(source_id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = source_runtime_for(&state, &source_id) else {
+        return source_request_unavailable(&source_id);
+    };
+    match semantic_engine_source_runtime::poll_twitch_authorization(source_id, sources).await {
+        Ok(result) => json_response(StatusCode::OK, result),
+        Err(_) => transport_error(
+            StatusCode::BAD_GATEWAY,
+            "source_authorization_failed",
+            "Twitch authorization could not be completed",
+            true,
+        ),
+    }
+}
+
+async fn test_twitch_source(
+    State(state): State<AppState>,
+    Path(source_id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = source_runtime_for(&state, &source_id) else {
+        return source_request_unavailable(&source_id);
+    };
+    match semantic_engine_source_runtime::test_twitch_source(source_id, sources).await {
+        Ok(result) => json_response(StatusCode::OK, result),
+        Err(_) => transport_error(
+            StatusCode::BAD_GATEWAY,
+            "source_test_failed",
+            "the Twitch source could not be validated",
+            true,
+        ),
+    }
+}
+
+async fn start_twitch_source(
+    State(state): State<AppState>,
+    Path(source_id): Path<String>,
+    headers: HeaderMap,
+    body: Result<Bytes, BytesRejection>,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let request = match parse_json_body(&headers, body) {
+        Ok(request) => request,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = source_runtime_for(&state, &source_id) else {
+        return source_request_unavailable(&source_id);
+    };
+    let StartSourceRequest { expected_revision, session_id } = request;
+    match semantic_engine_source_runtime::start_twitch_source(
+        source_id,
+        expected_revision,
+        session_id,
+        sources,
+    )
+    .await
+    {
+        Ok(result) => json_response(StatusCode::OK, result),
+        Err(_) => transport_error(
+            StatusCode::CONFLICT,
+            "source_start_failed",
+            "the source could not be started for this session",
+            false,
+        ),
+    }
+}
+
+async fn pause_source(
+    State(state): State<AppState>,
+    Path(source_id): Path<String>,
+    headers: HeaderMap,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = source_runtime_for(&state, &source_id) else {
+        return source_request_unavailable(&source_id);
+    };
+    match semantic_engine_source_runtime::stop_source(source_id, sources).await {
+        Ok(result) => json_response(StatusCode::OK, result),
+        Err(_) => transport_error(
+            StatusCode::CONFLICT,
+            "source_pause_failed",
+            "the source could not be paused",
+            false,
+        ),
+    }
+}
+
+async fn delete_source(
+    State(state): State<AppState>,
+    Path(source_id): Path<String>,
+    query: Result<Query<DeleteSourceQuery>, QueryRejection>,
+    headers: HeaderMap,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let Query(query) = match query {
+        Ok(query) => query,
+        Err(_) => {
+            return transport_error(
+                StatusCode::BAD_REQUEST,
+                "invalid_source_query",
+                "expected_revision is required",
+                false,
+            );
+        }
+    };
+    let Some(sources) = source_runtime_for(&state, &source_id) else {
+        return source_request_unavailable(&source_id);
+    };
+    match semantic_engine_source_runtime::delete_source(source_id, query.expected_revision, sources)
+        .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(_) => transport_error(
+            StatusCode::CONFLICT,
+            "source_delete_failed",
+            "the paused source could not be deleted at this revision",
+            false,
+        ),
+    }
 }
 
 async fn events_websocket(
@@ -526,6 +785,103 @@ fn authorize_http(state: &AppState, headers: &HeaderMap) -> Result<(), Transport
             retryable: false,
         })
     }
+}
+
+fn authorize_source_request(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<tokio::sync::OwnedSemaphorePermit, TransportFailure> {
+    authorize_http(state, headers)?;
+    negotiate_http_version(headers)?;
+    take_quota(state)?;
+    state.in_flight.clone().try_acquire_owned().map_err(|_| TransportFailure {
+        status: StatusCode::SERVICE_UNAVAILABLE,
+        code: "backpressure",
+        message: "too many requests are already in flight",
+        retryable: true,
+    })
+}
+
+fn source_runtime_for<'a>(state: &'a AppState, source_id: &str) -> Option<&'a Arc<SourceRuntime>> {
+    valid_source_id(source_id).then_some(state.sources.as_ref()).flatten()
+}
+
+fn source_request_unavailable(source_id: &str) -> Response {
+    if !valid_source_id(source_id) {
+        transport_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_source_id",
+            "the source identifier is invalid",
+            false,
+        )
+    } else {
+        source_runtime_unavailable()
+    }
+}
+
+fn source_runtime_unavailable() -> Response {
+    transport_error(
+        StatusCode::SERVICE_UNAVAILABLE,
+        "source_runtime_unavailable",
+        "input source management is not available in this host",
+        false,
+    )
+}
+
+fn valid_source_id(source_id: &str) -> bool {
+    let bytes = source_id.as_bytes();
+    !bytes.is_empty()
+        && bytes.len() <= 128
+        && bytes.first().is_some_and(u8::is_ascii_alphanumeric)
+        && bytes.last().is_some_and(u8::is_ascii_alphanumeric)
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+fn parse_json_body<T: DeserializeOwned>(
+    headers: &HeaderMap,
+    body: Result<Bytes, BytesRejection>,
+) -> Result<T, TransportFailure> {
+    if !is_json_content_type(headers) {
+        return Err(TransportFailure {
+            status: StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            code: "unsupported_media_type",
+            message: "content-type must be application/json",
+            retryable: false,
+        });
+    }
+    let body = match body {
+        Ok(body) => body,
+        Err(rejection) if rejection.status() == StatusCode::PAYLOAD_TOO_LARGE => {
+            return Err(TransportFailure {
+                status: StatusCode::PAYLOAD_TOO_LARGE,
+                code: "request_too_large",
+                message: "the request body exceeds the 1 MiB transport limit",
+                retryable: false,
+            });
+        }
+        Err(_) => {
+            return Err(TransportFailure {
+                status: StatusCode::BAD_REQUEST,
+                code: "invalid_request_body",
+                message: "the request body could not be read",
+                retryable: false,
+            });
+        }
+    };
+    serde_json::from_slice(&body).map_err(|_| TransportFailure {
+        status: StatusCode::BAD_REQUEST,
+        code: "invalid_json",
+        message: "the request body is not valid JSON for this operation",
+        retryable: false,
+    })
+}
+
+fn json_response<T: Serialize>(status: StatusCode, value: T) -> Response {
+    let mut response = (status, Json(value)).into_response();
+    response.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
 }
 
 fn authorize_origin(state: &AppState, headers: &HeaderMap) -> Result<(), TransportFailure> {

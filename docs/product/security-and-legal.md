@@ -41,6 +41,10 @@ client local. En équipe : OpenID Connect, rôles
 `viewer/operator/owner`, OAuth plateforme séparé, scopes minimaux et journal des
 changements sans contenu intégral du chat.
 
+Les routes `/v1/sources` renvoient uniquement configuration publique, état
+d'exécution, référence opaque de coffre et prompt Device Code temporaire. Les
+access/refresh tokens ne traversent ni HTTP, ni IPC, ni les schémas publics.
+
 Pour Twitch, l’application utilise un client public et le Device Code Grant :
 aucun `client_secret` n’est distribué. Access/refresh tokens vivent dans le
 coffre natif du système et leurs buffers sont masqués/effacés en mémoire. Le

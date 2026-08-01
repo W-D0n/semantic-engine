@@ -38,6 +38,33 @@ résultat est une référence locale, pas une promesse universelle : une release
 publique devra exécuter le même protocole sur plusieurs classes de machines et
 sur un flux plus représentatif avant de fixer un SLO.
 
+## Flux live simulé de bout en bout
+
+Le profil `benchmarks/live-loopback.mjs` lance le véritable hôte release avec
+deux bases temporaires sur disque, ouvre une session de 84 titres et envoie un
+mélange déterministe de réponses exactes, alias, fautes et messages hors sujet.
+La mesure commence avant l'appel HTTP et se termine après lecture de la réponse
+JSON ; elle inclut donc transport loopback, validation, session durable et audit.
+
+```powershell
+cargo build --release -p semantic-engine-cli
+node benchmarks/live-loopback.mjs target/release/semantic-engine-cli.exe `
+  --samples 500 --interval-ms 25
+```
+
+Mesure du 1er août 2026 sous Windows 10.0.26200, Ryzen 9 7950X, Node 25.2.1,
+avec 500 messages, 200 participants simulés et un intervalle de 25 ms :
+
+| Chemin live | p50 | p95 | p99 | Maximum |
+|---|---:|---:|---:|---:|
+| HTTP → service → SQLite → JSON | 15,95 ms | 23,21 ms | 32,30 ms | 36,76 ms |
+
+Le script borne les échantillons à 5 000, impose au moins 11 ms entre requêtes
+pour respecter le quota public et supprime son état temporaire. Il ne mesure pas
+le trajet Twitch → machine : cette latence dépend du réseau et devra être ajoutée
+au pilote réel. Le résultat établit seulement que le traitement local p99 reste
+très inférieur à 50 ms dans ce scénario.
+
 ## Garde-fous
 
 - Les clés sont des SHA-256 en mémoire ; aucun texte brut supplémentaire n’est

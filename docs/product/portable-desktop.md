@@ -115,7 +115,9 @@ Le panneau **API HTTP et WebSocket**, en bas de l'application, affiche d'abord
 La passerelle partage exactement le même service et la même session que
 l'interface Tauri. Elle ne peut écouter que sur `127.0.0.1`, n'autorise aucune
 origine web par défaut et reçoit une nouvelle clé à chaque activation ou
-redémarrage. L'application reste entièrement utilisable sans l'activer.
+redémarrage. Elle expose aussi les sources et leurs actions via `/v1/sources`,
+en utilisant le même orchestrateur que l'écran Tauri sans sérialiser de jeton
+Twitch. L'application reste entièrement utilisable sans l'activer.
 
 ## Connecter Twitch
 
@@ -165,8 +167,7 @@ journal après confirmation ; voir [Audit local et confidentialité](audit.md).
 
 - signer les binaires et publier SBOM + checksums dans une release ;
 - automatiser le test sur une machine Windows propre ;
-- exposer le plan de contrôle des sources dans l’API publique sans jeton ;
-- attribuer une séquence globale durable avant d’autoriser plusieurs sources live par session ;
+- valider le Device Code Grant avec un Client ID de distribution et un pilote réel ;
 - mesurer p50/p95/p99 sur des corpus de 500 à 50 000 cibles.
 
 ## Références

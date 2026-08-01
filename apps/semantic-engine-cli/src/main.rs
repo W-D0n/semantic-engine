@@ -3,16 +3,21 @@ use std::{
     error::Error,
     fs,
     io::{self, BufRead, Write},
+    path::PathBuf,
     process::ExitCode,
+    sync::Arc,
     time::Instant,
 };
 
 use semantic_engine_core::{Round, Submission, ValidationPolicy, Validator};
 
-use semantic_engine_loopback::{DEFAULT_PORT, LoopbackConfig, start as start_loopback};
+use semantic_engine_loopback::{
+    DEFAULT_PORT, LoopbackConfig, start_shared_with_sources as start_loopback,
+};
 use semantic_engine_package::import_package;
 use semantic_engine_protocol::{handle_json_line, line_too_large_response};
 use semantic_engine_service::{SemanticEngineService, ServiceConfig};
+use semantic_engine_source_runtime::SourceRuntime;
 
 const MAX_PROTOCOL_LINE_BYTES: usize = 1024 * 1024;
 fn main() -> ExitCode {
@@ -143,7 +148,8 @@ fn run_loopback(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Er
     if args.next().as_deref() != Some("--enable") || args.next().as_deref() != Some("--audit") {
         return Err(loopback_usage().into());
     }
-    let audit_path = args.next().ok_or("missing loopback audit database path")?;
+    let audit_path = PathBuf::from(args.next().ok_or("missing loopback audit database path")?);
+    let mut sources_path = None;
     let mut config = LoopbackConfig::default();
     while let Some(flag) = args.next() {
         match flag.as_str() {
@@ -159,12 +165,17 @@ fn run_loopback(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Er
                 let origin = args.next().ok_or("missing allowed browser origin")?;
                 config.allowed_origins.push(origin);
             }
+            "--sources" => {
+                sources_path = Some(PathBuf::from(args.next().ok_or("missing sources database")?));
+            }
             _ => return Err(loopback_usage().into()),
         }
     }
-    let service = SemanticEngineService::open(audit_path)?;
+    let sources_path = sources_path.unwrap_or_else(|| audit_path.with_extension("sources.sqlite3"));
+    let service = Arc::new(tokio::sync::Mutex::new(SemanticEngineService::open(&audit_path)?));
+    let sources = Arc::new(SourceRuntime::open(sources_path, service.clone())?);
     tokio::runtime::Runtime::new()?.block_on(async move {
-        let server = start_loopback(service, config).await?;
+        let server = start_loopback(service, sources, config).await?;
         println!(
             "{}",
             serde_json::json!({
@@ -183,7 +194,7 @@ fn run_loopback(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Er
 
 fn loopback_usage() -> String {
     format!(
-        "usage: semantic-engine-cli loopback --enable --audit <state.sqlite3> [--port <0..65535>] [--origin <origin>] (default port: {DEFAULT_PORT})"
+        "usage: semantic-engine-cli loopback --enable --audit <state.sqlite3> [--sources <sources.sqlite3>] [--port <0..65535>] [--origin <origin>] (default port: {DEFAULT_PORT})"
     )
 }
 
@@ -376,7 +387,7 @@ fn print_help() {
          semantic-engine-cli context validate --package <datapackage.json>\n  \
          semantic-engine-cli benchmark (--round <round.json> | --package <datapackage.json>) --submissions <submissions.jsonl> [--iterations <1..1000>]\n  \
          semantic-engine-cli serve [--audit <audit.sqlite3>]\n  \
-         semantic-engine-cli loopback --enable --audit <state.sqlite3> [--port <0..65535>] [--origin <origin>]\n\n\
+         semantic-engine-cli loopback --enable --audit <state.sqlite3> [--sources <sources.sqlite3>] [--port <0..65535>] [--origin <origin>]\n\n\
          Reads one Submission JSON object per stdin line and immediately writes one Validation JSON object."
     );
 }

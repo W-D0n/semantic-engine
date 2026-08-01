@@ -11,6 +11,7 @@ members = [
   "crates/semantic-engine-source",
   "crates/semantic-engine-credential-vault",
   "crates/semantic-engine-twitch",
+  "crates/semantic-engine-source-runtime",
   "apps/semantic-engine-cli",
   "apps/desktop/src-tauri",
 ]

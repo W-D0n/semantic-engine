@@ -8,7 +8,8 @@ formulations proches comprises.
 > inspection/rollback des paquets, tuning local des titres, export de versions,
 > arbitrage opérateur, audit SQLite à rétention bornée et service d’application
 > avec déduplication/cache TTL-LRU, API locale opt-in et source Twitch EventSub
-> protégée par le coffre natif du système.
+> protégée par le coffre natif du système. L'API et la CLI headless pilotent
+> aussi les sources, avec un ordre global durable pour plusieurs chats.
 > Le corpus contractuel couvre 84 titres et 28 cas de validation.
 
 ## Pourquoi ce projet
@@ -27,6 +28,7 @@ quand la réponse n’est pas assez sûre.
 - [Importer et diffuser un paquet de contexte](docs/integration/context-packages.md)
 - [Conventions techniques retenues](docs/research/context-package-conventions.md)
 - [Sécurité, safety et cadre légal](docs/product/security-and-legal.md)
+- [Threat model](docs/product/threat-model.md)
 - [Ouvertures produit et marché](docs/product/market.md)
 - [Solutions et corpus existants](docs/research/existing-solutions-and-data.md)
 - [Intégration locale JSONL et contrat de résolution](docs/integration/jsonl-sidecar.md)
@@ -37,6 +39,9 @@ quand la réponse n’est pas assez sûre.
 - [Roadmap](docs/roadmap.md)
 - [Continuité entre sessions et outils IA](docs/contributing/session-continuity.md)
 - [Handoff courant](HANDOFF.md)
+- [Politique de sécurité](SECURITY.md)
+- [Contribuer](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 - [Glossaire métier](CONTEXT.md)
 - [Décisions d’architecture](docs/adr/)
 
@@ -78,8 +83,11 @@ node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
 # Vérifier aussi HTTP/WebSocket loopback
 node conformance/clients/node-loopback-client.mjs target/debug/semantic-engine-cli.exe
 
+# Mesurer le chemin live local complet (release, session et SQLite)
+node benchmarks/live-loopback.mjs target/release/semantic-engine-cli.exe --samples 500 --interval-ms 25
+
 # Démarrer explicitement l'API locale (désactivée sinon)
-cargo run -p semantic-engine-cli -- loopback --enable --audit semantic-engine.sqlite3 --port 17831 --origin http://localhost:5173
+cargo run -p semantic-engine-cli -- loopback --enable --audit semantic-engine.sqlite3 --sources semantic-engine.sources.sqlite3 --port 17831 --origin http://localhost:5173
 
 # Client Tauri en développement
 cd apps/desktop
@@ -123,3 +131,11 @@ python -m mkdocs serve
 ```
 
 Puis ouvrir `http://127.0.0.1:8000`.
+
+## Licence avant contributions externes
+
+Le dépôt est publiquement consultable, mais aucune licence de code n'est encore
+accordée. Le choix documenté reste **Apache-2.0** (adoption/open core) ou
+**AGPL-3.0 + licence commerciale** (copyleft réseau). Il doit être arbitré par le
+propriétaire avant d'accepter une contribution externe ou de publier `v0.1.0`.
+Voir [les options de commercialisation](docs/product/market.md).

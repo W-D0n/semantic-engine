@@ -5,13 +5,14 @@ use semantic_engine_core::{
     AnswerTarget, OperatorResolution, OperatorResolutionRequest, Submission, Validation,
 };
 use semantic_engine_loopback::{
-    LoopbackConfig, LoopbackServer, SharedService, start_shared as start_loopback,
+    LoopbackConfig, LoopbackServer, SharedService, start_shared_with_sources as start_loopback,
 };
 use semantic_engine_package::{ImportedContext, SourceMetadata, export_package, import_package};
 use semantic_engine_service::{
     AuditEntry, ResumableSession, SemanticEngineService, ServiceError, SessionEventsPage,
     SessionSnapshot, StartSession,
 };
+use semantic_engine_source_runtime::SourceRuntime;
 use semver::Version;
 use serde::Serialize;
 use tauri::{Manager, State};
@@ -186,6 +187,7 @@ async fn start_loopback_ipc(
     port: u16,
     origin: Option<String>,
     service: State<'_, SharedService>,
+    sources: State<'_, std::sync::Arc<SourceRuntime>>,
     runtime: State<'_, LoopbackRuntime>,
 ) -> Result<LoopbackStatus, String> {
     let mut runtime = runtime.0.lock().await;
@@ -203,8 +205,9 @@ async fn start_loopback_ipc(
         config.allowed_origins.push(origin);
     }
     let allowed_origins = config.allowed_origins.clone();
-    let server =
-        start_loopback(service.inner().clone(), config).await.map_err(|error| error.to_string())?;
+    let server = start_loopback(service.inner().clone(), sources.inner().clone(), config)
+        .await
+        .map_err(|error| error.to_string())?;
     *runtime = Some(ActiveLoopback { server, allowed_origins });
     Ok(loopback_status(runtime.as_ref()))
 }
@@ -373,10 +376,10 @@ pub fn run() {
             app.manage(Mutex::new(store));
             app.manage(service);
             let service = app.state::<SharedService>().inner().clone();
-            app.manage(sources::SourceAppState::open(
+            app.manage(std::sync::Arc::new(SourceRuntime::open(
                 data_directory.join("sources.sqlite3"),
                 service,
-            )?);
+            )?));
             app.manage(LoopbackRuntime(tokio::sync::Mutex::new(None)));
             Ok(())
         })

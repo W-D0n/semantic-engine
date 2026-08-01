@@ -16,10 +16,7 @@ tauri-build = { version = "2", features = [] }
 semantic-engine-context-store = { path = "../../../crates/semantic-engine-context-store" }
 semantic-engine-core = { path = "../../../crates/semantic-engine-core" }
 semantic-engine-loopback = { path = "../../../crates/semantic-engine-loopback" }
-semantic-engine-source = { path = "../../../crates/semantic-engine-source" }
-semantic-engine-credential-vault = { path = "../../../crates/semantic-engine-credential-vault" }
-semantic-engine-twitch = { path = "../../../crates/semantic-engine-twitch" }
-getrandom.workspace = true
+semantic-engine-source-runtime = { path = "../../../crates/semantic-engine-source-runtime" }
 semantic-engine-package = { path = "../../../crates/semantic-engine-package" }
 semantic-engine-service = { path = "../../../crates/semantic-engine-service" }
 semver.workspace = true

@@ -10,6 +10,7 @@ const PRIVATE_TEXT = 'eldern ring!!!';
 const executable = resolve(process.argv[2] ?? 'target/debug/semantic-engine-cli.exe');
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'semantic-engine-loopback-conformance-'));
 const database = join(temporaryRoot, 'state.sqlite3');
+const sourcesDatabase = join(temporaryRoot, 'sources.sqlite3');
 let child;
 
 try {
@@ -21,6 +22,21 @@ try {
   const health = await fetchJson(`${ready.address}/v1/health`);
   assertEqual(health.response.status, 200, 'health status');
   assertEqual(health.body.protocol_versions, [PROTOCOL_VERSION], 'health protocol versions');
+
+  const unauthorizedSources = await fetchJson(`${ready.address}/v1/sources`);
+  assertEqual(unauthorizedSources.response.status, 401, 'unauthorized sources status');
+
+  const createdSource = await sourceApiJson(ready, '/v1/sources/twitch', {
+    method: 'POST',
+    json: { display_name: 'Node pilot', client_id: 'publicclient123' },
+  });
+  assertEqual(createdSource.response.status, 201, 'source create status');
+  assertEqual(createdSource.body.authenticated, false, 'new source auth state');
+  assertEqual(createdSource.body.credential_id, null, 'new source credential reference');
+  assert(!JSON.stringify(createdSource.body).includes('access_token'), 'source API exposed access token');
+  assert(!JSON.stringify(createdSource.body).includes('refresh_token'), 'source API exposed refresh token');
+  const sourceId = createdSource.body.source_id;
+  const sourceRevision = createdSource.body.revision;
 
   const unauthorized = await fetchJson(`${ready.address}/v1/commands`, {
     method: 'POST',
@@ -89,6 +105,11 @@ try {
   assertEqual(restored.state, 'active', 'restored loopback session state');
   assertEqual(restored.latest_event_sequence, 2, 'restored loopback sequence');
 
+  const restoredSources = await sourceApiJson(ready, '/v1/sources');
+  assertEqual(restoredSources.response.status, 200, 'restored source list status');
+  assertEqual(restoredSources.body.length, 1, 'restored source count');
+  assertEqual(restoredSources.body[0].source_id, sourceId, 'restored source identity');
+
   const socketPayload = await firstWebSocketPayload(ready);
   assertEqual(socketPayload.status, 'ok', 'WebSocket response status');
   assertEqual(socketPayload.result.events.length, 2, 'WebSocket restored event count');
@@ -153,6 +174,13 @@ try {
   assertEqual(oversized.response.status, 413, 'oversized request status');
   assertEqual(oversized.body.error.code, 'request_too_large', 'oversized request code');
 
+  const deletedSource = await sourceApiFetch(
+    ready,
+    `/v1/sources/${sourceId}?expected_revision=${sourceRevision}`,
+    { method: 'DELETE' },
+  );
+  assertEqual(deletedSource.status, 204, 'source deletion status');
+
   await stopServer();
   const databaseBytes = await readFile(database);
   assert(!databaseBytes.includes(Buffer.from(PRIVATE_TEXT)), 'database contains raw chat text');
@@ -165,7 +193,13 @@ try {
 async function startServer() {
   child = spawn(
     executable,
-    ['loopback', '--enable', '--audit', database, '--port', '0', '--origin', 'http://localhost'],
+    [
+      'loopback', '--enable',
+      '--audit', database,
+      '--sources', sourcesDatabase,
+      '--port', '0',
+      '--origin', 'http://localhost',
+    ],
     { env: { ...process.env }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
   );
   let stdout = '';
@@ -233,6 +267,26 @@ function createRequester(ready) {
 async function fetchJson(url, options) {
   const response = await fetch(url, { ...options, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
   return { response, body: await response.json() };
+}
+
+async function sourceApiJson(ready, path, options = {}) {
+  const response = await sourceApiFetch(ready, path, options);
+  return { response, body: await response.json() };
+}
+
+async function sourceApiFetch(ready, path, { method = 'GET', json } = {}) {
+  const headers = {
+    Authorization: `Bearer ${ready.token}`,
+    Origin: 'http://localhost',
+    'X-Semantic-Engine-Protocol': String(PROTOCOL_VERSION),
+  };
+  if (json !== undefined) headers['Content-Type'] = 'application/json';
+  return await fetch(`${ready.address}${path}`, {
+    method,
+    headers,
+    body: json === undefined ? undefined : JSON.stringify(json),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
 }
 
 async function firstWebSocketPayload(ready) {

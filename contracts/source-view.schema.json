@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:semantic-engine:schema:source-view:1",
+  "title": "Semantic Engine source view",
+  "description": "Public, token-free configuration and ephemeral runtime status for an input source.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "source_id",
+    "adapter",
+    "display_name",
+    "settings",
+    "credential_id",
+    "desired_state",
+    "revision",
+    "created_at_ms",
+    "updated_at_ms",
+    "runtime",
+    "authenticated"
+  ],
+  "properties": {
+    "contract_version": { "const": 1 },
+    "source_id": { "$ref": "#/$defs/identifier" },
+    "adapter": { "$ref": "#/$defs/identifier" },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 80 },
+    "settings": {
+      "type": "object",
+      "maxProperties": 32,
+      "propertyNames": { "$ref": "#/$defs/identifier" },
+      "additionalProperties": { "type": "string", "maxLength": 512 }
+    },
+    "credential_id": {
+      "description": "Opaque OS-vault reference, never a credential value.",
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/identifier" }
+      ]
+    },
+    "desired_state": { "enum": ["paused", "active"] },
+    "revision": { "type": "integer", "minimum": 1 },
+    "created_at_ms": { "type": "integer", "minimum": 0 },
+    "updated_at_ms": { "type": "integer", "minimum": 0 },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "detail",
+        "session_id",
+        "messages_received",
+        "accepted",
+        "last_event_at_ms"
+      ],
+      "properties": {
+        "state": {
+          "type": ["string", "null"],
+          "enum": [
+            "paused",
+            "authentication_required",
+            "connecting",
+            "connected",
+            "backoff",
+            "faulted",
+            null
+          ]
+        },
+        "detail": { "type": ["string", "null"], "maxLength": 256 },
+        "session_id": { "type": ["string", "null"], "maxLength": 256 },
+        "messages_received": { "type": "integer", "minimum": 0 },
+        "accepted": { "type": "integer", "minimum": 0 },
+        "last_event_at_ms": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "authenticated": { "type": "boolean" }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$"
+    }
+  }
+}

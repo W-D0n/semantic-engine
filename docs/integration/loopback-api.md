@@ -11,6 +11,7 @@ une adresse loopback. Son contrat source se trouve dans
 ```powershell
 cargo run -p semantic-engine-cli -- loopback --enable `
   --audit .\semantic-engine.sqlite3 `
+  --sources .\semantic-engine.sources.sqlite3 `
   --port 17831 `
   --origin http://localhost:5173
 ```
@@ -49,6 +50,44 @@ Les erreurs métier restent des réponses corrélées HTTP 200 avec `status: err
 Les erreurs de transport utilisent 400, 401, 403, 413, 415, 426, 429, 500 ou
 503 et un objet `error` stable. `GET /v1/health` ne retourne ni donnée de session
 ni secret.
+
+## Sources d'entrée
+
+Le même serveur expose la gestion des sources. Ces routes utilisent le même
+Bearer éphémère, la même version de protocole, les mêmes origines, quotas et
+limites de corps que `/v1/commands`.
+
+| Opération | Route |
+|---|---|
+| lister | `GET /v1/sources` |
+| ajouter Twitch | `POST /v1/sources/twitch` |
+| commencer / interroger OAuth | `POST /v1/sources/{id}/authorization[/poll]` |
+| tester | `POST /v1/sources/{id}/test` |
+| écouter une session | `POST /v1/sources/{id}/start` |
+| mettre en pause | `POST /v1/sources/{id}/pause` |
+| supprimer | `DELETE /v1/sources/{id}?expected_revision=…` |
+
+```js
+const source = await fetch(`${address}/v1/sources/twitch`, {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    "X-Semantic-Engine-Protocol": "1",
+  },
+  body: JSON.stringify({
+    display_name: "Mon canal",
+    client_id: "identifiant-public-twitch",
+  }),
+}).then((response) => response.json());
+```
+
+Les réponses suivent `contracts/source-view.schema.json`. Elles peuvent contenir
+un `credential_id` opaque et un booléen `authenticated`, mais jamais un access
+token, refresh token ou code appareil interne. Le `user_code` retourné par le
+Device Code Grant est volontairement visible par le client local authentifié et
+expire rapidement. `expected_revision` impose un contrôle optimiste avant les
+actions destructives.
 
 ## Événements WebSocket
 
@@ -98,9 +137,11 @@ sequenceDiagram
 - pages d'événements limitées à 1 000 et polling interne borné ;
 - aucun texte brut du chat ni expression correspondante dans les événements.
 
-Ce transport n'est ni une API LAN ni une API Internet. Un futur hôte headless
-réutilisera le module `semantic-engine-loopback`, mais devra avoir un mode réseau
-distinct avec TLS, identité durable, rôles, rotation et observabilité adaptée.
+Ce transport n'est ni une API LAN ni une API Internet. La commande CLI `loopback`
+constitue déjà un hôte headless local : elle assemble `semantic-engine-loopback`
+et `semantic-engine-source-runtime`, les deux modules également utilisés par
+Tauri. Un futur mode réseau devra rester distinct et ajouter TLS, identité
+durable, rôles, rotation et observabilité adaptée.
 
 ## Conformité
 

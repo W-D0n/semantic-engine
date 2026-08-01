@@ -88,10 +88,10 @@ contractuelle, tandis que l'application portable fonctionne API réseau désacti
 - [x] déduplication, ordre source et backpressure ;
 - [x] ajout, test, pause et suppression d'une source dans l'application ;
 - [x] arbitrage des validations live depuis l’application ;
-- [ ] exposer la gestion des sources dans l’API publique, sans exposer les jetons ;
-- [ ] agréger plusieurs sources avec une séquence globale durable ;
+- [x] exposer la gestion des sources dans l’API publique, sans exposer les jetons ;
+- [x] agréger plusieurs sources avec une séquence globale durable ;
 - [ ] valider avec un Client ID de distribution et un compte pilote réel ;
-- [ ] mesures p50/p95/p99 sur un flux réaliste ;
+- [x] mesures p50/p95/p99 reproductibles sur un flux live simulé ;
 - [ ] pilote privé et suppression vérifiée des données.
 
 **Critère de sortie** : un utilisateur non auteur connecte Twitch depuis
@@ -112,9 +112,14 @@ montre un gain utile sans sacrifier précision, explicabilité ou portabilité.
 
 ## M5 — Ouverture publique
 
-Licence, contribution, code de conduite, threat model, SBOM, CI multi-OS,
-benchmarks reproductibles, documentation versionnée, migrations et release
-`v0.1`.
+- [ ] arbitrer et ajouter la licence du code ;
+- [x] contribution, code de conduite et politique de signalement privé ;
+- [x] threat model couvrant chat, OAuth, loopback, paquets et supply chain ;
+- [x] SBOM CycloneDX reproductible à partir des deux lockfiles ;
+- [x] définition CI Windows complète + cœur Linux/macOS + frontend + docs ;
+- [x] benchmarks reproductibles et documentation versionnée ;
+- [ ] faire passer la CI distante et publier une release signée `v0.1.0` ;
+- [ ] documenter la politique de migration après la première rupture réelle.
 
 Le code et les petits fixtures peuvent être publics. Les caches de fournisseurs
 et données non redistribuables restent hors du dépôt. Answer Atlas peut fournir
@@ -145,9 +150,9 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Ajouter la gestion de sources au protocole public sans faire transiter de secret.
-2. Construire l’agrégateur d’ordre global multi-source et son test de reprise.
-3. Mesurer un flux Twitch simulé puis réaliser un pilote avec un Client ID public.
+1. Arbitrer la licence du code puis faire passer la CI distante.
+2. Préparer un Client ID de distribution puis réaliser un pilote réel consenti.
+3. Étendre le corpus annoté avant de comparer le moteur lexical à des embeddings locaux.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et
 consomment uniquement des contrats publics ; elles ne bloquent aucun de ces jalons.
