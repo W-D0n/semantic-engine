@@ -141,7 +141,8 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Faire arbitrer la licence du code, exécuter la CI distante, puis réaliser un
-pilote Twitch réel consenti avec un Client ID de distribution. Ne pas faire
-transiter les jetons dans JSONL/HTTP et ne pas réintroduire de dépendance vers
+Faire arbitrer la licence du code, publier une release signée, puis réaliser un
+pilote Twitch réel consenti avec un Client ID de distribution. La CI distante
+du commit `51c0194` est verte. Ne pas faire transiter les jetons dans JSONL/HTTP
+et ne pas réintroduire de dépendance vers
 MyVault, de chat brut persistant ni de scoreboard dans le moteur.

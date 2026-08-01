@@ -118,7 +118,8 @@ montre un gain utile sans sacrifier précision, explicabilité ou portabilité.
 - [x] SBOM CycloneDX reproductible à partir des deux lockfiles ;
 - [x] définition CI Windows complète + cœur Linux/macOS + frontend + docs ;
 - [x] benchmarks reproductibles et documentation versionnée ;
-- [ ] faire passer la CI distante et publier une release signée `v0.1.0` ;
+- [x] faire passer la CI distante sur Windows, Linux et macOS ;
+- [ ] publier une release signée `v0.1.0` ;
 - [ ] documenter la politique de migration après la première rupture réelle.
 
 Le code et les petits fixtures peuvent être publics. Les caches de fournisseurs
@@ -150,7 +151,7 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Arbitrer la licence du code puis faire passer la CI distante.
+1. Arbitrer la licence du code puis publier une release signée.
 2. Préparer un Client ID de distribution puis réaliser un pilote réel consenti.
 3. Étendre le corpus annoté avant de comparer le moteur lexical à des embeddings locaux.
 
