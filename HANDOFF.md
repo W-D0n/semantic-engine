@@ -76,6 +76,13 @@ et durable.
   et reçu de purge locale exposé par Tauri et l’API loopback ;
 - corpus qualité v2 : 84 titres, 328 annotations multi-catégories, quality gate
   précision/rappel obligatoire, résultat de référence 1,0/1,0 sans faux positif ;
+- crate `semantic-engine-vectors` sans dépendance ML : fournisseur injectable,
+  index sérialisable lié au contexte/fingerprint, validation défensive et abstention ;
+- benchmark FastEmbed/ONNX isolé avec lockfile propre : le modèle calibré atteint
+  90,85 % d’exactitude et 6 faux positifs en cible unique contre 100 %/0 pour le
+  lexical, ajoute 487 Mo et environ 8,17 ms p50 ; sur 40 cas globaux, il atteint
+  95 % de précision/rappel mais produit une fausse acceptation, donc les vecteurs
+  restent désactivés par défaut ;
 - le pilote YouTube réel, l’audit de conformité, la licence, la signature Windows native et le
   scoreboard consommateur restent à faire.
 
@@ -97,15 +104,17 @@ et durable.
 14. `crates/semantic-engine-audit-store/src/lib.rs`
 15. `crates/semantic-engine-service/src/lib.rs`
 16. `docs/product/performance.md`
-17. `crates/semantic-engine-protocol/src/lib.rs`
-18. `docs/integration/jsonl-sidecar.md`
-19. `docs/integration/twitch.md`
-20. `crates/semantic-engine-source/src/lib.rs`
-21. `crates/semantic-engine-source-runtime/src/lib.rs`
-22. `crates/semantic-engine-twitch/src/lib.rs`
-23. `apps/desktop/src/lib/SourcePanel.svelte`
-24. `docs/integration/youtube.md`
-25. `crates/semantic-engine-youtube/src/lib.rs`
+17. `crates/semantic-engine-vectors/src/lib.rs`
+18. `benchmarks/vector-comparison/README.md`
+19. `crates/semantic-engine-protocol/src/lib.rs`
+20. `docs/integration/jsonl-sidecar.md`
+21. `docs/integration/twitch.md`
+22. `crates/semantic-engine-source/src/lib.rs`
+23. `crates/semantic-engine-source-runtime/src/lib.rs`
+24. `crates/semantic-engine-twitch/src/lib.rs`
+25. `apps/desktop/src/lib/SourcePanel.svelte`
+26. `docs/integration/youtube.md`
+27. `crates/semantic-engine-youtube/src/lib.rs`
 
 ## Décisions à préserver
 
@@ -118,7 +127,8 @@ et durable.
   jamais le texte brut ni l’expression correspondante ;
 - les versions et brouillons sont stockés dans l’AppData, pas avec l’exécutable ;
 - le moteur ne désigne pas le gagnant et ne compte pas les points ;
-- vecteurs, microservices et réécriture Rust restent ouverts après benchmark ;
+- les vecteurs restent optionnels et hors portable tant qu’un corpus aveugle ne
+  démontre pas un gain sans perte de précision ; microservices et autres hôtes restent ouverts ;
 - le package hors ligne doit prouver au lancement le chemin du runtime embarqué ;
 - avant chaque clôture, synchroniser les erreurs réutilisables avec `C:\DEV\error-tracking\README.md`.
 
@@ -142,6 +152,8 @@ cargo run -q -p semantic-engine-cli -- evaluate `
   --minimum-precision 0.95 --minimum-recall 0.90
 cargo run -q -p semantic-engine-cli -- context validate `
   --package packages/starter-titles/datapackage.json
+cargo test -p semantic-engine-vectors
+cargo test --locked --manifest-path benchmarks/vector-comparison/Cargo.toml
 node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
 node conformance/clients/node-loopback-client.mjs target/debug/semantic-engine-cli.exe
 cd apps/desktop

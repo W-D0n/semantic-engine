@@ -10,6 +10,7 @@
 /site/
 /skill-observations/
 /artifacts/
+/benchmarks/vector-comparison/target/
 
 /apps/desktop/src-tauri/gen/schemas/
 # Local build and preview logs

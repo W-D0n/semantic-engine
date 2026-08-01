@@ -13,6 +13,7 @@ members = [
   "crates/semantic-engine-twitch",
   "crates/semantic-engine-youtube",
   "crates/semantic-engine-source-runtime",
+  "crates/semantic-engine-vectors",
   "apps/semantic-engine-cli",
   "apps/desktop/src-tauri",
 ]

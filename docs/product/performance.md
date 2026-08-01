@@ -86,6 +86,49 @@ rappel des acceptations à 100 %, 0 faux positif, 18 abstentions et 36 rejets.
 Cette mesure prouve la non-régression sur le corpus versionné ; elle ne remplace
 ni un corpus externe aveugle ni un pilote avec de vrais messages de chat.
 
+## Comparaison avec des embeddings locaux
+
+Le banc d’essai isolé `benchmarks/vector-comparison` compare le cœur à
+`intfloat/multilingual-e5-small` via FastEmbed 5.17.4 et ONNX.
+Le modèle MIT, multilingue et de 384 dimensions, est fingerprinté depuis son
+cache local ; ni ses dépendances ni ses 487 352 545 octets n’entrent dans le
+workspace, le SBOM ou l’application portable par défaut.
+
+Mesure Windows x64 du 1er août 2026, sur les mêmes 84 titres et 328 annotations :
+
+| Moteur | Seuil accepter/revoir | Précision | Rappel | Exactitude | Faux positifs |
+|---|---:|---:|---:|---:|---:|
+| lexical | politique v1 | 100 % | 100 % | 100 % | 0 |
+| vecteurs, défaut | 0,90 / 0,82 | 93,13 % | 98,91 % | 86,89 % | 20 |
+| vecteurs, calibré | 0,93 / 0,89 | 97,76 % | 95,62 % | 90,85 % | 6 |
+
+| Coût local | p50 | p95 | p99 |
+|---|---:|---:|---:|
+| lexical | 7,6 µs | 17,8 µs | 33,0 µs |
+| inférence vectorielle, cible unique | 8,17 ms | 12,17 ms | 14,42 ms |
+| inférence vectorielle, 84 cibles | 7,91 ms | 12,78 ms | 13,77 ms |
+
+Le chargement depuis un cache déjà présent a pris 20,67 s ; la construction de
+l’index versionné de 165 expressions, 333 ms et 780 595 octets. Un corpus global
+dédié de 40 cas est ensuite opposé aux 84 titres : 20 réponses positives, 6
+ambiguïtés et 14 rejets hors catalogue ou bruit de chat. Le lexical y atteint
+100 % de précision/rappel mais 87,5 % d'exactitude, car il rejette cinq cas dont
+l'attendu prudent est l'abstention. Le vectoriel calibré (`0,93 / 0,89 / marge
+0,00`) atteint 95 % de précision/rappel, 92,5 % d'exactitude, une fausse
+acceptation, cinq abstentions et quinze rejets. Les 20 bons titres sont classés
+premiers, mais un positif reste sous le seuil d'acceptation.
+
+La calibration
+vectorielle franchit le gate minimal de 95 %/90 %, mais reste moins précise,
+moins fidèle et environ mille fois plus lente au p50 que le lexical. Les vecteurs
+restent donc **désactivés par défaut** et ne sont pas distribués dans la portable.
+
+Cette conclusion vaut pour les réponses courtes, alias et fautes du corpus v2.
+Un futur corpus aveugle de paraphrases réelles pourra produire un résultat
+différent ; la couture `semantic-engine-vectors` permet de le tester sans changer
+le cœur ni rendre le modèle obligatoire. La baseline machine-readable conserve
+le fingerprint exact du modèle et les mesures utilisées pour cette décision.
+
 ## Garde-fous
 
 - Les clés sont des SHA-256 en mémoire ; aucun texte brut supplémentaire n’est
@@ -95,3 +138,5 @@ ni un corpus externe aveugle ni un pilote avec de vrais messages de chat.
 - La capacité zéro désactive explicitement le cache pour comparer les chemins.
 - Compter les hits ne suffit pas : suivre p50/p95/p99, taux de conflit, taille du
   contexte et pression d’écriture de l’audit.
+- Un index vectoriel importé est lié à la version du contexte et au fingerprint
+  du modèle ; dimensions, nombres non finis, doublons et vecteurs nuls sont refusés.

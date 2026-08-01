@@ -38,6 +38,7 @@ quand la réponse n’est pas assez sûre.
 - [Distribution, checksums et attestations](docs/product/releases.md)
 - [Audit local et confidentialité](docs/product/audit.md)
 - [Performance et benchmark](docs/product/performance.md)
+- [Comparaison vectorielle reproductible](benchmarks/vector-comparison/README.md)
 - [Roadmap](docs/roadmap.md)
 - [Continuité entre sessions et outils IA](docs/contributing/session-continuity.md)
 - [Handoff courant](HANDOFF.md)
@@ -87,6 +88,10 @@ node conformance/clients/node-loopback-client.mjs target/debug/semantic-engine-c
 
 # Mesurer le chemin live local complet (release, session et SQLite)
 node benchmarks/live-loopback.mjs target/release/semantic-engine-cli.exe --samples 500 --interval-ms 25
+
+# Comparer optionnellement un modèle local au moteur lexical (cache hors produit)
+cargo run --locked --release --manifest-path benchmarks/vector-comparison/Cargo.toml -- `
+  --cache-dir artifacts/vector-benchmark/model-cache
 
 # Démarrer explicitement l'API locale (désactivée sinon)
 cargo run -p semantic-engine-cli -- loopback --enable --audit semantic-engine.sqlite3 --sources semantic-engine.sources.sqlite3 --port 17831 --origin http://localhost:5173

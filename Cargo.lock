@@ -4032,6 +4032,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "semantic-engine-vectors"
+version = "0.1.0"
+dependencies = [
+ "semantic-engine-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "semantic-engine-youtube"
 version = "0.1.0"
 dependencies = [

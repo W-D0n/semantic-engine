@@ -1,0 +1,16 @@
+[workspace]
+
+[package]
+name = "semantic-engine-vector-comparison"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+
+[dependencies]
+fastembed = { version = "=5.17.4", default-features = false, features = ["ort-download-binaries-rustls-tls", "hf-hub-rustls-tls"] }
+semantic-engine-core = { path = "../../crates/semantic-engine-core" }
+semantic-engine-vectors = { path = "../../crates/semantic-engine-vectors" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"

@@ -102,8 +102,8 @@ l'application autonome et peut exploiter les validations via l'interface publiqu
 ## M4 — Qualité avancée et YouTube
 
 - [x] étendre le corpus avant tout ajout vectoriel ;
-- comparer embeddings locaux optionnels et moteur lexical ;
-- indexer par version de contexte et calibrer sur précision/latence/taille ;
+- [x] comparer embeddings locaux optionnels et moteur lexical ;
+- [x] indexer par version de contexte et calibrer sur précision/latence/taille ;
 - alimenter une mémoire uniquement depuis des corrections validées ;
 - appliquer provenance, consentement, rollback, TTL/LRU et quotas ;
 - [x] ajouter YouTube Live Chat avec les mêmes contrats de source, OAuth PKCE, coffre, API et UI ;
@@ -113,7 +113,7 @@ l'application autonome et peut exploiter les validations via l'interface publiqu
 - [x] découvrir les lives de la chaîne connectée et laisser l’opérateur sélectionner la diffusion ;
 - [x] exposer états quota/auth typés et reçu vérifiable de révocation/purge ;
 - [ ] faire valider le workflow verdict/points via YouTube API Compliance Audit avant ouverture commerciale ;
-- valider le comportement avec et sans fonctionnalités avancées.
+- [x] valider le comportement avec et sans fonctionnalités avancées.
 
 **Critère de sortie** : les vecteurs ne sont activés par défaut que si le benchmark
 montre un gain utile sans sacrifier précision, explicabilité ou portabilité.
@@ -162,7 +162,8 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 1. Arbitrer la licence du code, signer nativement Windows puis publier le brouillon `v0.1.0`.
 2. Préparer un Client ID de distribution puis réaliser un pilote réel consenti.
-3. Étendre le corpus annoté avant de comparer le moteur lexical à des embeddings locaux.
+3. Constituer un corpus aveugle de paraphrases réelles avant de reconsidérer les
+   embeddings, actuellement inférieurs au lexical et désactivés par défaut.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et
 consomment uniquement des contrats publics ; elles ne bloquent aucun de ces jalons.

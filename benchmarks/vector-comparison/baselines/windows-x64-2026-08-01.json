@@ -1,0 +1,95 @@
+{
+  "baselineVersion": 2,
+  "measuredAt": "2026-08-01",
+  "platform": "windows-x86_64",
+  "rust": "1.97.1",
+  "titleCorpusVersion": 1,
+  "caseCorpusVersion": 2,
+  "multiTargetCorpusVersion": 1,
+  "titles": 84,
+  "annotations": 328,
+  "multiTargetAnnotations": 40,
+  "model": {
+    "id": "intfloat/multilingual-e5-small",
+    "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+    "fastembed": "5.17.4",
+    "dimensions": 384,
+    "cacheFingerprintSha256": "063aab860106ad9003daab308639e08aac306123f2b237a5ef39d0936ae754cd",
+    "cacheBytes": 487352545,
+    "warmCacheInitializationMs": 20670
+  },
+  "index": {
+    "schemaVersion": 1,
+    "contextVersion": "title-corpus-v1",
+    "expressions": 165,
+    "serializedBytes": 780595,
+    "buildMs": 333
+  },
+  "lexical": {
+    "acceptedPrecision": 1.0,
+    "acceptedRecall": 1.0,
+    "decisionAccuracy": 1.0,
+    "falseAccepts": 0,
+    "latencyNs": { "p50": 7600, "p95": 17800, "p99": 33000 },
+    "multiTarget": {
+      "annotations": 40,
+      "positiveAnnotations": 20,
+      "top1Correct": 20,
+      "acceptedPrecision": 1.0,
+      "acceptedRecall": 1.0,
+      "decisionAccuracy": 0.875,
+      "acceptedCorrect": 20,
+      "acceptedWrong": 0,
+      "abstained": 1,
+      "rejected": 19
+    },
+    "multiTargetLatencyNs": { "p50": 187400, "p95": 338900, "p99": 368600 }
+  },
+  "vectorDefault": {
+    "acceptThreshold": 0.9,
+    "reviewThreshold": 0.82,
+    "ambiguityMargin": 0.05,
+    "acceptedPrecision": 0.9312714777,
+    "acceptedRecall": 0.9890510949,
+    "decisionAccuracy": 0.868902439,
+    "falseAccepts": 20,
+    "multiTarget": {
+      "annotations": 40,
+      "positiveAnnotations": 20,
+      "top1Correct": 20,
+      "acceptedPrecision": 0.9047619048,
+      "acceptedRecall": 0.95,
+      "decisionAccuracy": 0.575,
+      "acceptedCorrect": 19,
+      "acceptedWrong": 2,
+      "abstained": 19,
+      "rejected": 0
+    },
+    "qualityGatePassed": false,
+    "latencyNs": { "p50": 8171500, "p95": 12166400, "p99": 14419400 },
+    "multiTargetLatencyNs": { "p50": 7909800, "p95": 12781000, "p99": 13768000 }
+  },
+  "vectorCalibrated": {
+    "acceptThreshold": 0.93,
+    "reviewThreshold": 0.89,
+    "ambiguityMargin": 0.0,
+    "acceptedPrecision": 0.9776119403,
+    "acceptedRecall": 0.9562043796,
+    "decisionAccuracy": 0.9085365854,
+    "falseAccepts": 6,
+    "multiTarget": {
+      "annotations": 40,
+      "positiveAnnotations": 20,
+      "top1Correct": 20,
+      "acceptedPrecision": 0.95,
+      "acceptedRecall": 0.95,
+      "decisionAccuracy": 0.925,
+      "acceptedCorrect": 19,
+      "acceptedWrong": 1,
+      "abstained": 5,
+      "rejected": 15
+    },
+    "qualityGatePassed": true
+  },
+  "recommendation": "keep_lexical_default"
+}

@@ -66,12 +66,21 @@ Les vecteurs aident pour synonymes et paraphrases, mais ne donnent ni vérité,
 ni seuil universel, ni protection contre une ambiguïté métier. Le modèle reste
 donc local, versionné et optionnel derrière un adaptateur.
 
+La couture `semantic-engine-vectors` matérialise cette règle sans dépendance ML :
+elle construit un index sérialisable lié à `(version du contexte, identifiant du
+modèle, fingerprint, dimensions)`, compare les cosinus et applique seuil plus
+marge. L’adaptateur FastEmbed vit uniquement dans un benchmark séparé. Le cœur,
+Tauri, la CLI et leurs SBOM n’importent donc jamais ONNX par transitivité.
+
 ## Décision
 
 Pour des **titres courts**, les vecteurs ne sont pas le premier levier : un bon
 jeu d’alias et une normalisation explicable sont plus rapides et souvent plus
-précis. Les embeddings seront activés uniquement si un benchmark sur des
-paraphrases réelles montre un gain sans hausse des faux positifs.
+précis. Le benchmark v2 actuel donne 92,38 % d’exactitude et 6 faux positifs
+après calibration, contre 100 % et zéro faux positif pour le lexical ; les
+embeddings restent donc désactivés. Ils ne pourront être proposés à nouveau
+qu’après un gain sur un corpus aveugle de paraphrases réelles, sans perte de
+précision.
 
 Les signaux exacts, abréviations, distances et proximités sémantiques sont
 calibrés. Le meilleur candidat n’est accepté que si sa confiance et son avance

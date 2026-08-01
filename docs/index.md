@@ -43,3 +43,6 @@ conformité verdict/score et ses mesures sur un live réel restent des critères
 sortie explicites de M4. La CI construit désormais les prévisualisations CLI
 Windows, Linux et macOS avec checksums et attestations de provenance ; une release
 publique reste bloquée par le choix de licence et la signature Windows native.
+La comparaison locale de `multilingual-e5-small` montre que les vecteurs coûtent
+487 Mo et restent moins fiables que le lexical sur le corpus v2 ; leur couture
+est disponible pour la recherche, mais ils sont exclus de la portable par défaut.
