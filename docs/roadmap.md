@@ -7,7 +7,7 @@ devenir nécessaire au fonctionnement de l'application portable.
 
 | Jalon | État au 1er août 2026 |
 |---|---|
-| M0 | en cours — corpus initial et contrats présents, extension/licence à finaliser |
+| M0 | en cours — corpus de 328 annotations et contrats présents, licence à finaliser |
 | M1 | en cours — produit portable autonome et atelier opérateur |
 | M2 | terminé — cycle v1 durable, JSONL, HTTP/WebSocket et conformité indépendante |
 | M3 | en cours — source générique, coffre, OAuth et EventSub intégrés |
@@ -30,14 +30,14 @@ gantt
 ## M0 — Corpus, contrats et décisions techniques
 
 - [x] choisir le cas réel « guess the movie/game » ;
-- [x] créer 84 cibles et 28 cas déterministes ;
+- [x] créer 84 cibles et 328 messages annotés déterministes ;
 - [x] figer `Submission`, `Validation` et `OperatorResolution` en JSON Schema ;
 - [x] tracer le chemin message → moteur Rust → JSONL ;
 - [x] valider Rust + Tauri comme runtime principal ;
 - [x] définir un paquet de contexte diffusable et son profil JSON Schema ;
 - [x] vérifier chemins, tailles, SHA-256, SemVer et licence à l'import ;
 - [x] établir que MyVault, Media Catalog et Answer Atlas sont facultatifs ;
-- [ ] étendre à 200–500 messages annotés, notamment ambiguïtés et hors sujet ;
+- [x] étendre à 200–500 messages annotés, notamment ambiguïtés et hors sujet ;
 - [ ] décider la licence publique après comparaison gouvernance/monétisation.
 
 **Sortie** : corpus versionné, suite Rust reproductible, contrats JSON, CLI et
@@ -100,7 +100,7 @@ l'application autonome et peut exploiter les validations via l'interface publiqu
 
 ## M4 — Qualité avancée et YouTube
 
-- étendre le corpus avant tout ajout vectoriel ;
+- [x] étendre le corpus avant tout ajout vectoriel ;
 - comparer embeddings locaux optionnels et moteur lexical ;
 - indexer par version de contexte et calibrer sur précision/latence/taille ;
 - alimenter une mémoire uniquement depuis des corrections validées ;

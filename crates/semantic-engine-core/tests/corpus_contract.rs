@@ -19,6 +19,7 @@ struct Title {
 
 #[derive(Deserialize)]
 struct CaseCorpus {
+    version: u32,
     cases: Vec<Case>,
 }
 
@@ -28,6 +29,7 @@ struct Case {
     target_id: String,
     input: String,
     expected: String,
+    category: String,
 }
 
 fn corpus_path(file: &str) -> PathBuf {
@@ -44,6 +46,15 @@ fn curated_movie_and_game_cases_follow_the_validation_contract() {
         &fs::read_to_string(corpus_path("cases.json")).expect("case corpus must be readable"),
     )
     .expect("case corpus must be valid JSON");
+
+    assert_eq!(cases.version, 2, "the annotated corpus contract changed unexpectedly");
+    assert!(
+        (200..=500).contains(&cases.cases.len()),
+        "the product corpus must contain 200 to 500 annotated messages"
+    );
+    assert!(cases.cases.iter().any(|case| case.expected == "abstained"));
+    assert!(cases.cases.iter().any(|case| case.expected == "rejected"));
+    assert!(cases.cases.iter().all(|case| !case.category.is_empty()));
 
     for (sequence, case) in cases.cases.iter().enumerate() {
         let title = titles
@@ -78,8 +89,8 @@ fn curated_movie_and_game_cases_follow_the_validation_contract() {
 
         assert_eq!(
             validation.decision, expected,
-            "target={}, input={:?}, score={}",
-            title.id, case.input, validation.score
+            "target={}, category={}, input={:?}, score={}",
+            title.id, case.category, case.input, validation.score
         );
     }
 }

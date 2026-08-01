@@ -138,3 +138,18 @@ cargo run --release -q -p semantic-engine-cli -- benchmark `
 La sortie JSON contient p50, p95, p99 et maximum en nanosecondes, ainsi que les
 hits, misses, expirations et évictions. Utiliser `--release` et conserver la
 commande, le corpus et l’environnement avec tout résultat publié.
+
+Pour mesurer la qualité décisionnelle plutôt que la latence, utiliser le corpus
+annoté et des seuils explicites de précision et de rappel :
+
+```powershell
+cargo run -q -p semantic-engine-cli -- evaluate `
+  --titles tests/corpus/titles.json `
+  --cases tests/corpus/cases.json `
+  --minimum-precision 0.95 `
+  --minimum-recall 0.90
+```
+
+La sortie JSON contient matrice de confusion, précision/rappel des acceptations,
+exactitude par catégorie et résultat du gate. Un gate sous le seuil termine avec
+un code non nul pour être utilisable en CI.

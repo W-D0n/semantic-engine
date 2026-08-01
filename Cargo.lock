@@ -3866,6 +3866,7 @@ dependencies = [
  "semantic-engine-protocol",
  "semantic-engine-service",
  "semantic-engine-source-runtime",
+ "serde",
  "serde_json",
  "tokio",
 ]

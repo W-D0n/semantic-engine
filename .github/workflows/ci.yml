@@ -36,6 +36,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo build -p semantic-engine-cli
+      - run: target/debug/semantic-engine-cli.exe evaluate --titles tests/corpus/titles.json --cases tests/corpus/cases.json --minimum-precision 0.95 --minimum-recall 0.90
       - run: node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
       - run: node conformance/clients/node-loopback-client.mjs target/debug/semantic-engine-cli.exe
       - run: node scripts/generate-sbom.mjs artifacts/semantic-engine.cdx.json

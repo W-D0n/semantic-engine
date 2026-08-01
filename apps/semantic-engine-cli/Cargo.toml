@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 semantic-engine-core = { path = "../../crates/semantic-engine-core" }
+serde.workspace = true
 serde_json.workspace = true
 semantic-engine-package = { path = "../../crates/semantic-engine-package" }
 semantic-engine-loopback = { path = "../../crates/semantic-engine-loopback" }

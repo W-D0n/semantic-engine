@@ -65,6 +65,27 @@ le trajet Twitch → machine : cette latence dépend du réseau et devra être a
 au pilote réel. Le résultat établit seulement que le traitement local p99 reste
 très inférieur à 50 ms dans ce scénario.
 
+## Gate de qualité du moteur
+
+Le corpus v2 contient 328 messages annotés pour 84 titres : titres exacts,
+normalisations, alias, fautes curatées, 33 négatifs difficiles, 17 frontières de
+revue et les cas historiques. La commande suivante compare les décisions du
+moteur aux annotations et échoue si la précision des acceptations descend sous
+95 % ou leur rappel sous 90 % :
+
+```powershell
+cargo run -q -p semantic-engine-cli -- evaluate `
+  --titles tests/corpus/titles.json `
+  --cases tests/corpus/cases.json `
+  --minimum-precision 0.95 `
+  --minimum-recall 0.90
+```
+
+Référence locale du 1er août 2026 : 328/328 décisions conformes, précision et
+rappel des acceptations à 100 %, 0 faux positif, 18 abstentions et 36 rejets.
+Cette mesure prouve la non-régression sur le corpus versionné ; elle ne remplace
+ni un corpus externe aveugle ni un pilote avec de vrais messages de chat.
+
 ## Garde-fous
 
 - Les clés sont des SHA-256 en mémoire ; aucun texte brut supplémentaire n’est

@@ -10,7 +10,7 @@ formulations proches comprises.
 > avec déduplication/cache TTL-LRU, API locale opt-in, Twitch EventSub et YouTube Live expérimental
 > protégée par le coffre natif du système. L'API et la CLI headless pilotent
 > aussi les sources, avec un ordre global durable pour plusieurs chats.
-> Le corpus contractuel couvre 84 titres et 28 cas de validation.
+> Le corpus contractuel couvre 84 titres et 328 messages annotés.
 
 ## Pourquoi ce projet
 

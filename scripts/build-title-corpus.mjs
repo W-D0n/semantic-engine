@@ -68,7 +68,7 @@ const titles = [
   game('disco-elysium', 'Disco Elysium'), game('undertale', 'Undertale')
 ];
 
-const cases = [
+const curatedCases = [
   ['spirited-away', 'le voyage de chihiro', 'accepted'],
   ['lotr-fellowship', 'la communaute de lanneau', 'accepted'],
   ['back-to-the-future', 'retour vers le futur', 'accepted'],
@@ -97,10 +97,116 @@ const cases = [
   ['elden-ring', 'dark souls', 'rejected'],
   ['portal', 'portal 2', 'rejected'],
   ['hades', 'had', 'rejected']
-].map(([targetId, input, expected]) => ({ targetId, input, expected }));
+].map(([targetId, input, expected]) => ({
+  targetId,
+  input,
+  expected,
+  category: expected === 'accepted' ? 'curated_variation' : `curated_${expected}`,
+}));
+
+const hardCases = [
+  ['elden-ring', 'fortnite', 'rejected'],
+  ['portal', 'half life', 'rejected'],
+  ['portal-2', 'portal', 'abstained'],
+  ['half-life-2', 'half life', 'rejected'],
+  ['witcher-3', 'witcher 2', 'rejected'],
+  ['baldurs-gate-3', 'baldurs gate 2', 'rejected'],
+  ['hollow-knight', 'dark knight', 'rejected'],
+  ['celeste', 'minecraft', 'rejected'],
+  ['hades', 'dead cells', 'rejected'],
+  ['stardew', 'animal crossing', 'rejected'],
+  ['minecraft', 'terraria', 'rejected'],
+  ['terraria', 'minecraft', 'rejected'],
+  ['cyberpunk-2077', 'cyberpunk 2076', 'rejected'],
+  ['skyrim', 'oblivion', 'rejected'],
+  ['fallout-new-vegas', 'fallout 4', 'rejected'],
+  ['mass-effect-2', 'mass effect 3', 'rejected'],
+  ['bioshock', 'system shock', 'rejected'],
+  ['dishonored', 'prey', 'rejected'],
+  ['doom-eternal', 'doom 2016', 'rejected'],
+  ['halo-ce', 'destiny', 'rejected'],
+  ['dark-souls-3', 'dark souls 2', 'rejected'],
+  ['sekiro', 'ghost of tsushima', 'rejected'],
+  ['control', 'alan wake', 'rejected'],
+  ['alan-wake-2', 'alan wake', 'abstained'],
+  ['dead-space', 'resident evil', 'rejected'],
+  ['resident-evil-4', 'resident evil 2', 'rejected'],
+  ['silent-hill-2', 'silent hill 3', 'rejected'],
+  ['mgs-v', 'metal gear solid 4', 'rejected'],
+  ['rdr-2', 'red dead redemption', 'rejected'],
+  ['final-fantasy-7', 'final fantasy 8', 'rejected'],
+  ['breath-wild', 'tears of the kingdom', 'rejected'],
+  ['tears-kingdom', 'breath of the wild', 'rejected'],
+  ['matrix', 'aucune idee', 'rejected'],
+  ['spirited-away', 'je ne sais pas', 'rejected'],
+  ['portal', 'portalx', 'abstained'],
+  ['matrix', 'matrixx', 'abstained'],
+  ['hades', 'hadesx', 'abstained'],
+  ['celeste', 'celest', 'abstained'],
+  ['alien', 'alienx', 'abstained'],
+  ['frozen', 'frozenx', 'abstained'],
+  ['control', 'contro', 'abstained'],
+  ['cuphead', 'cuphea', 'abstained'],
+  ['terraria', 'terrar', 'abstained'],
+  ['subnautica', 'subnaut', 'rejected'],
+  ['satisfactory', 'satisfactor', 'accepted'],
+  ['undertale', 'undertl', 'abstained'],
+  ['disco-elysium', 'disco elys', 'abstained'],
+  ['dead-cells', 'dead cel', 'abstained'],
+  ['tomb-raider', 'tomb raid', 'abstained'],
+  ['sonic-mania', 'sonic man', 'abstained'],
+  ['metroid-dread', 'metroid dr', 'abstained'],
+].map(([targetId, input, expected]) => ({
+  targetId,
+  input,
+  expected,
+  category: expected === 'accepted'
+    ? 'accepted_typo'
+    : expected === 'abstained' ? 'review_boundary' : 'hard_negative',
+}));
+
+const normalizeForChat = (value) => value
+  .normalize('NFKD')
+  .replace(/\p{Mark}/gu, '')
+  .toLocaleLowerCase('en-US')
+  .replace(/[^\p{Letter}\p{Number}]+/gu, ' ')
+  .trim();
+
+const cases = [
+  ...titles.flatMap((title) => [
+    {
+      targetId: title.id,
+      input: title.canonical,
+      expected: 'accepted',
+      category: 'canonical_exact',
+    },
+    {
+      targetId: title.id,
+      input: normalizeForChat(title.canonical),
+      expected: 'accepted',
+      category: 'canonical_normalized',
+    },
+  ]),
+  ...titles.flatMap((title) => title.aliases.map((input) => ({
+    targetId: title.id,
+    input,
+    expected: 'accepted',
+    category: 'configured_alias',
+  }))),
+  ...curatedCases,
+  ...hardCases,
+];
 
 const titleDocument = JSON.stringify({ version: 1, titles }, null, 2) + '\n';
-const caseDocument = JSON.stringify({ version: 1, cases }, null, 2) + '\n';
+const caseDocument = JSON.stringify({
+  version: 2,
+  generatedProfiles: [
+    'canonical_exact',
+    'canonical_normalized',
+    'configured_alias',
+  ],
+  cases,
+}, null, 2) + '\n';
 const titleHash = createHash('sha256').update(titleDocument).digest('hex');
 const packageRoot = new URL('../packages/starter-titles/', import.meta.url);
 const packageData = new URL('data/', packageRoot);

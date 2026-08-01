@@ -1,4 +1,5 @@
 use std::{
+    collections::{BTreeMap, HashSet},
     env,
     error::Error,
     fs,
@@ -9,7 +10,10 @@ use std::{
     time::Instant,
 };
 
-use semantic_engine_core::{Round, Submission, ValidationPolicy, Validator};
+use semantic_engine_core::{
+    AnswerTarget, Decision, Round, Submission, ValidationPolicy, Validator,
+};
+use serde::Deserialize;
 
 use semantic_engine_loopback::{
     DEFAULT_PORT, LoopbackConfig, start_shared_with_sources as start_loopback,
@@ -71,6 +75,10 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     if command.as_deref() == Some("benchmark") {
         return run_benchmark(args);
+    }
+
+    if command.as_deref() == Some("evaluate") {
+        return run_evaluation(args);
     }
 
     if command.as_deref() == Some("serve") {
@@ -358,6 +366,210 @@ fn benchmark_usage() -> &'static str {
     "usage: semantic-engine-cli benchmark (--round <round.json> | --package <datapackage.json>) --submissions <submissions.jsonl> [--iterations <1..1000>]"
 }
 
+#[derive(Deserialize)]
+struct EvaluationTitles {
+    version: u32,
+    titles: Vec<EvaluationTitle>,
+}
+
+#[derive(Deserialize)]
+struct EvaluationTitle {
+    id: String,
+    canonical: String,
+    aliases: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct EvaluationCases {
+    version: u32,
+    cases: Vec<EvaluationCase>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EvaluationCase {
+    target_id: String,
+    input: String,
+    expected: String,
+    category: String,
+}
+
+#[derive(Default)]
+struct CategoryResult {
+    annotations: u64,
+    correct: u64,
+}
+
+fn run_evaluation(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>> {
+    if args.next().as_deref() != Some("--titles") {
+        return Err(evaluation_usage().into());
+    }
+    let titles_path = args.next().ok_or("missing evaluation titles path")?;
+    if args.next().as_deref() != Some("--cases") {
+        return Err(evaluation_usage().into());
+    }
+    let cases_path = args.next().ok_or("missing evaluation cases path")?;
+    let mut minimum_precision = 0.95;
+    let mut minimum_recall = 0.90;
+    while let Some(flag) = args.next() {
+        let value = args
+            .next()
+            .ok_or("evaluation threshold flag requires a value")?
+            .parse::<f64>()
+            .map_err(|_| "evaluation thresholds must be numbers between 0 and 1")?;
+        match flag.as_str() {
+            "--minimum-precision" => minimum_precision = value,
+            "--minimum-recall" => minimum_recall = value,
+            _ => return Err(evaluation_usage().into()),
+        }
+    }
+    if [minimum_precision, minimum_recall]
+        .iter()
+        .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+    {
+        return Err(evaluation_usage().into());
+    }
+
+    let titles: EvaluationTitles = serde_json::from_str(&fs::read_to_string(titles_path)?)?;
+    let cases: EvaluationCases = serde_json::from_str(&fs::read_to_string(cases_path)?)?;
+    if titles.titles.is_empty() || titles.titles.len() > 10_000 {
+        return Err("evaluation titles must contain between 1 and 10000 records".into());
+    }
+    if cases.cases.is_empty() || cases.cases.len() > 10_000 {
+        return Err("evaluation cases must contain between 1 and 10000 annotations".into());
+    }
+    let mut title_ids = HashSet::with_capacity(titles.titles.len());
+    if titles.titles.iter().any(|title| !title_ids.insert(title.id.as_str())) {
+        return Err("evaluation title identifiers must be unique".into());
+    }
+
+    let validator = Validator::default();
+    let mut correct = 0_u64;
+    let mut actual_accepts = 0_u64;
+    let mut expected_accepts = 0_u64;
+    let mut true_accepts = 0_u64;
+    let mut false_accepts = 0_u64;
+    let mut confusion = BTreeMap::<String, u64>::new();
+    let mut categories = BTreeMap::<String, CategoryResult>::new();
+
+    for (sequence, case) in cases.cases.iter().enumerate() {
+        if case.category.is_empty() || case.category.len() > 64 {
+            return Err("evaluation case category is invalid".into());
+        }
+        let expected = parse_decision(&case.expected)?;
+        let title = titles
+            .titles
+            .iter()
+            .find(|title| title.id == case.target_id)
+            .ok_or("evaluation case refers to a missing title")?;
+        let round = Round {
+            id: format!("evaluation-{}", title.id),
+            targets: vec![AnswerTarget {
+                id: title.id.clone(),
+                canonical: title.canonical.clone(),
+                aliases: title.aliases.clone(),
+            }],
+            policy: ValidationPolicy::default(),
+        };
+        let validation = validator.validate(
+            &round,
+            &Submission {
+                message_id: format!("evaluation-{sequence}"),
+                participant_id: "evaluation-runner".to_owned(),
+                source_sequence: u64::try_from(sequence)?,
+                text: case.input.clone(),
+            },
+        );
+        let accepted_target_is_correct = validation.decision != Decision::Accepted
+            || validation.target_id.as_deref() == Some(title.id.as_str());
+        let case_correct = validation.decision == expected && accepted_target_is_correct;
+        correct += u64::from(case_correct);
+        expected_accepts += u64::from(expected == Decision::Accepted);
+        actual_accepts += u64::from(validation.decision == Decision::Accepted);
+        let true_accept = expected == Decision::Accepted
+            && validation.decision == Decision::Accepted
+            && accepted_target_is_correct;
+        true_accepts += u64::from(true_accept);
+        false_accepts += u64::from(validation.decision == Decision::Accepted && !true_accept);
+        *confusion
+            .entry(format!("{}->{}", decision_name(&expected), decision_name(&validation.decision)))
+            .or_default() += 1;
+        let category = categories.entry(case.category.clone()).or_default();
+        category.annotations += 1;
+        category.correct += u64::from(case_correct);
+    }
+
+    let annotations = u64::try_from(cases.cases.len())?;
+    let accepted_precision = ratio(true_accepts, actual_accepts);
+    let accepted_recall = ratio(true_accepts, expected_accepts);
+    let decision_accuracy = ratio(correct, annotations);
+    let gate_passed = accepted_precision >= minimum_precision && accepted_recall >= minimum_recall;
+    let category_report = categories
+        .into_iter()
+        .map(|(name, result)| {
+            (
+                name,
+                serde_json::json!({
+                    "annotations": result.annotations,
+                    "correct": result.correct,
+                    "accuracy": ratio(result.correct, result.annotations),
+                }),
+            )
+        })
+        .collect::<BTreeMap<_, _>>();
+    println!(
+        "{}",
+        serde_json::json!({
+            "engine": "lexical-v1",
+            "title_corpus_version": titles.version,
+            "case_corpus_version": cases.version,
+            "titles": titles.titles.len(),
+            "annotations": annotations,
+            "accepted_precision": accepted_precision,
+            "accepted_recall": accepted_recall,
+            "decision_accuracy": decision_accuracy,
+            "false_accepts": false_accepts,
+            "minimum_precision": minimum_precision,
+            "minimum_recall": minimum_recall,
+            "gate_passed": gate_passed,
+            "confusion": confusion,
+            "categories": category_report,
+        })
+    );
+    if !gate_passed {
+        return Err(format!(
+            "quality gate failed: precision {accepted_precision:.4}/{minimum_precision:.4}, recall {accepted_recall:.4}/{minimum_recall:.4}"
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn parse_decision(value: &str) -> Result<Decision, Box<dyn Error>> {
+    match value {
+        "accepted" => Ok(Decision::Accepted),
+        "abstained" => Ok(Decision::Abstained),
+        "rejected" => Ok(Decision::Rejected),
+        _ => Err("evaluation expected decision is invalid".into()),
+    }
+}
+
+fn decision_name(value: &Decision) -> &'static str {
+    match value {
+        Decision::Accepted => "accepted",
+        Decision::Abstained => "abstained",
+        Decision::Rejected => "rejected",
+    }
+}
+
+fn ratio(numerator: u64, denominator: u64) -> f64 {
+    if denominator == 0 { 1.0 } else { numerator as f64 / denominator as f64 }
+}
+
+fn evaluation_usage() -> &'static str {
+    "usage: semantic-engine-cli evaluate --titles <titles.json> --cases <cases.json> [--minimum-precision <0..1>] [--minimum-recall <0..1>]"
+}
+
 fn elapsed_ns(started: Instant) -> u64 {
     u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX)
 }
@@ -386,6 +598,7 @@ fn print_help() {
          Usage:\n  semantic-engine-cli validate --round <round.json>\n  \
          semantic-engine-cli context validate --package <datapackage.json>\n  \
          semantic-engine-cli benchmark (--round <round.json> | --package <datapackage.json>) --submissions <submissions.jsonl> [--iterations <1..1000>]\n  \
+         semantic-engine-cli evaluate --titles <titles.json> --cases <cases.json> [--minimum-precision <0..1>] [--minimum-recall <0..1>]\n  \
          semantic-engine-cli serve [--audit <audit.sqlite3>]\n  \
          semantic-engine-cli loopback --enable --audit <state.sqlite3> [--sources <sources.sqlite3>] [--port <0..65535>] [--origin <origin>]\n\n\
          Reads one Submission JSON object per stdin line and immediately writes one Validation JSON object."

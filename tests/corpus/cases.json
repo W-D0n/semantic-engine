@@ -1,145 +1,1978 @@
 {
-  "version": 1,
+  "version": 2,
+  "generatedProfiles": [
+    "canonical_exact",
+    "canonical_normalized",
+    "configured_alias"
+  ],
   "cases": [
     {
       "targetId": "spirited-away",
-      "input": "le voyage de chihiro",
-      "expected": "accepted"
+      "input": "Spirited Away",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "spirited-away",
+      "input": "spirited away",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "lotr-fellowship",
-      "input": "la communaute de lanneau",
-      "expected": "accepted"
+      "input": "The Lord of the Rings: The Fellowship of the Ring",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "lotr-fellowship",
+      "input": "the lord of the rings the fellowship of the ring",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "matrix",
+      "input": "The Matrix",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "matrix",
+      "input": "the matrix",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "back-to-the-future",
-      "input": "retour vers le futur",
-      "expected": "accepted"
+      "input": "Back to the Future",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "back-to-the-future",
+      "input": "back to the future",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "die-hard",
-      "input": "piege de cristal",
-      "expected": "accepted"
+      "input": "Die Hard",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "die-hard",
+      "input": "die hard",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "the-hangover",
+      "input": "The Hangover",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "the-hangover",
+      "input": "the hangover",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "jaws",
+      "input": "Jaws",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "jaws",
+      "input": "jaws",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "inside-out",
+      "input": "Inside Out",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "inside-out",
+      "input": "inside out",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "home-alone",
-      "input": "maman jai rate lavion",
-      "expected": "accepted"
+      "input": "Home Alone",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "home-alone",
+      "input": "home alone",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "groundhog-day",
+      "input": "Groundhog Day",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "groundhog-day",
+      "input": "groundhog day",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "shawshank",
+      "input": "The Shawshank Redemption",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "shawshank",
+      "input": "the shawshank redemption",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "frozen",
+      "input": "Frozen",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "frozen",
+      "input": "frozen",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "sound-of-music",
+      "input": "The Sound of Music",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "sound-of-music",
+      "input": "the sound of music",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "raiders",
+      "input": "Raiders of the Lost Ark",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "raiders",
+      "input": "raiders of the lost ark",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "star-wars-4",
-      "input": "sw4",
-      "expected": "accepted"
+      "input": "Star Wars: Episode IV – A New Hope",
+      "expected": "accepted",
+      "category": "canonical_exact"
     },
     {
-      "targetId": "baldurs-gate-3",
-      "input": "bg3",
-      "expected": "accepted"
+      "targetId": "star-wars-4",
+      "input": "star wars episode iv a new hope",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "dark-knight",
+      "input": "The Dark Knight",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "dark-knight",
+      "input": "the dark knight",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "good-morning-england",
+      "input": "The Boat That Rocked",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "good-morning-england",
+      "input": "the boat that rocked",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "eternal-sunshine",
+      "input": "Eternal Sunshine of the Spotless Mind",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "eternal-sunshine",
+      "input": "eternal sunshine of the spotless mind",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "alien",
+      "input": "Alien",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "alien",
+      "input": "alien",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "avengers",
+      "input": "The Avengers",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "avengers",
+      "input": "the avengers",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "portal",
+      "input": "Portal",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "portal",
+      "input": "portal",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "portal-2",
+      "input": "Portal 2",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "portal-2",
+      "input": "portal 2",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "half-life",
+      "input": "Half-Life",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "half-life",
+      "input": "half life",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "half-life-2",
+      "input": "Half-Life 2",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "half-life-2",
+      "input": "half life 2",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "witcher-3",
-      "input": "witchr 3",
-      "expected": "accepted"
+      "input": "The Witcher 3: Wild Hunt",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "witcher-3",
+      "input": "the witcher 3 wild hunt",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "baldurs-gate-3",
+      "input": "Baldur’s Gate 3",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "baldurs-gate-3",
+      "input": "baldur s gate 3",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "elden-ring",
-      "input": "eldern ring",
-      "expected": "accepted"
+      "input": "Elden Ring",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "elden-ring",
+      "input": "elden ring",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "hollow-knight",
-      "input": "hollow nite",
-      "expected": "accepted"
+      "input": "Hollow Knight",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "hollow-knight",
+      "input": "hollow knight",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "celeste",
+      "input": "Celeste",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "celeste",
+      "input": "celeste",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "hades",
+      "input": "Hades",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "hades",
+      "input": "hades",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "stardew",
+      "input": "Stardew Valley",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "stardew",
+      "input": "stardew valley",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "minecraft",
+      "input": "Minecraft",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "minecraft",
+      "input": "minecraft",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "terraria",
+      "input": "Terraria",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "terraria",
+      "input": "terraria",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "cyberpunk-2077",
-      "input": "cyberpunk2077",
-      "expected": "accepted"
+      "input": "Cyberpunk 2077",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "cyberpunk-2077",
+      "input": "cyberpunk 2077",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "skyrim",
-      "input": "skirym",
-      "expected": "accepted"
+      "input": "The Elder Scrolls V: Skyrim",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "skyrim",
+      "input": "the elder scrolls v skyrim",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "fallout-new-vegas",
-      "input": "fallout new vgas",
-      "expected": "accepted"
+      "input": "Fallout: New Vegas",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "fallout-new-vegas",
+      "input": "fallout new vegas",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "mass-effect-2",
-      "input": "mass efect 2",
-      "expected": "accepted"
+      "input": "Mass Effect 2",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "mass-effect-2",
+      "input": "mass effect 2",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "bioshock",
+      "input": "BioShock",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "bioshock",
+      "input": "bioshock",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "dishonored",
+      "input": "Dishonored",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "dishonored",
+      "input": "dishonored",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "doom-eternal",
+      "input": "Doom Eternal",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "doom-eternal",
+      "input": "doom eternal",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "halo-ce",
+      "input": "Halo: Combat Evolved",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "halo-ce",
+      "input": "halo combat evolved",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "dark-souls-3",
-      "input": "dark souls 3",
-      "expected": "accepted"
+      "input": "Dark Souls III",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "dark-souls-3",
+      "input": "dark souls iii",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "sekiro",
+      "input": "Sekiro: Shadows Die Twice",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "sekiro",
+      "input": "sekiro shadows die twice",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "control",
+      "input": "Control",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "control",
+      "input": "control",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "alan-wake-2",
+      "input": "Alan Wake 2",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "alan-wake-2",
+      "input": "alan wake 2",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "dead-space",
+      "input": "Dead Space",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "dead-space",
+      "input": "dead space",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "resident-evil-4",
+      "input": "Resident Evil 4",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "resident-evil-4",
+      "input": "resident evil 4",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "silent-hill-2",
+      "input": "Silent Hill 2",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "silent-hill-2",
+      "input": "silent hill 2",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "mgs-v",
-      "input": "mgs5",
-      "expected": "accepted"
+      "input": "Metal Gear Solid V: The Phantom Pain",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "mgs-v",
+      "input": "metal gear solid v the phantom pain",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "death-stranding",
+      "input": "Death Stranding",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "death-stranding",
+      "input": "death stranding",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "rdr-2",
+      "input": "Red Dead Redemption 2",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "rdr-2",
+      "input": "red dead redemption 2",
+      "expected": "accepted",
+      "category": "canonical_normalized"
     },
     {
       "targetId": "gta-v",
-      "input": "gta5",
-      "expected": "accepted"
+      "input": "Grand Theft Auto V",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "gta-v",
+      "input": "grand theft auto v",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "assassins-creed-2",
+      "input": "Assassin’s Creed II",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "assassins-creed-2",
+      "input": "assassin s creed ii",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "prince-persia-sot",
+      "input": "Prince of Persia: The Sands of Time",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "prince-persia-sot",
+      "input": "prince of persia the sands of time",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "tomb-raider",
+      "input": "Tomb Raider",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "tomb-raider",
+      "input": "tomb raider",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "uncharted-4",
+      "input": "Uncharted 4: A Thief’s End",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "uncharted-4",
+      "input": "uncharted 4 a thief s end",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "god-of-war-ragnarok",
+      "input": "God of War Ragnarök",
+      "expected": "accepted",
+      "category": "canonical_exact"
     },
     {
       "targetId": "god-of-war-ragnarok",
       "input": "god of war ragnarok",
-      "expected": "accepted"
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "horizon-zero-dawn",
+      "input": "Horizon Zero Dawn",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "horizon-zero-dawn",
+      "input": "horizon zero dawn",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "final-fantasy-7",
+      "input": "Final Fantasy VII",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "final-fantasy-7",
+      "input": "final fantasy vii",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "persona-5-royal",
+      "input": "Persona 5 Royal",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "persona-5-royal",
+      "input": "persona 5 royal",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "nier-automata",
+      "input": "NieR: Automata",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "nier-automata",
+      "input": "nier automata",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "chrono-trigger",
+      "input": "Chrono Trigger",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "chrono-trigger",
+      "input": "chrono trigger",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "breath-wild",
+      "input": "The Legend of Zelda: Breath of the Wild",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "breath-wild",
+      "input": "the legend of zelda breath of the wild",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "tears-kingdom",
+      "input": "The Legend of Zelda: Tears of the Kingdom",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "tears-kingdom",
+      "input": "the legend of zelda tears of the kingdom",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "mario-odyssey",
+      "input": "Super Mario Odyssey",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "mario-odyssey",
+      "input": "super mario odyssey",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "sonic-mania",
+      "input": "Sonic Mania",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "sonic-mania",
+      "input": "sonic mania",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "metroid-dread",
+      "input": "Metroid Dread",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "metroid-dread",
+      "input": "metroid dread",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "pokemon-red",
+      "input": "Pokémon Red",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "pokemon-red",
+      "input": "pokemon red",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "civilization-6",
+      "input": "Sid Meier’s Civilization VI",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "civilization-6",
+      "input": "sid meier s civilization vi",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "age-empires-2",
+      "input": "Age of Empires II",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "age-empires-2",
+      "input": "age of empires ii",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "starcraft-2",
+      "input": "StarCraft II",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "starcraft-2",
+      "input": "starcraft ii",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "world-warcraft",
+      "input": "World of Warcraft",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "world-warcraft",
+      "input": "world of warcraft",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "diablo-2",
+      "input": "Diablo II",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "diablo-2",
+      "input": "diablo ii",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "path-exile",
+      "input": "Path of Exile",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "path-exile",
+      "input": "path of exile",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "slay-spire",
+      "input": "Slay the Spire",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "slay-spire",
+      "input": "slay the spire",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "dead-cells",
+      "input": "Dead Cells",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "dead-cells",
+      "input": "dead cells",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "cuphead",
+      "input": "Cuphead",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "cuphead",
+      "input": "cuphead",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "outer-wilds",
+      "input": "Outer Wilds",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "outer-wilds",
+      "input": "outer wilds",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "subnautica",
+      "input": "Subnautica",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "subnautica",
+      "input": "subnautica",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "factorio",
+      "input": "Factorio",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "factorio",
+      "input": "factorio",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "satisfactory",
+      "input": "Satisfactory",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "satisfactory",
+      "input": "satisfactory",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "rimworld",
+      "input": "RimWorld",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "rimworld",
+      "input": "rimworld",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "disco-elysium",
+      "input": "Disco Elysium",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "disco-elysium",
+      "input": "disco elysium",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "undertale",
+      "input": "Undertale",
+      "expected": "accepted",
+      "category": "canonical_exact"
+    },
+    {
+      "targetId": "undertale",
+      "input": "undertale",
+      "expected": "accepted",
+      "category": "canonical_normalized"
+    },
+    {
+      "targetId": "spirited-away",
+      "input": "Le Voyage de Chihiro",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "lotr-fellowship",
+      "input": "Le Seigneur des anneaux : La Communauté de l’anneau",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "lotr-fellowship",
+      "input": "La Communauté de l’anneau",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "lotr-fellowship",
+      "input": "LOTR 1",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "matrix",
+      "input": "Matrix",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "back-to-the-future",
+      "input": "Retour vers le futur",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "die-hard",
+      "input": "Piège de cristal",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "the-hangover",
+      "input": "Very Bad Trip",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "jaws",
+      "input": "Les Dents de la mer",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "inside-out",
+      "input": "Vice-Versa",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "inside-out",
+      "input": "Vice Versa",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "home-alone",
+      "input": "Maman, j’ai raté l’avion !",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "groundhog-day",
+      "input": "Un jour sans fin",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "shawshank",
+      "input": "Les Évadés",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "frozen",
+      "input": "La Reine des neiges",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "sound-of-music",
+      "input": "La Mélodie du bonheur",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "raiders",
+      "input": "Les Aventuriers de l’arche perdue",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "star-wars-4",
+      "input": "La Guerre des étoiles",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "star-wars-4",
+      "input": "Star Wars 4",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "star-wars-4",
+      "input": "SW4",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "dark-knight",
+      "input": "The Dark Knight : Le Chevalier noir",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "good-morning-england",
+      "input": "Good Morning England",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "eternal-sunshine",
+      "input": "Eternal Sunshine",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "alien",
+      "input": "Alien, le huitième passager",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "avengers",
+      "input": "Avengers",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "portal-2",
+      "input": "Portal II",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "half-life",
+      "input": "Half Life",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "half-life-2",
+      "input": "HL2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "witcher-3",
+      "input": "Witcher 3",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "witcher-3",
+      "input": "The Witcher III",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "baldurs-gate-3",
+      "input": "BG3",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "baldurs-gate-3",
+      "input": "Baldurs Gate III",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "hollow-knight",
+      "input": "Hollow Nite",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "cyberpunk-2077",
+      "input": "Cyberpunk",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "skyrim",
+      "input": "Skyrim",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "skyrim",
+      "input": "TES V",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "fallout-new-vegas",
+      "input": "Fallout New Vegas",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "fallout-new-vegas",
+      "input": "FNV",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "mass-effect-2",
+      "input": "Mass Effect II",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "mass-effect-2",
+      "input": "ME2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "halo-ce",
+      "input": "Halo CE",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "dark-souls-3",
+      "input": "Dark Souls 3",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "dark-souls-3",
+      "input": "DS3",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "sekiro",
+      "input": "Sekiro",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "alan-wake-2",
+      "input": "Alan Wake II",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "resident-evil-4",
+      "input": "RE4",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "silent-hill-2",
+      "input": "SH2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "mgs-v",
+      "input": "MGS V",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "mgs-v",
+      "input": "MGS5",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "rdr-2",
+      "input": "RDR2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "gta-v",
+      "input": "GTA V",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "gta-v",
+      "input": "GTA 5",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "gta-v",
+      "input": "GTAV",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "assassins-creed-2",
+      "input": "Assassins Creed 2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "assassins-creed-2",
+      "input": "AC2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "prince-persia-sot",
+      "input": "Prince of Persia Sands of Time",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "uncharted-4",
+      "input": "Uncharted 4",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "god-of-war-ragnarok",
+      "input": "God of War Ragnarok",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "god-of-war-ragnarok",
+      "input": "GOW Ragnarok",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "horizon-zero-dawn",
+      "input": "HZD",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "final-fantasy-7",
+      "input": "Final Fantasy 7",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "final-fantasy-7",
+      "input": "FF7",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "persona-5-royal",
+      "input": "P5R",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "nier-automata",
+      "input": "Nier Automata",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "breath-wild",
+      "input": "Breath of the Wild",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "breath-wild",
+      "input": "BOTW",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "tears-kingdom",
+      "input": "Tears of the Kingdom",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "tears-kingdom",
+      "input": "TOTK",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "mario-odyssey",
+      "input": "Mario Odyssey",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "pokemon-red",
+      "input": "Pokemon Red",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "civilization-6",
+      "input": "Civilization 6",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "civilization-6",
+      "input": "Civ 6",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "age-empires-2",
+      "input": "Age of Empires 2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "age-empires-2",
+      "input": "AOE2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "starcraft-2",
+      "input": "Starcraft 2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "starcraft-2",
+      "input": "SC2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "world-warcraft",
+      "input": "WoW",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "diablo-2",
+      "input": "Diablo 2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "diablo-2",
+      "input": "D2",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "path-exile",
+      "input": "POE",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "rimworld",
+      "input": "Rim World",
+      "expected": "accepted",
+      "category": "configured_alias"
+    },
+    {
+      "targetId": "spirited-away",
+      "input": "le voyage de chihiro",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "lotr-fellowship",
+      "input": "la communaute de lanneau",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "back-to-the-future",
+      "input": "retour vers le futur",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "die-hard",
+      "input": "piege de cristal",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "home-alone",
+      "input": "maman jai rate lavion",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "star-wars-4",
+      "input": "sw4",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "baldurs-gate-3",
+      "input": "bg3",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "witcher-3",
+      "input": "witchr 3",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "elden-ring",
+      "input": "eldern ring",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "hollow-knight",
+      "input": "hollow nite",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "cyberpunk-2077",
+      "input": "cyberpunk2077",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "skyrim",
+      "input": "skirym",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "fallout-new-vegas",
+      "input": "fallout new vgas",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "mass-effect-2",
+      "input": "mass efect 2",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "dark-souls-3",
+      "input": "dark souls 3",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "mgs-v",
+      "input": "mgs5",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "gta-v",
+      "input": "gta5",
+      "expected": "accepted",
+      "category": "curated_variation"
+    },
+    {
+      "targetId": "god-of-war-ragnarok",
+      "input": "god of war ragnarok",
+      "expected": "accepted",
+      "category": "curated_variation"
     },
     {
       "targetId": "final-fantasy-7",
       "input": "ff7",
-      "expected": "accepted"
+      "expected": "accepted",
+      "category": "curated_variation"
     },
     {
       "targetId": "breath-wild",
       "input": "botw",
-      "expected": "accepted"
+      "expected": "accepted",
+      "category": "curated_variation"
     },
     {
       "targetId": "tears-kingdom",
       "input": "totk",
-      "expected": "accepted"
+      "expected": "accepted",
+      "category": "curated_variation"
     },
     {
       "targetId": "civilization-6",
       "input": "civ6",
-      "expected": "accepted"
+      "expected": "accepted",
+      "category": "curated_variation"
     },
     {
       "targetId": "age-empires-2",
       "input": "aoe2",
-      "expected": "accepted"
+      "expected": "accepted",
+      "category": "curated_variation"
     },
     {
       "targetId": "world-warcraft",
       "input": "wow",
-      "expected": "accepted"
+      "expected": "accepted",
+      "category": "curated_variation"
     },
     {
       "targetId": "elden-ring",
       "input": "elden kings",
-      "expected": "abstained"
+      "expected": "abstained",
+      "category": "curated_abstained"
     },
     {
       "targetId": "elden-ring",
       "input": "dark souls",
-      "expected": "rejected"
+      "expected": "rejected",
+      "category": "curated_rejected"
     },
     {
       "targetId": "portal",
       "input": "portal 2",
-      "expected": "rejected"
+      "expected": "rejected",
+      "category": "curated_rejected"
     },
     {
       "targetId": "hades",
       "input": "had",
-      "expected": "rejected"
+      "expected": "rejected",
+      "category": "curated_rejected"
+    },
+    {
+      "targetId": "elden-ring",
+      "input": "fortnite",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "portal",
+      "input": "half life",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "portal-2",
+      "input": "portal",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "half-life-2",
+      "input": "half life",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "witcher-3",
+      "input": "witcher 2",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "baldurs-gate-3",
+      "input": "baldurs gate 2",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "hollow-knight",
+      "input": "dark knight",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "celeste",
+      "input": "minecraft",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "hades",
+      "input": "dead cells",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "stardew",
+      "input": "animal crossing",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "minecraft",
+      "input": "terraria",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "terraria",
+      "input": "minecraft",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "cyberpunk-2077",
+      "input": "cyberpunk 2076",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "skyrim",
+      "input": "oblivion",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "fallout-new-vegas",
+      "input": "fallout 4",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "mass-effect-2",
+      "input": "mass effect 3",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "bioshock",
+      "input": "system shock",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "dishonored",
+      "input": "prey",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "doom-eternal",
+      "input": "doom 2016",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "halo-ce",
+      "input": "destiny",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "dark-souls-3",
+      "input": "dark souls 2",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "sekiro",
+      "input": "ghost of tsushima",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "control",
+      "input": "alan wake",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "alan-wake-2",
+      "input": "alan wake",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "dead-space",
+      "input": "resident evil",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "resident-evil-4",
+      "input": "resident evil 2",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "silent-hill-2",
+      "input": "silent hill 3",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "mgs-v",
+      "input": "metal gear solid 4",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "rdr-2",
+      "input": "red dead redemption",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "final-fantasy-7",
+      "input": "final fantasy 8",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "breath-wild",
+      "input": "tears of the kingdom",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "tears-kingdom",
+      "input": "breath of the wild",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "matrix",
+      "input": "aucune idee",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "spirited-away",
+      "input": "je ne sais pas",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "portal",
+      "input": "portalx",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "matrix",
+      "input": "matrixx",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "hades",
+      "input": "hadesx",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "celeste",
+      "input": "celest",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "alien",
+      "input": "alienx",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "frozen",
+      "input": "frozenx",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "control",
+      "input": "contro",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "cuphead",
+      "input": "cuphea",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "terraria",
+      "input": "terrar",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "subnautica",
+      "input": "subnaut",
+      "expected": "rejected",
+      "category": "hard_negative"
+    },
+    {
+      "targetId": "satisfactory",
+      "input": "satisfactor",
+      "expected": "accepted",
+      "category": "accepted_typo"
+    },
+    {
+      "targetId": "undertale",
+      "input": "undertl",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "disco-elysium",
+      "input": "disco elys",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "dead-cells",
+      "input": "dead cel",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "tomb-raider",
+      "input": "tomb raid",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "sonic-mania",
+      "input": "sonic man",
+      "expected": "abstained",
+      "category": "review_boundary"
+    },
+    {
+      "targetId": "metroid-dread",
+      "input": "metroid dr",
+      "expected": "abstained",
+      "category": "review_boundary"
     }
   ]
 }
