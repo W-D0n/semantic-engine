@@ -52,6 +52,13 @@ produit valide le jeton au démarrage puis toutes les 55 minutes, le renouvelle
 avant expiration, limite les hôtes OAuth/EventSub et permet de supprimer le
 jeton avec la source. Voir [Connecter un chat Twitch](../integration/twitch.md).
 
+Pour YouTube, l’application utilise OAuth Desktop avec PKCE S256, un `state`
+aléatoire et un retour exclusivement loopback. Elle n’embarque aucun secret
+client, demande `youtube.readonly`, baseline les messages antérieurs au round et
+tente de révoquer le jeton avant suppression locale. L’exploitation publique de
+verdicts ou points reste feature-gated jusqu’à validation du cas dans un YouTube
+API Compliance Audit. Voir [Connecter un live YouTube](../integration/youtube.md).
+
 ## Safety
 
 Une faible confiance produit une abstention. Les sanctions, paiements, diagnostics,

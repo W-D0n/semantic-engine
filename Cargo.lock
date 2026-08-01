@@ -3752,6 +3752,7 @@ dependencies = [
  "semantic-engine-service",
  "semantic-engine-source",
  "semantic-engine-twitch",
+ "semantic-engine-youtube",
  "serde",
  "tempfile",
  "tokio",
@@ -3771,6 +3772,25 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-tungstenite 0.30.0",
+ "zeroize",
+]
+
+[[package]]
+name = "semantic-engine-youtube"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "futures-util",
+ "getrandom 0.4.3",
+ "reqwest",
+ "semantic-engine-core",
+ "semantic-engine-credential-vault",
+ "semantic-engine-source",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
  "zeroize",
 ]
 

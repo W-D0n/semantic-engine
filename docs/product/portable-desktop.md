@@ -119,7 +119,7 @@ redémarrage. Elle expose aussi les sources et leurs actions via `/v1/sources`,
 en utilisant le même orchestrateur que l'écran Tauri sans sérialiser de jeton
 Twitch. L'application reste entièrement utilisable sans l'activer.
 
-## Connecter Twitch
+## Connecter Twitch ou YouTube
 
 Le panneau **Sources de chat** permet d’ajouter plusieurs configurations Twitch,
 de les autoriser avec un code appareil, de tester le compte, puis d’en activer
@@ -132,6 +132,10 @@ moteur et le nombre d’acceptations. Les validations live alimentent le panneau
 **Supprimer** arrêtent l’écoute ; la suppression retire aussi le jeton du coffre
 système. Le parcours détaillé et les limites v1 sont dans
 [Connecter un chat Twitch](../integration/twitch.md).
+
+YouTube Live utilise le même cycle source, avec OAuth Desktop PKCE dans le
+navigateur système. Son statut expérimental et les étapes Google Cloud sont
+détaillés dans [Connecter un live YouTube](../integration/youtube.md).
 
 ## Arbitrer une validation
 

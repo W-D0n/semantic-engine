@@ -208,3 +208,18 @@ export type TwitchAuthorizationStatus =
   | { status: 'pending'; prompt: DeviceAuthorizationPrompt }
   | { status: 'slow_down'; prompt: DeviceAuthorizationPrompt }
   | { status: 'authorized'; source: SourceView; identity: TwitchSourceTest };
+
+export type BrowserAuthorizationPrompt = {
+  authorization_uri: string;
+  expires_at_ms: number;
+};
+
+export type YouTubeSourceTest = {
+  channel_id: string;
+  display_name: string;
+  video_id: string;
+};
+
+export type YouTubeAuthorizationStatus =
+  | { status: 'pending'; prompt: BrowserAuthorizationPrompt }
+  | { status: 'authorized'; source: SourceView; identity: YouTubeSourceTest };

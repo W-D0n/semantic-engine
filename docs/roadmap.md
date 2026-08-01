@@ -7,11 +7,12 @@ devenir nécessaire au fonctionnement de l'application portable.
 
 | Jalon | État au 1er août 2026 |
 |---|---|
-| M0 | terminé — corpus initial, contrats et décisions techniques |
+| M0 | en cours — corpus initial et contrats présents, extension/licence à finaliser |
 | M1 | en cours — produit portable autonome et atelier opérateur |
 | M2 | terminé — cycle v1 durable, JSONL, HTTP/WebSocket et conformité indépendante |
 | M3 | en cours — source générique, coffre, OAuth et EventSub intégrés |
-| M4–M6 | planifiés, non démarrés |
+| M4 | en cours — YouTube Live vertical intégré, transport gRPC et conformité à finaliser |
+| M5–M6 | planifiés, non démarrés |
 
 ```mermaid
 gantt
@@ -104,7 +105,9 @@ l'application autonome et peut exploiter les validations via l'interface publiqu
 - indexer par version de contexte et calibrer sur précision/latence/taille ;
 - alimenter une mémoire uniquement depuis des corrections validées ;
 - appliquer provenance, consentement, rollback, TTL/LRU et quotas ;
-- ajouter YouTube Live Chat avec les mêmes contrats de source ;
+- [x] ajouter YouTube Live Chat avec les mêmes contrats de source, OAuth PKCE, coffre, API et UI ;
+- [ ] remplacer le polling conseillé par `streamList` gRPC et mesurer la latence réelle ;
+- [ ] faire valider le workflow verdict/points via YouTube API Compliance Audit avant ouverture commerciale ;
 - valider le comportement avec et sans fonctionnalités avancées.
 
 **Critère de sortie** : les vecteurs ne sont activés par défaut que si le benchmark

@@ -131,7 +131,7 @@ async fn quota_rejects_bursts_without_queuing_them() {
 }
 
 #[tokio::test]
-async fn source_api_is_authenticated_and_never_returns_twitch_tokens() {
+async fn source_api_is_authenticated_and_never_returns_platform_tokens() {
     let temporary = tempfile::tempdir().unwrap();
     let service = Arc::new(tokio::sync::Mutex::new(SemanticEngineService::in_memory().unwrap()));
     let sources = Arc::new(
@@ -170,10 +170,75 @@ async fn source_api_is_authenticated_and_never_returns_twitch_tokens() {
     assert!(!created.body.contains("access_token"));
     assert!(!created.body.contains("refresh_token"));
 
+    let youtube = authorized_request(
+        server.addr(),
+        server.token(),
+        "POST",
+        "/v1/sources/youtube",
+        &json!({
+            "display_name": "Live pilote",
+            "client_id": "123.apps.googleusercontent.com",
+            "video_id": "dQw4w9WgXcQ",
+            "policy_acknowledged": true
+        })
+        .to_string(),
+        true,
+    )
+    .await;
+    assert_eq!(youtube.status, 201, "{}", youtube.body);
+    let youtube_json = youtube.json();
+    let youtube_id = youtube_json["source_id"].as_str().unwrap();
+    let youtube_revision = youtube_json["revision"].as_u64().unwrap();
+    assert_eq!(youtube_json["adapter"], "youtube-live-chat");
+    assert_eq!(youtube_json["authenticated"], false);
+    assert!(!youtube.body.contains("access_token"));
+    assert!(!youtube.body.contains("refresh_token"));
+
+    let authorization = authorized_request(
+        server.addr(),
+        server.token(),
+        "POST",
+        &format!("/v1/sources/{youtube_id}/authorization"),
+        "",
+        false,
+    )
+    .await;
+    assert!(matches!(authorization.status, 200 | 502), "{}", authorization.body);
+    if authorization.status == 200 {
+        assert!(
+            authorization.json()["authorization_uri"]
+                .as_str()
+                .is_some_and(|value| value.starts_with("https://accounts.google.com/"))
+        );
+    }
+
+    let tested = authorized_request(
+        server.addr(),
+        server.token(),
+        "POST",
+        &format!("/v1/sources/{youtube_id}/test"),
+        "",
+        false,
+    )
+    .await;
+    assert_eq!(tested.status, 502, "{}", tested.body);
+
+    let started = authorized_request(
+        server.addr(),
+        server.token(),
+        "POST",
+        &format!("/v1/sources/{youtube_id}/start"),
+        &json!({"expected_revision": youtube_revision, "session_id": "session-1"}).to_string(),
+        true,
+    )
+    .await;
+    assert_eq!(started.status, 409, "{}", started.body);
+    assert_eq!(started.json()["error"]["code"], "source_start_failed");
+
     let listed =
         authorized_request(server.addr(), server.token(), "GET", "/v1/sources", "", false).await;
     assert_eq!(listed.status, 200);
-    assert_eq!(listed.json().as_array().unwrap().len(), 1);
+    assert_eq!(listed.json().as_array().unwrap().len(), 2);
 
     let deleted = authorized_request(
         server.addr(),
@@ -185,6 +250,17 @@ async fn source_api_is_authenticated_and_never_returns_twitch_tokens() {
     )
     .await;
     assert_eq!(deleted.status, 204, "{}", deleted.body);
+
+    let deleted_youtube = authorized_request(
+        server.addr(),
+        server.token(),
+        "DELETE",
+        &format!("/v1/sources/{youtube_id}?expected_revision={youtube_revision}"),
+        "",
+        false,
+    )
+    .await;
+    assert_eq!(deleted_youtube.status, 204, "{}", deleted_youtube.body);
 
     let listed =
         authorized_request(server.addr(), server.token(), "GET", "/v1/sources", "", false).await;

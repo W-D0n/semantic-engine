@@ -2,18 +2,22 @@
   import { invoke } from '@tauri-apps/api/core';
   import { Check, CirclePause, Copy, ExternalLink, Plus, Radio, RefreshCw, ShieldCheck, Trash2, TriangleAlert } from '@lucide/svelte';
   import { onMount } from 'svelte';
-  import type { DeviceAuthorizationPrompt, SourceRuntimeState, SourceView, TwitchAuthorizationStatus, TwitchSourceTest } from './contracts';
+  import type { BrowserAuthorizationPrompt, DeviceAuthorizationPrompt, SourceRuntimeState, SourceView, TwitchAuthorizationStatus, TwitchSourceTest, YouTubeAuthorizationStatus, YouTubeSourceTest } from './contracts';
 
   let { inTauri, onEnsureSession }: { inTauri: boolean; onEnsureSession: () => Promise<string> } = $props();
   let sources = $state<SourceView[]>([]);
   let displayName = $state('Chat Twitch principal');
+  let platform = $state<'twitch' | 'youtube'>('twitch');
   let clientId = $state('');
+  let videoId = $state('');
+  let policyAcknowledged = $state(false);
   let busy = $state('');
   let error = $state('');
   let notice = $state('');
   let authSourceId = $state('');
   let authPrompt = $state<DeviceAuthorizationPrompt | null>(null);
-  let testedIdentity = $state<Record<string, TwitchSourceTest>>({});
+  let browserPrompt = $state<BrowserAuthorizationPrompt | null>(null);
+  let testedIdentity = $state<Record<string, string>>({});
   let pollGeneration = 0;
 
   onMount(() => {
@@ -30,12 +34,14 @@
   }
 
   async function createSource() {
-    if (!displayName.trim() || !clientId.trim() || busy) return;
+    if (!displayName.trim() || !clientId.trim() || busy || (platform === 'youtube' && (!videoId.trim() || !policyAcknowledged))) return;
     busy = 'create'; error = ''; notice = '';
     try {
-      const source = await invoke<SourceView>('create_twitch_source_ipc', { displayName: displayName.trim(), clientId: clientId.trim() });
+      const source = platform === 'twitch'
+        ? await invoke<SourceView>('create_twitch_source_ipc', { displayName: displayName.trim(), clientId: clientId.trim() })
+        : await invoke<SourceView>('create_youtube_source_ipc', { displayName: displayName.trim(), clientId: clientId.trim(), videoId: videoId.trim(), policyAcknowledged });
       sources = [...sources, source];
-      notice = 'Source créée en pause. Autorisez maintenant votre compte Twitch.';
+      notice = `Source ${platform === 'twitch' ? 'Twitch' : 'YouTube'} créée en pause. Autorisez maintenant votre compte.`;
       busy = '';
       await beginAuthorization(source);
     } catch (cause) { error = readableError(cause); busy = ''; }
@@ -46,21 +52,38 @@
     busy = `auth-${source.source_id}`; error = ''; notice = ''; pollGeneration += 1;
     const generation = pollGeneration;
     try {
-      authPrompt = await invoke<DeviceAuthorizationPrompt>('begin_twitch_authorization_ipc', { sourceId: source.source_id });
+      if (isYouTube(source)) {
+        browserPrompt = await invoke<BrowserAuthorizationPrompt>('begin_youtube_authorization_ipc', { sourceId: source.source_id });
+        await openYouTubeAuthorization(browserPrompt.authorization_uri);
+      } else {
+        authPrompt = await invoke<DeviceAuthorizationPrompt>('begin_twitch_authorization_ipc', { sourceId: source.source_id });
+      }
       authSourceId = source.source_id;
-      notice = 'Ouvrez Twitch, saisissez le code, puis revenez ici. La vérification est automatique.';
-      void pollAuthorization(source.source_id, generation);
+      notice = isYouTube(source) ? 'Terminez l’autorisation Google dans votre navigateur. Le retour est automatique.' : 'Ouvrez Twitch, saisissez le code, puis revenez ici. La vérification est automatique.';
+      void pollAuthorization(source, generation);
     } catch (cause) { error = readableError(cause); busy = ''; }
   }
 
-  async function pollAuthorization(sourceId: string, generation: number) {
-    while (generation === pollGeneration && authSourceId === sourceId && authPrompt && Date.now() < authPrompt.expires_at_ms) {
-      await delay(Math.max(1, authPrompt.poll_interval_seconds) * 1_000);
+  async function pollAuthorization(source: SourceView, generation: number) {
+    const sourceId = source.source_id;
+    while (generation === pollGeneration && authSourceId === sourceId && (authPrompt || browserPrompt) && Date.now() < (authPrompt?.expires_at_ms ?? browserPrompt!.expires_at_ms)) {
+      await delay(isYouTube(source) ? 1_000 : Math.max(1, authPrompt!.poll_interval_seconds) * 1_000);
       if (generation !== pollGeneration) return;
       try {
+        if (isYouTube(source)) {
+          const status = await invoke<YouTubeAuthorizationStatus>('poll_youtube_authorization_ipc', { sourceId });
+          if (status.status === 'authorized') {
+            testedIdentity = { ...testedIdentity, [sourceId]: status.identity.display_name };
+            browserPrompt = null; authSourceId = ''; busy = '';
+            notice = `Chaîne ${status.identity.display_name} autorisée. La source est prête.`;
+            await loadSources(true); return;
+          }
+          browserPrompt = status.prompt;
+          continue;
+        }
         const status = await invoke<TwitchAuthorizationStatus>('poll_twitch_authorization_ipc', { sourceId });
         if (status.status === 'authorized') {
-          testedIdentity = { ...testedIdentity, [sourceId]: status.identity };
+          testedIdentity = { ...testedIdentity, [sourceId]: `@${status.identity.login}` };
           authPrompt = null; authSourceId = ''; busy = '';
           notice = `Compte @${status.identity.login} autorisé. La source est prête.`;
           await loadSources(true); return;
@@ -69,11 +92,11 @@
           ? { ...status.prompt, poll_interval_seconds: Math.min(status.prompt.poll_interval_seconds + 5, 60) }
           : status.prompt;
       } catch (cause) {
-        error = readableError(cause); busy = ''; authPrompt = null; authSourceId = ''; return;
+        error = readableError(cause); busy = ''; authPrompt = null; browserPrompt = null; authSourceId = ''; return;
       }
     }
-    if (generation === pollGeneration && authPrompt) {
-      error = 'Le code Twitch a expiré. Relancez l’autorisation.'; busy = ''; authPrompt = null; authSourceId = '';
+    if (generation === pollGeneration && (authPrompt || browserPrompt)) {
+      error = 'L’autorisation a expiré. Relancez-la.'; busy = ''; authPrompt = null; browserPrompt = null; authSourceId = '';
     }
   }
 
@@ -81,9 +104,15 @@
     if (busy) return;
     busy = `test-${source.source_id}`; error = '';
     try {
-      const identity = await invoke<TwitchSourceTest>('test_twitch_source_ipc', { sourceId: source.source_id });
-      testedIdentity = { ...testedIdentity, [source.source_id]: identity };
-      notice = `Connexion valide pour @${identity.login}.`;
+      if (isYouTube(source)) {
+        const identity = await invoke<YouTubeSourceTest>('test_youtube_source_ipc', { sourceId: source.source_id });
+        testedIdentity = { ...testedIdentity, [source.source_id]: identity.display_name };
+        notice = `Connexion YouTube valide pour ${identity.display_name}.`;
+      } else {
+        const identity = await invoke<TwitchSourceTest>('test_twitch_source_ipc', { sourceId: source.source_id });
+        testedIdentity = { ...testedIdentity, [source.source_id]: `@${identity.login}` };
+        notice = `Connexion Twitch valide pour @${identity.login}.`;
+      }
     } catch (cause) { error = readableError(cause); }
     finally { busy = ''; }
   }
@@ -93,8 +122,9 @@
     busy = `start-${source.source_id}`; error = '';
     try {
       const sessionId = await onEnsureSession();
-      replaceSource(await invoke<SourceView>('start_twitch_source_ipc', { sourceId: source.source_id, expectedRevision: source.revision, sessionId }));
-      notice = 'Connexion Twitch lancée. Les messages alimentent la session active.';
+      const command = isYouTube(source) ? 'start_youtube_source_ipc' : 'start_twitch_source_ipc';
+      replaceSource(await invoke<SourceView>(command, { sourceId: source.source_id, expectedRevision: source.revision, sessionId }));
+      notice = `Connexion ${isYouTube(source) ? 'YouTube' : 'Twitch'} lancée. Les messages alimentent la session active.`;
     } catch (cause) { error = readableError(cause); }
     finally { busy = ''; }
   }
@@ -124,7 +154,13 @@
     catch { error = 'La copie automatique a échoué. Sélectionnez la valeur manuellement.'; }
   }
 
+  async function openYouTubeAuthorization(authorizationUri: string) {
+    try { await invoke('open_youtube_authorization_ipc', { authorizationUri }); }
+    catch (cause) { error = readableError(cause); }
+  }
+
   function replaceSource(source: SourceView) { sources = sources.map((item) => item.source_id === source.source_id ? source : item); }
+  function isYouTube(source: SourceView) { return source.adapter === 'youtube-live-chat'; }
   function stateLabel(state: SourceRuntimeState | null) {
     return ({ paused: 'En pause', authentication_required: 'Autorisation requise', connecting: 'Connexion…', connected: 'Connectée', backoff: 'Reconnexion…', faulted: 'Action requise' } as const)[state ?? 'paused'];
   }
@@ -134,14 +170,19 @@
 
 <section class="source-panel" aria-labelledby="source-heading">
   <div class="source-heading">
-    <div class="source-title"><span class="source-icon"><Radio size={20} /></span><div><p class="eyebrow">Sources de chat</p><h2 id="source-heading">Brancher Twitch sans coupler le moteur</h2><p>EventSub traduit chaque message en soumission locale. Les jetons restent dans le coffre du système.</p></div></div>
+    <div class="source-title"><span class="source-icon"><Radio size={20} /></span><div><p class="eyebrow">Sources de chat</p><h2 id="source-heading">Brancher Twitch ou YouTube sans coupler le moteur</h2><p>Chaque adaptateur traduit le chat en soumissions locales. Les jetons restent dans le coffre du système.</p></div></div>
     <span class="privacy"><ShieldCheck size={15} /> Aucun chat brut conservé</span>
   </div>
 
   <div class="source-create">
+    <label>Plateforme<select bind:value={platform} onchange={() => { displayName = platform === 'twitch' ? 'Chat Twitch principal' : 'Live YouTube principal'; }}><option value="twitch">Twitch</option><option value="youtube">YouTube Live (expérimental)</option></select></label>
     <label>Nom de la source<input bind:value={displayName} maxlength="80" placeholder="Chat Twitch principal" /></label>
-    <label>Client ID Twitch<input bind:value={clientId} maxlength="128" autocomplete="off" spellcheck="false" placeholder="Identifiant public de votre application Twitch" /></label>
-    <button onclick={createSource} disabled={!inTauri || !!busy || !displayName.trim() || !clientId.trim()}><Plus size={16} /> {busy === 'create' ? 'Création…' : 'Ajouter Twitch'}</button>
+    <label>Client ID {platform === 'twitch' ? 'Twitch' : 'Google Desktop OAuth'}<input bind:value={clientId} maxlength="256" autocomplete="off" spellcheck="false" placeholder={platform === 'twitch' ? 'Identifiant public de votre application Twitch' : '…apps.googleusercontent.com'} /></label>
+    {#if platform === 'youtube'}
+      <label>ID de la vidéo live<input bind:value={videoId} maxlength="11" autocomplete="off" spellcheck="false" placeholder="dQw4w9WgXcQ" /></label>
+      <label class="policy"><input type="checkbox" bind:checked={policyAcknowledged} /> J’ai lu les règles YouTube API. Verdict/score reste verrouillé par la distribution jusqu’à validation de conformité.</label>
+    {/if}
+    <button onclick={createSource} disabled={!inTauri || !!busy || !displayName.trim() || !clientId.trim() || (platform === 'youtube' && (!videoId.trim() || !policyAcknowledged))}><Plus size={16} /> {busy === 'create' ? 'Création…' : `Ajouter ${platform === 'twitch' ? 'Twitch' : 'YouTube'}`}</button>
   </div>
 
   {#if authPrompt}
@@ -151,11 +192,18 @@
     </div>
   {/if}
 
+  {#if browserPrompt}
+    <div class="authorization" aria-live="polite">
+      <div><span>Autorisation Google ouverte dans le navigateur</span><small>Expire dans {Math.max(0, Math.ceil((browserPrompt.expires_at_ms - Date.now()) / 60_000))} min</small></div>
+      <div class="authorization-actions"><button onclick={() => openYouTubeAuthorization(browserPrompt!.authorization_uri)}>Ouvrir Google <ExternalLink size={15} /></button><button onclick={() => copy(browserPrompt!.authorization_uri, 'Lien')}><Copy size={15} /> Lien</button></div>
+    </div>
+  {/if}
+
   {#if sources.length}
     <div class="source-list">
       {#each sources as source (source.source_id)}
         <article class:connected={source.runtime.state === 'connected'} class:faulted={source.runtime.state === 'faulted'}>
-          <div class="source-summary"><span class="state-dot"></span><div><strong>{source.display_name}</strong><small>{testedIdentity[source.source_id] ? `@${testedIdentity[source.source_id].login}` : 'Twitch EventSub'}</small></div><span class="state-label">{stateLabel(source.runtime.state)}</span></div>
+          <div class="source-summary"><span class="state-dot"></span><div><strong>{source.display_name}</strong><small>{testedIdentity[source.source_id] ?? (isYouTube(source) ? 'YouTube Live' : 'Twitch EventSub')}</small></div><span class="state-label">{stateLabel(source.runtime.state)}</span></div>
           <dl><div><dt>Messages</dt><dd>{source.runtime.messages_received}</dd></div><div><dt>Acceptés</dt><dd>{source.runtime.accepted}</dd></div><div><dt>Session</dt><dd>{source.runtime.session_id?.slice(0, 8) ?? '—'}</dd></div></dl>
           {#if source.runtime.detail}<p class="source-detail">Code : {source.runtime.detail}</p>{/if}
           <div class="source-actions">
@@ -172,5 +220,5 @@
 </section>
 
 <style>
-  .source-panel{margin-top:20px;border:1px solid var(--line);border-radius:18px;background:color-mix(in srgb,var(--surface) 94%,#9146ff 6%);overflow:hidden}.source-heading{display:flex;justify-content:space-between;gap:24px;padding:24px;border-bottom:1px solid var(--line)}.source-title{display:flex;gap:14px;align-items:flex-start}.source-title h2{margin:2px 0 6px;font-size:1.2rem}.source-title p:last-child{margin:0;color:var(--muted);max-width:760px}.source-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#9146ff1c;color:#a970ff}.privacy{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:.78rem;white-space:nowrap}.source-create{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(260px,1.2fr) auto;gap:12px;align-items:end;padding:18px 24px;border-bottom:1px solid var(--line)}label{display:grid;gap:7px;color:var(--muted);font-size:.76rem;font-weight:650}input{min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--background);color:var(--text);padding:11px 12px}button,a{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:9px 13px;font:inherit;font-size:.8rem;font-weight:700;text-decoration:none;cursor:pointer}button:disabled{opacity:.48;cursor:not-allowed}.source-create>button,.start{border-color:#9146ff66;background:#9146ff;color:#fff}.authorization{display:flex;justify-content:space-between;gap:20px;padding:18px 24px;background:#9146ff12;border-bottom:1px solid #9146ff35}.authorization>div:first-child{display:grid;gap:2px}.authorization span,.authorization small{color:var(--muted);font-size:.72rem}.authorization strong{font:750 1.45rem/1.2 ui-monospace,monospace;letter-spacing:.12em}.authorization-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.authorization-actions a{background:#9146ff;border-color:#9146ff;color:#fff}.source-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;padding:18px 24px}article{border:1px solid var(--line);border-radius:14px;background:var(--background);padding:16px}article.connected{border-color:#39c98166}article.faulted{border-color:#f06d6d70}.source-summary{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px}.source-summary>div{display:grid}.source-summary small{color:var(--muted);font-size:.72rem}.state-dot{width:9px;height:9px;border-radius:50%;background:#8c929b;box-shadow:0 0 0 4px #8c929b20}article.connected .state-dot{background:#39c981;box-shadow:0 0 0 4px #39c98120}article.faulted .state-dot{background:#f06d6d;box-shadow:0 0 0 4px #f06d6d20}.state-label{color:var(--muted);font-size:.72rem}dl{display:grid;grid-template-columns:repeat(3,1fr);margin:14px 0;border-block:1px solid var(--line)}dl div{padding:10px 4px}dt{color:var(--muted);font-size:.66rem}dd{margin:3px 0 0;font:700 .82rem ui-monospace,monospace}.source-detail{margin:-4px 0 12px;color:#e48d8d;font:.7rem ui-monospace,monospace}.source-actions{display:flex;flex-wrap:wrap;gap:8px}.source-actions .delete{margin-left:auto;color:#e48d8d;padding-inline:11px}.source-actions .pause{color:#e6b76e}.source-empty{display:flex;align-items:center;justify-content:center;gap:12px;padding:26px;color:var(--muted)}.source-empty span{display:grid}.source-empty strong{color:var(--text)}.source-empty small{margin-top:2px}.source-notice,.source-error{display:flex;align-items:center;gap:8px;margin:0;padding:12px 24px;border-top:1px solid var(--line);font-size:.8rem}.source-notice{color:#55d99a}.source-error{color:#ef8f8f}@media(max-width:760px){.source-heading,.authorization{flex-direction:column}.privacy{white-space:normal}.source-create{grid-template-columns:1fr}.source-list{grid-template-columns:1fr}}
+  .source-panel{margin-top:20px;border:1px solid var(--line);border-radius:18px;background:color-mix(in srgb,var(--surface) 94%,#9146ff 6%);overflow:hidden}.source-heading{display:flex;justify-content:space-between;gap:24px;padding:24px;border-bottom:1px solid var(--line)}.source-title{display:flex;gap:14px;align-items:flex-start}.source-title h2{margin:2px 0 6px;font-size:1.2rem}.source-title p:last-child{margin:0;color:var(--muted);max-width:760px}.source-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#9146ff1c;color:#a970ff}.privacy{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:.78rem;white-space:nowrap}.source-create{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end;padding:18px 24px;border-bottom:1px solid var(--line)}label{display:grid;gap:7px;color:var(--muted);font-size:.76rem;font-weight:650}input,select{min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--background);color:var(--text);padding:11px 12px}.policy{grid-template-columns:auto 1fr;align-items:start;line-height:1.4}.policy input{width:17px;height:17px;padding:0}button,a{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);padding:9px 13px;font:inherit;font-size:.8rem;font-weight:700;text-decoration:none;cursor:pointer}button:disabled{opacity:.48;cursor:not-allowed}.source-create>button,.start{border-color:#9146ff66;background:#9146ff;color:#fff}.authorization{display:flex;justify-content:space-between;gap:20px;padding:18px 24px;background:#9146ff12;border-bottom:1px solid #9146ff35}.authorization>div:first-child{display:grid;gap:2px}.authorization span,.authorization small{color:var(--muted);font-size:.72rem}.authorization strong{font:750 1.45rem/1.2 ui-monospace,monospace;letter-spacing:.12em}.authorization-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.authorization-actions a{background:#9146ff;border-color:#9146ff;color:#fff}.source-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;padding:18px 24px}article{border:1px solid var(--line);border-radius:14px;background:var(--background);padding:16px}article.connected{border-color:#39c98166}article.faulted{border-color:#f06d6d70}.source-summary{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px}.source-summary>div{display:grid}.source-summary small{color:var(--muted);font-size:.72rem}.state-dot{width:9px;height:9px;border-radius:50%;background:#8c929b;box-shadow:0 0 0 4px #8c929b20}article.connected .state-dot{background:#39c981;box-shadow:0 0 0 4px #39c98120}article.faulted .state-dot{background:#f06d6d;box-shadow:0 0 0 4px #f06d6d20}.state-label{color:var(--muted);font-size:.72rem}dl{display:grid;grid-template-columns:repeat(3,1fr);margin:14px 0;border-block:1px solid var(--line)}dl div{padding:10px 4px}dt{color:var(--muted);font-size:.66rem}dd{margin:3px 0 0;font:700 .82rem ui-monospace,monospace}.source-detail{margin:-4px 0 12px;color:#e48d8d;font:.7rem ui-monospace,monospace}.source-actions{display:flex;flex-wrap:wrap;gap:8px}.source-actions .delete{margin-left:auto;color:#e48d8d;padding-inline:11px}.source-actions .pause{color:#e6b76e}.source-empty{display:flex;align-items:center;justify-content:center;gap:12px;padding:26px;color:var(--muted)}.source-empty span{display:grid}.source-empty strong{color:var(--text)}.source-empty small{margin-top:2px}.source-notice,.source-error{display:flex;align-items:center;gap:8px;margin:0;padding:12px 24px;border-top:1px solid var(--line);font-size:.8rem}.source-notice{color:#55d99a}.source-error{color:#ef8f8f}@media(max-width:760px){.source-heading,.authorization{flex-direction:column}.privacy{white-space:normal}.source-create{grid-template-columns:1fr}.source-list{grid-template-columns:1fr}}
 </style>

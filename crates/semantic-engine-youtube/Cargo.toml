@@ -1,19 +1,22 @@
 [package]
-name = "semantic-engine-source-runtime"
+name = "semantic-engine-youtube"
 version = "0.1.0"
 edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+base64.workspace = true
+futures-util.workspace = true
 getrandom.workspace = true
-semantic-engine-core = { path = "../semantic-engine-core" }
+reqwest.workspace = true
 semantic-engine-credential-vault = { path = "../semantic-engine-credential-vault" }
-semantic-engine-service = { path = "../semantic-engine-service" }
+semantic-engine-core = { path = "../semantic-engine-core" }
 semantic-engine-source = { path = "../semantic-engine-source" }
-semantic-engine-twitch = { path = "../semantic-engine-twitch" }
-semantic-engine-youtube = { path = "../semantic-engine-youtube" }
 serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
 tokio.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
-tempfile = "3"
+axum.workspace = true

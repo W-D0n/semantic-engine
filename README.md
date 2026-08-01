@@ -7,7 +7,7 @@ formulations proches comprises.
 > État actuel : moteur Rust, CLI JSONL et client Tauri portable hors ligne avec
 > inspection/rollback des paquets, tuning local des titres, export de versions,
 > arbitrage opérateur, audit SQLite à rétention bornée et service d’application
-> avec déduplication/cache TTL-LRU, API locale opt-in et source Twitch EventSub
+> avec déduplication/cache TTL-LRU, API locale opt-in, Twitch EventSub et YouTube Live expérimental
 > protégée par le coffre natif du système. L'API et la CLI headless pilotent
 > aussi les sources, avec un ordre global durable pour plusieurs chats.
 > Le corpus contractuel couvre 84 titres et 28 cas de validation.
@@ -33,6 +33,7 @@ quand la réponse n’est pas assez sûre.
 - [Solutions et corpus existants](docs/research/existing-solutions-and-data.md)
 - [Intégration locale JSONL et contrat de résolution](docs/integration/jsonl-sidecar.md)
 - [Connecter Twitch](docs/integration/twitch.md)
+- [Connecter YouTube Live](docs/integration/youtube.md)
 - [Application portable](docs/product/portable-desktop.md)
 - [Audit local et confidentialité](docs/product/audit.md)
 - [Performance et benchmark](docs/product/performance.md)
@@ -114,6 +115,11 @@ Client ID public d’une application Twitch, autoriser le compte, tester puis
 cliquer **Écouter**. Les réponses live utilisent la même session et le même
 panneau d’arbitrage ; les jetons restent dans le coffre du système et le texte du
 chat n’est pas persisté. Voir le [guide Twitch](docs/integration/twitch.md).
+
+Elle accepte aussi YouTube Live via OAuth Desktop + PKCE et retour loopback. Cet
+adaptateur est techniquement utilisable mais reste signalé expérimental pour les
+verdicts/points jusqu’à validation de conformité YouTube. Voir le
+[guide YouTube](docs/integration/youtube.md).
 
 Le catalogue public de titres vit dans
 [Answer Atlas](https://github.com/W-D0n/answer-atlas). Son paquet

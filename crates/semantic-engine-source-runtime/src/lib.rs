@@ -16,6 +16,12 @@ use semantic_engine_twitch::{
     TwitchEventSubClient, TwitchOAuthClient, load_credential, store_credential,
     validate_twitch_client_id,
 };
+pub use semantic_engine_youtube::BrowserAuthorizationPrompt;
+use semantic_engine_youtube::{
+    BrowserPoll, PendingBrowserAuthorization, YOUTUBE_ADAPTER_ID, YouTubeLiveChatClient,
+    YouTubeLiveConfig, YouTubeOAuthClient, load_credential as load_youtube_credential,
+    store_credential as store_youtube_credential, validate_video_id, validate_youtube_client_id,
+};
 use serde::Serialize;
 use tokio::{
     sync::{RwLock, mpsc, watch},
@@ -25,6 +31,7 @@ use tokio::{
 const SOURCE_EVENT_BUFFER: usize = 256;
 const TOKEN_REFRESH_MARGIN_MS: u64 = 60_000;
 const TOKEN_VALIDATION_INTERVAL: std::time::Duration = std::time::Duration::from_secs(55 * 60);
+pub const YOUTUBE_DERIVED_DATA_FEATURE_FLAG: &str = "SEMANTIC_ENGINE_ENABLE_YOUTUBE_DERIVED_DATA";
 
 pub type SharedService = Arc<tokio::sync::Mutex<SemanticEngineService>>;
 
@@ -35,6 +42,9 @@ pub struct SourceRuntime {
     oauth: TwitchOAuthClient,
     eventsub: TwitchEventSubClient,
     pending: tokio::sync::Mutex<HashMap<String, PendingDeviceAuthorization>>,
+    youtube_oauth: YouTubeOAuthClient,
+    youtube_live: YouTubeLiveChatClient,
+    pending_youtube: tokio::sync::Mutex<HashMap<String, PendingBrowserAuthorization>>,
     active: tokio::sync::Mutex<HashMap<String, ActiveSource>>,
     runtime: Arc<RwLock<HashMap<String, RuntimeSnapshot>>>,
     global_sequences: Arc<tokio::sync::Mutex<HashMap<String, u64>>>,
@@ -74,11 +84,46 @@ pub struct TwitchSourceTest {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct YouTubeSourceTest {
+    pub channel_id: String,
+    pub display_name: String,
+    pub video_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum TwitchAuthorizationStatus {
     Pending { prompt: DeviceAuthorizationPrompt },
     SlowDown { prompt: DeviceAuthorizationPrompt },
     Authorized { source: Box<SourceView>, identity: TwitchSourceTest },
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum YouTubeAuthorizationStatus {
+    Pending { prompt: BrowserAuthorizationPrompt },
+    Authorized { source: Box<SourceView>, identity: YouTubeSourceTest },
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum SourceAuthorizationPrompt {
+    Twitch(DeviceAuthorizationPrompt),
+    YouTube(BrowserAuthorizationPrompt),
+}
+
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+pub enum SourceAuthorizationStatus {
+    Twitch(TwitchAuthorizationStatus),
+    YouTube(YouTubeAuthorizationStatus),
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+pub enum SourceTest {
+    Twitch(TwitchSourceTest),
+    YouTube(YouTubeSourceTest),
 }
 
 impl SourceRuntime {
@@ -106,6 +151,9 @@ impl SourceRuntime {
             oauth: TwitchOAuthClient::new().map_err(|error| error.to_string())?,
             eventsub: TwitchEventSubClient::new().map_err(|error| error.to_string())?,
             pending: tokio::sync::Mutex::new(HashMap::new()),
+            youtube_oauth: YouTubeOAuthClient::new().map_err(|error| error.to_string())?,
+            youtube_live: YouTubeLiveChatClient::new().map_err(|error| error.to_string())?,
+            pending_youtube: tokio::sync::Mutex::new(HashMap::new()),
             active: tokio::sync::Mutex::new(HashMap::new()),
             runtime: Arc::new(RwLock::new(HashMap::new())),
             global_sequences: Arc::new(tokio::sync::Mutex::new(HashMap::new())),
@@ -124,18 +172,108 @@ pub async fn list_sources(state: &SourceRuntime) -> Result<Vec<SourceView>, Stri
     list_source_views(state).await
 }
 
+pub async fn begin_source_authorization(
+    source_id: String,
+    state: &SourceRuntime,
+) -> Result<SourceAuthorizationPrompt, String> {
+    let source = get_source(&state.store, source_id.clone()).await?;
+    match source.definition.adapter.as_str() {
+        TWITCH_ADAPTER_ID => Ok(SourceAuthorizationPrompt::Twitch(
+            begin_twitch_authorization(source_id, state).await?,
+        )),
+        YOUTUBE_ADAPTER_ID => Ok(SourceAuthorizationPrompt::YouTube(
+            begin_youtube_authorization(source_id, state).await?,
+        )),
+        _ => Err("source adapter does not support authorization".to_owned()),
+    }
+}
+
+pub async fn poll_source_authorization(
+    source_id: String,
+    state: &SourceRuntime,
+) -> Result<SourceAuthorizationStatus, String> {
+    let source = get_source(&state.store, source_id.clone()).await?;
+    match source.definition.adapter.as_str() {
+        TWITCH_ADAPTER_ID => Ok(SourceAuthorizationStatus::Twitch(
+            poll_twitch_authorization(source_id, state).await?,
+        )),
+        YOUTUBE_ADAPTER_ID => Ok(SourceAuthorizationStatus::YouTube(
+            poll_youtube_authorization(source_id, state).await?,
+        )),
+        _ => Err("source adapter does not support authorization".to_owned()),
+    }
+}
+
+pub async fn test_source(source_id: String, state: &SourceRuntime) -> Result<SourceTest, String> {
+    let source = get_source(&state.store, source_id.clone()).await?;
+    match source.definition.adapter.as_str() {
+        TWITCH_ADAPTER_ID => Ok(SourceTest::Twitch(test_twitch_source(source_id, state).await?)),
+        YOUTUBE_ADAPTER_ID => Ok(SourceTest::YouTube(test_youtube_source(source_id, state).await?)),
+        _ => Err("source adapter does not support connection tests".to_owned()),
+    }
+}
+
+pub async fn start_source(
+    source_id: String,
+    expected_revision: u64,
+    session_id: String,
+    state: &SourceRuntime,
+) -> Result<SourceView, String> {
+    let source = get_source(&state.store, source_id.clone()).await?;
+    match source.definition.adapter.as_str() {
+        TWITCH_ADAPTER_ID => {
+            start_twitch_source(source_id, expected_revision, session_id, state).await
+        }
+        YOUTUBE_ADAPTER_ID => {
+            start_youtube_source(source_id, expected_revision, session_id, state).await
+        }
+        _ => Err("source adapter cannot be started".to_owned()),
+    }
+}
+
 pub async fn create_twitch_source(
     display_name: String,
     client_id: String,
     state: &SourceRuntime,
 ) -> Result<SourceView, String> {
     validate_twitch_client_id(&client_id).map_err(|error| error.to_string())?;
-    let source_id = random_source_id()?;
+    let source_id = random_source_id("twitch")?;
     let request = CreateSource {
         source_id: source_id.clone(),
         adapter: TWITCH_ADAPTER_ID.to_owned(),
         display_name,
         settings: BTreeMap::from([("client_id".to_owned(), client_id)]),
+        credential_id: None,
+    };
+    execute_store(&state.store, move |store| store.add(request)).await?;
+    source_view(state, &source_id).await
+}
+
+pub async fn create_youtube_source(
+    display_name: String,
+    client_id: String,
+    video_id: String,
+    policy_acknowledged: bool,
+    state: &SourceRuntime,
+) -> Result<SourceView, String> {
+    validate_youtube_client_id(&client_id).map_err(|error| error.to_string())?;
+    validate_video_id(&video_id).map_err(|error| error.to_string())?;
+    if !policy_acknowledged {
+        return Err(
+            "YouTube policy acknowledgement is required before enabling this experimental adapter"
+                .to_owned(),
+        );
+    }
+    let source_id = random_source_id("youtube")?;
+    let request = CreateSource {
+        source_id: source_id.clone(),
+        adapter: YOUTUBE_ADAPTER_ID.to_owned(),
+        display_name,
+        settings: BTreeMap::from([
+            ("client_id".to_owned(), client_id),
+            ("video_id".to_owned(), video_id),
+            ("policy_acknowledged".to_owned(), "true".to_owned()),
+        ]),
         credential_id: None,
     };
     execute_store(&state.store, move |store| store.add(request)).await?;
@@ -228,6 +366,92 @@ pub async fn poll_twitch_authorization(
     }
 }
 
+pub async fn begin_youtube_authorization(
+    source_id: String,
+    state: &SourceRuntime,
+) -> Result<BrowserAuthorizationPrompt, String> {
+    state.vault()?;
+    let source = get_source(&state.store, source_id.clone()).await?;
+    ensure_youtube(&source)?;
+    let client_id = source_setting(&source, "client_id", "YouTube source has no client ID")?;
+    let pending = state
+        .youtube_oauth
+        .begin_authorization(client_id, now_ms()?)
+        .await
+        .map_err(|error| error.to_string())?;
+    let prompt = pending.prompt().clone();
+    state.pending_youtube.lock().await.insert(source_id, pending);
+    Ok(prompt)
+}
+
+pub async fn poll_youtube_authorization(
+    source_id: String,
+    state: &SourceRuntime,
+) -> Result<YouTubeAuthorizationStatus, String> {
+    let mut pending = state.pending_youtube.lock().await;
+    let authorization = pending
+        .get_mut(&source_id)
+        .ok_or_else(|| "no pending YouTube authorization for this source".to_owned())?;
+    let prompt = authorization.prompt().clone();
+    match state
+        .youtube_oauth
+        .poll_authorization(authorization, now_ms()?)
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        BrowserPoll::Pending => Ok(YouTubeAuthorizationStatus::Pending { prompt }),
+        BrowserPoll::Authorized(credential) => {
+            let source = get_source(&state.store, source_id.clone()).await?;
+            let identity = state
+                .youtube_oauth
+                .identity(credential.access_token())
+                .await
+                .map_err(|error| error.to_string())?;
+            let video_id =
+                source_setting(&source, "video_id", "YouTube source has no video ID")?.to_owned();
+            state
+                .youtube_live
+                .test_video(&video_id, credential.access_token())
+                .await
+                .map_err(|error| error.to_string())?;
+            let credential_id = format!("credential-{source_id}");
+            let vault = state.vault()?;
+            let stored_id = credential_id.clone();
+            tokio::task::spawn_blocking(move || {
+                store_youtube_credential(vault.as_ref(), &stored_id, &credential)
+            })
+            .await
+            .map_err(|_| "credential worker did not complete".to_owned())?
+            .map_err(|error| error.to_string())?;
+            let source_id_for_update = source_id.clone();
+            let update = UpdateSource {
+                expected_revision: source.revision,
+                display_name: source.definition.display_name,
+                settings: source.definition.settings,
+                credential_id: Some(credential_id.clone()),
+            };
+            if let Err(error) = execute_store(&state.store, move |store| {
+                store.update(&source_id_for_update, update)
+            })
+            .await
+            {
+                let _ = state.vault()?.delete(&credential_id);
+                return Err(error);
+            }
+            pending.remove(&source_id);
+            drop(pending);
+            Ok(YouTubeAuthorizationStatus::Authorized {
+                source: Box::new(source_view(state, &source_id).await?),
+                identity: YouTubeSourceTest {
+                    channel_id: identity.channel_id,
+                    display_name: identity.display_name,
+                    video_id,
+                },
+            })
+        }
+    }
+}
+
 pub async fn test_twitch_source(
     source_id: String,
     state: &SourceRuntime,
@@ -250,6 +474,37 @@ pub async fn test_twitch_source(
         login: identity.login,
         user_id: identity.user_id,
         expires_in_seconds: identity.expires_in,
+    })
+}
+
+pub async fn test_youtube_source(
+    source_id: String,
+    state: &SourceRuntime,
+) -> Result<YouTubeSourceTest, String> {
+    let source = get_source(&state.store, source_id).await?;
+    ensure_youtube(&source)?;
+    let credential_id = source
+        .definition
+        .credential_id
+        .as_deref()
+        .ok_or_else(|| "YouTube authentication is required".to_owned())?;
+    let credential = load_youtube_from_vault(state.vault()?, credential_id.to_owned()).await?;
+    let identity = state
+        .youtube_oauth
+        .identity(credential.access_token())
+        .await
+        .map_err(|error| error.to_string())?;
+    let video_id =
+        source_setting(&source, "video_id", "YouTube source has no video ID")?.to_owned();
+    state
+        .youtube_live
+        .test_video(&video_id, credential.access_token())
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(YouTubeSourceTest {
+        channel_id: identity.channel_id,
+        display_name: identity.display_name,
+        video_id,
     })
 }
 
@@ -359,6 +614,217 @@ pub async fn start_twitch_source(
         .await
         .insert(source_id.clone(), ActiveSource { session_id, shutdown, connector, pump });
     source_view_with_record(state, active_record).await
+}
+
+pub async fn start_youtube_source(
+    source_id: String,
+    expected_revision: u64,
+    session_id: String,
+    state: &SourceRuntime,
+) -> Result<SourceView, String> {
+    {
+        let active = state.active.lock().await;
+        if active.contains_key(&source_id) {
+            return source_view(state, &source_id).await;
+        }
+    }
+    let source = get_source(&state.store, source_id.clone()).await?;
+    if source.revision != expected_revision {
+        return Err("source revision conflicts with durable state".to_owned());
+    }
+    ensure_youtube(&source)?;
+    if source.definition.settings.get("policy_acknowledged").map(String::as_str) != Some("true") {
+        return Err("YouTube policy acknowledgement is required".to_owned());
+    }
+    if !youtube_derived_data_enabled() {
+        return Err(format!(
+            "YouTube verdict/score ingestion is distribution-gated; set {YOUTUBE_DERIVED_DATA_FEATURE_FLAG}=1 only for an approved compliance test"
+        ));
+    }
+    let client_id =
+        source_setting(&source, "client_id", "YouTube source has no client ID")?.to_owned();
+    let video_id =
+        source_setting(&source, "video_id", "YouTube source has no video ID")?.to_owned();
+    let credential_id = source
+        .definition
+        .credential_id
+        .clone()
+        .ok_or_else(|| "YouTube authentication is required".to_owned())?;
+    let vault = state.vault()?;
+    let mut credential = load_youtube_from_vault(vault.clone(), credential_id.clone()).await?;
+    if credential.expires_at_ms() <= now_ms()?.saturating_add(TOKEN_REFRESH_MARGIN_MS) {
+        credential = state
+            .youtube_oauth
+            .refresh(&client_id, &credential, now_ms()?)
+            .await
+            .map_err(|error| error.to_string())?;
+        let stored = credential_id.clone();
+        let vault_for_store = vault.clone();
+        credential = tokio::task::spawn_blocking(move || {
+            store_youtube_credential(vault_for_store.as_ref(), &stored, &credential)
+                .map(|()| credential)
+        })
+        .await
+        .map_err(|_| "credential worker did not complete".to_owned())?
+        .map_err(|error| error.to_string())?;
+    }
+    state
+        .youtube_oauth
+        .identity(credential.access_token())
+        .await
+        .map_err(|error| error.to_string())?;
+    state
+        .youtube_live
+        .test_video(&video_id, credential.access_token())
+        .await
+        .map_err(|error| error.to_string())?;
+    let resumable = execute_service(&state.service, {
+        let session_id = session_id.clone();
+        move |service| service.resumable_session(&session_id)
+    })
+    .await?;
+    state
+        .global_sequences
+        .lock()
+        .await
+        .entry(session_id.clone())
+        .or_insert(resumable.next_source_sequence);
+    let source_id_for_state = source_id.clone();
+    let active_record = execute_store(&state.store, move |store| {
+        store.set_desired_state(&source_id_for_state, expected_revision, SourceDesiredState::Active)
+    })
+    .await?;
+    let (output, events) = mpsc::channel(SOURCE_EVENT_BUFFER);
+    let (shutdown, shutdown_receiver) = watch::channel(false);
+    let connector = {
+        let oauth = state.youtube_oauth.clone();
+        let live = state.youtube_live.clone();
+        let runtime = state.runtime.clone();
+        let connector_source_id = source_id.clone();
+        let config = YouTubeLiveConfig {
+            source_id: source_id.clone(),
+            video_id,
+            next_source_sequence: resumable.next_source_sequence,
+        };
+        tokio::spawn(async move {
+            if run_youtube_supervisor(
+                oauth,
+                live,
+                config,
+                client_id,
+                vault,
+                credential_id,
+                credential,
+                output,
+                shutdown_receiver,
+            )
+            .await
+            .is_err()
+            {
+                set_runtime_fault(&runtime, &connector_source_id, "connector_failed").await;
+            }
+        })
+    };
+    let pump = tokio::spawn(pump_source_events(
+        source_id.clone(),
+        session_id.clone(),
+        events,
+        state.service.clone(),
+        state.runtime.clone(),
+        state.global_sequences.clone(),
+    ));
+    state
+        .active
+        .lock()
+        .await
+        .insert(source_id.clone(), ActiveSource { session_id, shutdown, connector, pump });
+    source_view_with_record(state, active_record).await
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn run_youtube_supervisor(
+    oauth: YouTubeOAuthClient,
+    live: YouTubeLiveChatClient,
+    config: YouTubeLiveConfig,
+    client_id: String,
+    vault: Arc<OsCredentialVault>,
+    credential_id: String,
+    mut credential: semantic_engine_youtube::YouTubeCredential,
+    output: mpsc::Sender<SourceAdapterEvent>,
+    mut shutdown: watch::Receiver<bool>,
+) -> Result<(), String> {
+    let mut force_refresh = false;
+    let mut backoff = std::time::Duration::from_secs(1);
+    loop {
+        if *shutdown.borrow() {
+            return Ok(());
+        }
+        let now = now_ms()?;
+        if force_refresh
+            || credential.expires_at_ms() <= now.saturating_add(TOKEN_REFRESH_MARGIN_MS)
+        {
+            credential = oauth
+                .refresh(&client_id, &credential, now)
+                .await
+                .map_err(|error| error.to_string())?;
+            let stored_id = credential_id.clone();
+            let stored_vault = vault.clone();
+            credential = tokio::task::spawn_blocking(move || {
+                store_youtube_credential(stored_vault.as_ref(), &stored_id, &credential)
+                    .map(|()| credential)
+            })
+            .await
+            .map_err(|_| "credential worker did not complete".to_owned())?
+            .map_err(|error| error.to_string())?;
+            force_refresh = false;
+            backoff = std::time::Duration::from_secs(1);
+        }
+        let until_refresh = std::time::Duration::from_millis(
+            credential
+                .expires_at_ms()
+                .saturating_sub(now_ms()?)
+                .saturating_sub(TOKEN_REFRESH_MARGIN_MS),
+        );
+        let (cycle_shutdown, cycle_receiver) = watch::channel(false);
+        let cycle = live.run(config.clone(), &credential, output.clone(), cycle_receiver);
+        tokio::pin!(cycle);
+        tokio::select! {
+            result = &mut cycle => {
+                match result {
+                    Ok(()) if *shutdown.borrow() => return Ok(()),
+                    Ok(()) => continue,
+                    Err(semantic_engine_youtube::YouTubeError::Api { status: 401, .. }) => {
+                        force_refresh = true;
+                    }
+                    Err(semantic_engine_youtube::YouTubeError::Transport(_))
+                    | Err(semantic_engine_youtube::YouTubeError::Api { status: 429 | 500..=599, .. }) => {
+                        let _ = output.try_send(SourceAdapterEvent::StateChanged {
+                            source_id: config.source_id.clone(),
+                            state: SourceRuntimeState::Backoff,
+                            detail: Some(format!("retry in {}s", backoff.as_secs())),
+                        });
+                        tokio::select! {
+                            _ = tokio::time::sleep(backoff) => {}
+                            changed = shutdown.changed() => {
+                                if changed.is_err() || *shutdown.borrow() { return Ok(()); }
+                            }
+                        }
+                        backoff = (backoff * 2).min(std::time::Duration::from_secs(60));
+                    }
+                    Err(error) => return Err(error.to_string()),
+                }
+            }
+            _ = tokio::time::sleep(until_refresh) => {
+                let _ = cycle_shutdown.send(true);
+                let _ = cycle.await;
+            }
+            changed = shutdown.changed() => {
+                let _ = cycle_shutdown.send(true);
+                let _ = cycle.await;
+                if changed.is_err() || *shutdown.borrow() { return Ok(()); }
+            }
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -479,6 +945,12 @@ pub async fn delete_source(
     }
     if let Some(credential_id) = source.definition.credential_id {
         let vault = state.vault()?;
+        if source.definition.adapter == YOUTUBE_ADAPTER_ID
+            && let Ok(credential) =
+                load_youtube_from_vault(vault.clone(), credential_id.clone()).await
+        {
+            let _ = state.youtube_oauth.revoke(credential.access_token()).await;
+        }
         tokio::task::spawn_blocking(move || vault.delete(&credential_id))
             .await
             .map_err(|_| "credential worker did not complete".to_owned())?
@@ -490,6 +962,7 @@ pub async fn delete_source(
     })
     .await?;
     state.pending.lock().await.remove(&source_id);
+    state.pending_youtube.lock().await.remove(&source_id);
     state.runtime.write().await.remove(&source_id);
     Ok(())
 }
@@ -646,11 +1119,36 @@ async fn load_from_vault(
         .map_err(|error| error.to_string())
 }
 
+async fn load_youtube_from_vault(
+    vault: Arc<OsCredentialVault>,
+    credential_id: String,
+) -> Result<semantic_engine_youtube::YouTubeCredential, String> {
+    tokio::task::spawn_blocking(move || load_youtube_credential(vault.as_ref(), &credential_id))
+        .await
+        .map_err(|_| "credential worker did not complete".to_owned())?
+        .map_err(|error| error.to_string())
+}
+
 fn ensure_twitch(source: &SourceRecord) -> Result<(), String> {
     if source.definition.adapter != TWITCH_ADAPTER_ID {
         return Err("source is not a Twitch EventSub adapter".to_owned());
     }
     Ok(())
+}
+
+fn ensure_youtube(source: &SourceRecord) -> Result<(), String> {
+    if source.definition.adapter != YOUTUBE_ADAPTER_ID {
+        return Err("source is not a YouTube Live adapter".to_owned());
+    }
+    Ok(())
+}
+
+fn source_setting<'a>(
+    source: &'a SourceRecord,
+    key: &str,
+    missing: &str,
+) -> Result<&'a str, String> {
+    source.definition.settings.get(key).map(String::as_str).ok_or_else(|| missing.to_owned())
 }
 
 fn source_client_id(source: &SourceRecord) -> Result<&str, String> {
@@ -662,10 +1160,14 @@ fn source_client_id(source: &SourceRecord) -> Result<&str, String> {
         .ok_or_else(|| "Twitch source has no client ID".to_owned())
 }
 
-fn random_source_id() -> Result<String, String> {
+fn random_source_id(prefix: &str) -> Result<String, String> {
     let mut bytes = [0_u8; 16];
     getrandom::fill(&mut bytes).map_err(|_| "OS randomness is unavailable".to_owned())?;
-    Ok(format!("twitch-{}", bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>()))
+    Ok(format!("{prefix}-{}", bytes.iter().map(|byte| format!("{byte:02x}")).collect::<String>()))
+}
+
+fn youtube_derived_data_enabled() -> bool {
+    std::env::var(YOUTUBE_DERIVED_DATA_FEATURE_FLAG).is_ok_and(|value| value == "1")
 }
 
 fn now_ms() -> Result<u64, String> {

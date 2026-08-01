@@ -111,10 +111,43 @@ paths:
         "426": { $ref: "#/components/responses/TransportError" }
         "429": { $ref: "#/components/responses/TransportError" }
         "503": { $ref: "#/components/responses/TransportError" }
+  /v1/sources/youtube:
+    post:
+      operationId: createYouTubeSource
+      summary: Ajouter une configuration YouTube Live expérimentale
+      description: L'activation requiert une reconnaissance explicite des règles YouTube API. Le traitement verdict/score reste soumis à validation de conformité.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/ProtocolVersion" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [display_name, client_id, video_id, policy_acknowledged]
+              properties:
+                display_name: { type: string, minLength: 1, maxLength: 80 }
+                client_id: { type: string, minLength: 20, maxLength: 256, pattern: "\\.apps\\.googleusercontent\\.com$" }
+                video_id: { type: string, pattern: "^[A-Za-z0-9_-]{11}$" }
+                policy_acknowledged: { const: true }
+      responses:
+        "201":
+          description: Source créée, non authentifiée
+          content:
+            application/json:
+              schema: { $ref: ./source-view.schema.json }
+        "400": { $ref: "#/components/responses/TransportError" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "415": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
   /v1/sources/{source_id}/authorization:
     post:
       operationId: beginTwitchAuthorization
-      summary: Démarrer le Device Code Grant de la source
+      summary: Démarrer l'autorisation adaptée à la plateforme
       security: [{ bearerAuth: [] }]
       parameters:
         - { $ref: "#/components/parameters/ProtocolVersion" }
@@ -124,7 +157,10 @@ paths:
           description: Code temporaire à présenter à l'utilisateur
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/DeviceAuthorizationPrompt" }
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/DeviceAuthorizationPrompt" }
+                  - { $ref: "#/components/schemas/BrowserAuthorizationPrompt" }
         "400": { $ref: "#/components/responses/TransportError" }
         "401": { $ref: "#/components/responses/TransportError" }
         "426": { $ref: "#/components/responses/TransportError" }
@@ -134,7 +170,7 @@ paths:
   /v1/sources/{source_id}/authorization/poll:
     post:
       operationId: pollTwitchAuthorization
-      summary: Interroger l'autorisation en cours au rythme indiqué par Twitch
+      summary: Interroger l'autorisation Twitch ou YouTube en cours
       security: [{ bearerAuth: [] }]
       parameters:
         - { $ref: "#/components/parameters/ProtocolVersion" }
@@ -149,6 +185,8 @@ paths:
                   - { $ref: "#/components/schemas/AuthorizationPending" }
                   - { $ref: "#/components/schemas/AuthorizationSlowDown" }
                   - { $ref: "#/components/schemas/AuthorizationComplete" }
+                  - { $ref: "#/components/schemas/YouTubeAuthorizationPending" }
+                  - { $ref: "#/components/schemas/YouTubeAuthorizationComplete" }
                 discriminator: { propertyName: status }
         "400": { $ref: "#/components/responses/TransportError" }
         "401": { $ref: "#/components/responses/TransportError" }
@@ -159,17 +197,20 @@ paths:
   /v1/sources/{source_id}/test:
     post:
       operationId: testTwitchSource
-      summary: Valider le jeton et l'identité Twitch de la source
+      summary: Valider le jeton, l'identité et le live de la source
       security: [{ bearerAuth: [] }]
       parameters:
         - { $ref: "#/components/parameters/ProtocolVersion" }
         - { $ref: "#/components/parameters/SourceId" }
       responses:
         "200":
-          description: Identité Twitch validée
+          description: Identité de plateforme validée
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/TwitchIdentity" }
+              schema:
+                oneOf:
+                  - { $ref: "#/components/schemas/TwitchIdentity" }
+                  - { $ref: "#/components/schemas/YouTubeIdentity" }
         "401": { $ref: "#/components/responses/TransportError" }
         "426": { $ref: "#/components/responses/TransportError" }
         "429": { $ref: "#/components/responses/TransportError" }
@@ -304,6 +345,21 @@ components:
         login: { type: string, minLength: 1, maxLength: 64 }
         user_id: { type: string, minLength: 1, maxLength: 64 }
         expires_in_seconds: { type: integer, minimum: 0 }
+    BrowserAuthorizationPrompt:
+      type: object
+      additionalProperties: false
+      required: [authorization_uri, expires_at_ms]
+      properties:
+        authorization_uri: { type: string, format: uri, pattern: "^https://accounts\\.google\\.com/" }
+        expires_at_ms: { type: integer, minimum: 0 }
+    YouTubeIdentity:
+      type: object
+      additionalProperties: false
+      required: [channel_id, display_name, video_id]
+      properties:
+        channel_id: { type: string, minLength: 1, maxLength: 128 }
+        display_name: { type: string, minLength: 1, maxLength: 256 }
+        video_id: { type: string, pattern: "^[A-Za-z0-9_-]{11}$" }
     AuthorizationPending:
       type: object
       additionalProperties: false
@@ -326,6 +382,21 @@ components:
         status: { const: authorized }
         source: { $ref: ./source-view.schema.json }
         identity: { $ref: "#/components/schemas/TwitchIdentity" }
+    YouTubeAuthorizationPending:
+      type: object
+      additionalProperties: false
+      required: [status, prompt]
+      properties:
+        status: { const: pending }
+        prompt: { $ref: "#/components/schemas/BrowserAuthorizationPrompt" }
+    YouTubeAuthorizationComplete:
+      type: object
+      additionalProperties: false
+      required: [status, source, identity]
+      properties:
+        status: { const: authorized }
+        source: { $ref: ./source-view.schema.json }
+        identity: { $ref: "#/components/schemas/YouTubeIdentity" }
   responses:
     TransportError:
       description: Erreur de transport avant exécution d'une commande

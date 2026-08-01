@@ -195,6 +195,14 @@ struct CreateTwitchSourceRequest {
 }
 
 #[derive(Deserialize)]
+struct CreateYouTubeSourceRequest {
+    display_name: String,
+    client_id: String,
+    video_id: String,
+    policy_acknowledged: bool,
+}
+
+#[derive(Deserialize)]
 struct StartSourceRequest {
     expected_revision: u64,
     session_id: String,
@@ -272,6 +280,7 @@ async fn start_shared_inner(
         .route("/v1/events/ws", any(events_websocket))
         .route("/v1/sources", get(list_sources))
         .route("/v1/sources/twitch", post(create_twitch_source))
+        .route("/v1/sources/youtube", post(create_youtube_source))
         .route("/v1/sources/{source_id}/authorization", post(begin_twitch_authorization))
         .route("/v1/sources/{source_id}/authorization/poll", post(poll_twitch_authorization))
         .route("/v1/sources/{source_id}/test", post(test_twitch_source))
@@ -427,6 +436,43 @@ async fn create_twitch_source(
     }
 }
 
+async fn create_youtube_source(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Result<Bytes, BytesRejection>,
+) -> Response {
+    let _permit = match authorize_source_request(&state, &headers) {
+        Ok(permit) => permit,
+        Err(error) => return error.response(),
+    };
+    let request = match parse_json_body(&headers, body) {
+        Ok(request) => request,
+        Err(error) => return error.response(),
+    };
+    let Some(sources) = state.sources.as_ref() else {
+        return source_runtime_unavailable();
+    };
+    let CreateYouTubeSourceRequest { display_name, client_id, video_id, policy_acknowledged } =
+        request;
+    match semantic_engine_source_runtime::create_youtube_source(
+        display_name,
+        client_id,
+        video_id,
+        policy_acknowledged,
+        sources,
+    )
+    .await
+    {
+        Ok(result) => json_response(StatusCode::CREATED, result),
+        Err(_) => transport_error(
+            StatusCode::BAD_REQUEST,
+            "invalid_source",
+            "the YouTube source configuration is invalid or policy acknowledgement is missing",
+            false,
+        ),
+    }
+}
+
 async fn begin_twitch_authorization(
     State(state): State<AppState>,
     Path(source_id): Path<String>,
@@ -439,12 +485,12 @@ async fn begin_twitch_authorization(
     let Some(sources) = source_runtime_for(&state, &source_id) else {
         return source_request_unavailable(&source_id);
     };
-    match semantic_engine_source_runtime::begin_twitch_authorization(source_id, sources).await {
+    match semantic_engine_source_runtime::begin_source_authorization(source_id, sources).await {
         Ok(result) => json_response(StatusCode::OK, result),
         Err(_) => transport_error(
             StatusCode::BAD_GATEWAY,
             "source_authorization_failed",
-            "Twitch authorization could not be started",
+            "source authorization could not be started",
             true,
         ),
     }
@@ -462,12 +508,12 @@ async fn poll_twitch_authorization(
     let Some(sources) = source_runtime_for(&state, &source_id) else {
         return source_request_unavailable(&source_id);
     };
-    match semantic_engine_source_runtime::poll_twitch_authorization(source_id, sources).await {
+    match semantic_engine_source_runtime::poll_source_authorization(source_id, sources).await {
         Ok(result) => json_response(StatusCode::OK, result),
         Err(_) => transport_error(
             StatusCode::BAD_GATEWAY,
             "source_authorization_failed",
-            "Twitch authorization could not be completed",
+            "source authorization could not be completed",
             true,
         ),
     }
@@ -485,12 +531,12 @@ async fn test_twitch_source(
     let Some(sources) = source_runtime_for(&state, &source_id) else {
         return source_request_unavailable(&source_id);
     };
-    match semantic_engine_source_runtime::test_twitch_source(source_id, sources).await {
+    match semantic_engine_source_runtime::test_source(source_id, sources).await {
         Ok(result) => json_response(StatusCode::OK, result),
         Err(_) => transport_error(
             StatusCode::BAD_GATEWAY,
             "source_test_failed",
-            "the Twitch source could not be validated",
+            "the source could not be validated",
             true,
         ),
     }
@@ -514,7 +560,7 @@ async fn start_twitch_source(
         return source_request_unavailable(&source_id);
     };
     let StartSourceRequest { expected_revision, session_id } = request;
-    match semantic_engine_source_runtime::start_twitch_source(
+    match semantic_engine_source_runtime::start_source(
         source_id,
         expected_revision,
         session_id,

@@ -30,9 +30,12 @@ ni un entrepôt permanent de conversations.
 3. [Dictionnaire, vecteurs et mémoire](architecture/recognition-pipeline.md)
 4. [Importer et diffuser un paquet de contexte](integration/context-packages.md)
 5. [Sécurité et cadre légal](product/security-and-legal.md)
-6. [Roadmap](roadmap.md)
+6. [Connecter Twitch](integration/twitch.md)
+7. [Connecter YouTube Live](integration/youtube.md)
+8. [Roadmap](roadmap.md)
 
-Le projet possède maintenant un moteur Rust testé, un sidecar JSONL et une
-console Tauri. Les contextes sont diffusables sous forme de Data Packages vérifiés.
-Le prochain incrément ajoute import graphique, mémoire bornée, déduplication et
-mesures de latence avant le raccordement Twitch.
+Le projet possède un moteur Rust testé, une application portable, des contextes
+Data Package vérifiés, des sessions/audits durables et une API locale/headless.
+Twitch est intégré de bout en bout. YouTube Live possède son flux vertical OAuth,
+coffre, API et UI, mais son transport gRPC et sa conformité verdict/score restent
+des critères de sortie explicites de M4.

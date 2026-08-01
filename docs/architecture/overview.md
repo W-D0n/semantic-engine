@@ -17,7 +17,7 @@ flowchart TB
     subgraph Inputs["Adaptateurs de source optionnels"]
         MANUAL["Saisie manuelle"]
         TWITCH["Twitch"]
-        YOUTUBE["YouTube"]
+        YOUTUBE["YouTube Live"]
     end
     subgraph Public["Transports publics optionnels"]
         JSONL["Sidecar JSONL"]
@@ -69,6 +69,7 @@ interface.
 | `semantic-engine-loopback` | HTTP/WebSocket local, auth éphémère, origines et backpressure | moteur, Tauri et plateformes live |
 | `semantic-engine-source` | contrat, configuration durable et cycle pause/actif des sources | secrets et algorithmes de reconnaissance |
 | `semantic-engine-source-runtime` | orchestration réutilisable des adaptateurs, du coffre et de l'ordre global | Tauri, HTTP et règles de score |
+| `semantic-engine-youtube` | OAuth Desktop PKCE, découverte du live et traduction du chat YouTube | score, audit brut et stockage des jetons |
 | `semantic-engine-credential-vault` | interface bornée vers le coffre natif du système | SQLite, chat et logique Twitch |
 | `semantic-engine-twitch` | OAuth public, EventSub, reconnexion et traduction vers `SourceMessage` | score, victoire et contexte métier |
 | adaptateur de transport | traduire IPC, JSONL ou HTTP vers l'interface commune | algorithmes de reconnaissance |
@@ -166,6 +167,7 @@ crates/
   semantic-engine-source-runtime/# orchestration live partagée Tauri/headless
   semantic-engine-credential-vault/
   semantic-engine-twitch/        # adaptateur Twitch facultatif
+  semantic-engine-youtube/       # adaptateur YouTube Live facultatif
 apps/
   desktop/
   semantic-engine-cli/
