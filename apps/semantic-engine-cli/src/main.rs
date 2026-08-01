@@ -10,7 +10,10 @@ use std::{
 use semantic_engine_core::{Round, Submission, ValidationPolicy, Validator};
 
 use semantic_engine_package::import_package;
+use semantic_engine_protocol::{handle_json_line, line_too_large_response};
 use semantic_engine_service::{SemanticEngineService, ServiceConfig};
+
+const MAX_PROTOCOL_LINE_BYTES: usize = 1024 * 1024;
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -64,6 +67,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         return run_benchmark(args);
     }
 
+    if command.as_deref() == Some("serve") {
+        return run_server(args);
+    }
+
     if command.as_deref() != Some("validate") || args.next().as_deref() != Some("--round") {
         return Err("usage: semantic-engine-cli validate --round <round.json>".into());
     }
@@ -94,6 +101,82 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+fn run_server(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>> {
+    let mut service = match args.next() {
+        None => SemanticEngineService::in_memory()?,
+        Some(flag) if flag == "--audit" => {
+            let path = args.next().ok_or("missing audit database path")?;
+            if args.next().is_some() {
+                return Err("unexpected arguments after audit database path".into());
+            }
+            SemanticEngineService::open(path)?
+        }
+        Some(_) => return Err("usage: semantic-engine-cli serve [--audit <audit.sqlite3>]".into()),
+    };
+    let stdin = io::stdin();
+    let mut input = stdin.lock();
+    let mut line = Vec::new();
+    let mut stdout = io::stdout().lock();
+
+    loop {
+        let response = match read_bounded_line(&mut input, &mut line, MAX_PROTOCOL_LINE_BYTES)? {
+            BoundedLine::Eof => break,
+            BoundedLine::TooLarge => line_too_large_response(),
+            BoundedLine::Line if line.iter().all(u8::is_ascii_whitespace) => continue,
+            BoundedLine::Line => handle_json_line(&mut service, &line),
+        };
+        serde_json::to_writer(&mut stdout, &response)?;
+        writeln!(stdout)?;
+        stdout.flush()?;
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BoundedLine {
+    Eof,
+    Line,
+    TooLarge,
+}
+
+fn read_bounded_line(
+    reader: &mut impl BufRead,
+    output: &mut Vec<u8>,
+    max_bytes: usize,
+) -> io::Result<BoundedLine> {
+    output.clear();
+    let mut saw_input = false;
+    let mut too_large = false;
+    loop {
+        let available = reader.fill_buf()?;
+        if available.is_empty() {
+            return Ok(if !saw_input {
+                BoundedLine::Eof
+            } else if too_large {
+                BoundedLine::TooLarge
+            } else {
+                BoundedLine::Line
+            });
+        }
+        saw_input = true;
+        let newline = available.iter().position(|byte| *byte == b'\n');
+        let data_bytes = newline.unwrap_or(available.len());
+        if !too_large {
+            if output.len().saturating_add(data_bytes) > max_bytes {
+                too_large = true;
+                output.clear();
+            } else {
+                output.extend_from_slice(&available[..data_bytes]);
+            }
+        }
+        let consumed = newline.map_or(available.len(), |position| position + 1);
+        reader.consume(consumed);
+        if newline.is_some() {
+            return Ok(if too_large { BoundedLine::TooLarge } else { BoundedLine::Line });
+        }
+    }
 }
 
 fn run_benchmark(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>> {
@@ -238,14 +321,17 @@ fn print_help() {
         "Semantic Engine local tools\n\n\
          Usage:\n  semantic-engine-cli validate --round <round.json>\n  \
          semantic-engine-cli context validate --package <datapackage.json>\n  \
-         semantic-engine-cli benchmark (--round <round.json> | --package <datapackage.json>) --submissions <submissions.jsonl> [--iterations <1..1000>]\n\n\
+         semantic-engine-cli benchmark (--round <round.json> | --package <datapackage.json>) --submissions <submissions.jsonl> [--iterations <1..1000>]\n  \
+         semantic-engine-cli serve [--audit <audit.sqlite3>]\n\n\
          Reads one Submission JSON object per stdin line and immediately writes one Validation JSON object."
     );
 }
 
 #[cfg(test)]
 mod tests {
-    use super::percentile;
+    use std::io::Cursor;
+
+    use super::{BoundedLine, percentile, read_bounded_line};
 
     #[test]
     fn percentile_uses_nearest_rank_without_reading_past_the_samples() {
@@ -254,5 +340,15 @@ mod tests {
         assert_eq!(percentile(&samples, 95), 5);
         assert_eq!(percentile(&samples, 99), 5);
         assert_eq!(percentile(&[], 99), 0);
+    }
+
+    #[test]
+    fn bounded_protocol_reader_drains_an_oversized_line_and_recovers() {
+        let mut reader = Cursor::new(b"123456\nok\n".to_vec());
+        let mut line = Vec::new();
+        assert_eq!(read_bounded_line(&mut reader, &mut line, 4).unwrap(), BoundedLine::TooLarge);
+        assert!(line.is_empty());
+        assert_eq!(read_bounded_line(&mut reader, &mut line, 4).unwrap(), BoundedLine::Line);
+        assert_eq!(line, b"ok");
     }
 }

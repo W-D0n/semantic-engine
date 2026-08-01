@@ -9,7 +9,8 @@ devenir nécessaire au fonctionnement de l'application portable.
 |---|---|
 | M0 | terminé — corpus initial, contrats et décisions techniques |
 | M1 | en cours — produit portable autonome et atelier opérateur |
-| M2–M6 | planifiés, non démarrés |
+| M2 | en cours — cycle public v1 livré, durabilité et réseau à faire |
+| M3–M6 | planifiés, non démarrés |
 
 ```mermaid
 gantt
@@ -65,9 +66,10 @@ une session, tester et arbitrer sans compte, Internet, MyVault ou catalogue exte
 Ce jalon rend le produit pilotable sans donner de statut privilégié à un client.
 
 - [x] extraire un module d'application pour validation, déduplication, cache et audit ;
-- [ ] ajouter le cycle de sessions et le contexte actif au module d’application ;
-- figer par tests les contrats de cycle de session et d'événements ;
-- conserver JSONL comme transport public sans réseau ;
+- [x] ajouter le cycle de sessions et le contexte actif au module d’application ;
+- [x] figer par tests les contrats de cycle de session et d'événements ;
+- [x] conserver JSONL comme transport public sans réseau ;
+- [ ] persister les sessions et leur journal pour la reprise après redémarrage ;
 - ajouter l'adaptateur HTTP/WebSocket local opt-in ;
 - lier par défaut à `127.0.0.1`, générer un jeton et contrôler les origines ;
 - ajouter quotas, backpressure, idempotence et négociation de version ;
@@ -138,8 +140,8 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Écrire le contrat de cycle de session et un test de conformité JSONL.
-2. Ajouter le contexte actif au module d’application sans coupler le moteur au store.
+1. Rendre le journal de session durable sans dupliquer l’audit ni conserver le chat brut.
+2. Créer une suite de conformité exécutable par un second client indépendant.
 3. Prototyper ensuite la passerelle loopback désactivée par défaut.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et

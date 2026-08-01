@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/session.schema.json",
+  "title": "Semantic Engine Session Snapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "session_id",
+    "round_id",
+    "context_package_sha256",
+    "state",
+    "created_at_ms",
+    "ended_at_ms",
+    "latest_event_sequence"
+  ],
+  "properties": {
+    "contract_version": { "const": 1 },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "round_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "context_package_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "state": { "enum": ["active", "ended"] },
+    "created_at_ms": { "type": "integer", "minimum": 0 },
+    "ended_at_ms": { "type": ["integer", "null"], "minimum": 0 },
+    "latest_event_sequence": { "type": "integer", "minimum": 1 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "state": { "const": "active" } } },
+      "then": { "properties": { "ended_at_ms": { "type": "null" } } }
+    },
+    {
+      "if": { "properties": { "state": { "const": "ended" } } },
+      "then": { "properties": { "ended_at_ms": { "type": "integer", "minimum": 0 } } }
+    }
+  ]
+}

@@ -5,12 +5,21 @@ use semantic_engine_core::{
     AnswerTarget, Decision, OperatorResolutionRequest, ResolutionVerdict, Round, Submission,
     ValidationIssue, ValidationPolicy,
 };
-use semantic_engine_service::{SemanticEngineService, ServiceConfig, ServiceError};
+use semantic_engine_service::{
+    SemanticEngineService, ServiceConfig, ServiceError, SessionEventKind, SessionState,
+    StartSession,
+};
 
 fn service(cache_capacity: usize, cache_ttl: Duration) -> SemanticEngineService {
     SemanticEngineService::new(
         AuditStore::open_in_memory(RetentionPolicy::default()).expect("audit store"),
-        ServiceConfig { max_recorded_validations: 8, cache_capacity, cache_ttl },
+        ServiceConfig {
+            max_recorded_validations: 8,
+            cache_capacity,
+            cache_ttl,
+            max_sessions: 4,
+            max_events_per_session: 4,
+        },
     )
     .expect("service")
 }
@@ -138,4 +147,94 @@ fn resolution_and_purge_flow_through_the_shared_service() {
         }),
         Err(ServiceError::ValidationMissing)
     );
+}
+
+#[test]
+fn session_lifecycle_binds_round_context_and_privacy_minimized_events() {
+    let mut service = service(4, Duration::from_secs(60));
+    let context_sha = "a".repeat(64);
+    let started = service
+        .start_session(StartSession {
+            session_id: "session-1".to_owned(),
+            round: round(),
+            context_package_sha256: Some(context_sha.clone()),
+        })
+        .expect("start session");
+    assert_eq!(started.state, SessionState::Active);
+    assert_eq!(started.context_package_sha256.as_deref(), Some(context_sha.as_str()));
+
+    let validation = service
+        .submit("session-1", submission("message-1", "viewer-1", 1, "Elden Ring"))
+        .expect("session submission");
+    assert_eq!(validation.decision, Decision::Accepted);
+
+    let page = service.session_events("session-1", 0, 10).expect("session events");
+    assert_eq!(page.events.len(), 2);
+    let serialized = serde_json::to_string(&page).expect("serialize event page");
+    assert!(!serialized.contains("Elden Ring"));
+    assert!(matches!(page.events[0].kind, SessionEventKind::SessionStarted { .. }));
+    assert!(matches!(page.events[1].kind, SessionEventKind::ValidationRecorded(_)));
+
+    let ended = service.end_session("session-1").expect("end session");
+    assert_eq!(ended.state, SessionState::Ended);
+    assert_eq!(service.end_session("session-1").expect("idempotent end"), ended);
+    assert_eq!(
+        service.submit("session-1", submission("message-2", "viewer-2", 2, "ER")),
+        Err(ServiceError::SessionEnded)
+    );
+}
+
+#[test]
+fn session_start_is_idempotent_and_conflicting_redefinition_is_rejected() {
+    let mut service = service(4, Duration::from_secs(60));
+    let request = StartSession {
+        session_id: "session-1".to_owned(),
+        round: round(),
+        context_package_sha256: None,
+    };
+    let first = service.start_session(request.clone()).expect("first start");
+    assert_eq!(service.start_session(request).expect("idempotent start"), first);
+
+    let mut other_round = round();
+    other_round.id = "other-round".to_owned();
+    assert_eq!(
+        service.start_session(StartSession {
+            session_id: "session-1".to_owned(),
+            round: other_round,
+            context_package_sha256: None,
+        }),
+        Err(ServiceError::SessionConflict)
+    );
+}
+
+#[test]
+fn bounded_event_page_reports_a_gap_instead_of_hiding_loss() {
+    let mut service = service(4, Duration::from_secs(60));
+    service
+        .start_session(StartSession {
+            session_id: "session-1".to_owned(),
+            round: round(),
+            context_package_sha256: None,
+        })
+        .expect("start");
+    for sequence in 1..=5 {
+        service
+            .submit(
+                "session-1",
+                submission(&format!("message-{sequence}"), "viewer", sequence, "Elden Ring"),
+            )
+            .expect("submit");
+    }
+
+    let page = service.session_events("session-1", 0, 10).expect("events");
+    assert!(page.truncated);
+    assert_eq!(page.events.len(), 4);
+    assert_eq!(page.earliest_available_sequence, 3);
+    assert_eq!(page.latest_sequence, 6);
+
+    service
+        .submit("session-1", submission("message-1", "viewer", 1, "Elden Ring"))
+        .expect("deduplicated submit");
+    let deduplicated = service.session_events("session-1", 0, 10).expect("events");
+    assert_eq!(deduplicated.latest_sequence, 6);
 }

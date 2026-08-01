@@ -2,10 +2,12 @@ use std::{fs, path::PathBuf, sync::Mutex};
 
 use semantic_engine_context_store::{ContextStore, StoredContext, TargetRecord};
 use semantic_engine_core::{
-    AnswerTarget, OperatorResolution, OperatorResolutionRequest, Round, Submission, Validation,
+    AnswerTarget, OperatorResolution, OperatorResolutionRequest, Submission, Validation,
 };
 use semantic_engine_package::{ImportedContext, SourceMetadata, export_package, import_package};
-use semantic_engine_service::{AuditEntry, SemanticEngineService};
+use semantic_engine_service::{
+    AuditEntry, SemanticEngineService, SessionEventsPage, SessionSnapshot, StartSession,
+};
 use semver::Version;
 use serde::Serialize;
 use tauri::{Manager, State};
@@ -62,31 +64,6 @@ impl From<&StoredContext> for ContextPackagePreview {
 }
 
 #[tauri::command]
-fn validate(
-    round: Round,
-    submission: Submission,
-    service: State<'_, Mutex<SemanticEngineService>>,
-) -> Result<Validation, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .validate(round, submission, None)
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
-fn resolve(
-    request: OperatorResolutionRequest,
-    service: State<'_, Mutex<SemanticEngineService>>,
-) -> Result<OperatorResolution, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .resolve(request)
-        .map_err(|error| error.to_string())
-}
-
-#[tauri::command]
 fn recent_audit_ipc(
     limit: usize,
     service: State<'_, Mutex<SemanticEngineService>>,
@@ -104,6 +81,82 @@ fn purge_audit_ipc(service: State<'_, Mutex<SemanticEngineService>>) -> Result<u
         .lock()
         .map_err(|_| "semantic engine service lock is poisoned".to_string())?
         .purge_audit()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn start_session_ipc(
+    request: StartSession,
+    service: State<'_, Mutex<SemanticEngineService>>,
+) -> Result<SessionSnapshot, String> {
+    service
+        .lock()
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .start_session(request)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn current_session_ipc(
+    session_id: String,
+    service: State<'_, Mutex<SemanticEngineService>>,
+) -> Result<SessionSnapshot, String> {
+    service
+        .lock()
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .session(&session_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn submit_session_ipc(
+    session_id: String,
+    submission: Submission,
+    service: State<'_, Mutex<SemanticEngineService>>,
+) -> Result<Validation, String> {
+    service
+        .lock()
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .submit(&session_id, submission)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn resolve_session_ipc(
+    session_id: String,
+    request: OperatorResolutionRequest,
+    service: State<'_, Mutex<SemanticEngineService>>,
+) -> Result<OperatorResolution, String> {
+    service
+        .lock()
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .resolve_session(&session_id, request)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn end_session_ipc(
+    session_id: String,
+    service: State<'_, Mutex<SemanticEngineService>>,
+) -> Result<SessionSnapshot, String> {
+    service
+        .lock()
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .end_session(&session_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn session_events_ipc(
+    session_id: String,
+    after_sequence: u64,
+    limit: usize,
+    service: State<'_, Mutex<SemanticEngineService>>,
+) -> Result<SessionEventsPage, String> {
+    service
+        .lock()
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .session_events(&session_id, after_sequence, limit)
         .map_err(|error| error.to_string())
 }
 pub fn inspect_context_package(path: String) -> Result<ContextPackagePreview, String> {
@@ -251,10 +304,14 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            validate,
-            resolve,
             recent_audit_ipc,
             purge_audit_ipc,
+            start_session_ipc,
+            current_session_ipc,
+            submit_session_ipc,
+            resolve_session_ipc,
+            end_session_ipc,
+            session_events_ipc,
             inspect_context_package_ipc,
             activate_context_package_ipc,
             current_context_ipc,

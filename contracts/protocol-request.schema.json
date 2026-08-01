@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/protocol-request.schema.json",
+  "title": "Semantic Engine Protocol Request",
+  "description": "One request line accepted by the version 1 JSONL transport.",
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["protocol_version", "request_id", "command"],
+  "properties": {
+    "protocol_version": { "const": 1 },
+    "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" },
+    "command": { "enum": ["start_session", "get_session", "submit", "resolve", "end_session", "events", "stats"] },
+    "params": {}
+  },
+  "oneOf": [
+    {
+      "required": ["params"],
+      "properties": {
+        "command": { "const": "start_session" },
+        "params": { "$ref": "session-start.schema.json" }
+      }
+    },
+    {
+      "required": ["params"],
+      "properties": {
+        "command": { "const": "get_session" },
+        "params": { "$ref": "#/$defs/session_identity" }
+      }
+    },
+    {
+      "required": ["params"],
+      "properties": {
+        "command": { "const": "submit" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["session_id", "submission"],
+          "properties": {
+            "session_id": { "$ref": "#/$defs/session_id" },
+            "submission": { "$ref": "submission.schema.json" }
+          }
+        }
+      }
+    },
+    {
+      "required": ["params"],
+      "properties": {
+        "command": { "const": "resolve" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["session_id", "request"],
+          "properties": {
+            "session_id": { "$ref": "#/$defs/session_id" },
+            "request": { "$ref": "operator-resolution-request.schema.json" }
+          }
+        }
+      }
+    },
+    {
+      "required": ["params"],
+      "properties": {
+        "command": { "const": "end_session" },
+        "params": { "$ref": "#/$defs/session_identity" }
+      }
+    },
+    {
+      "required": ["params"],
+      "properties": {
+        "command": { "const": "events" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["session_id"],
+          "properties": {
+            "session_id": { "$ref": "#/$defs/session_id" },
+            "after_sequence": { "type": "integer", "minimum": 0 },
+            "limit": { "type": "integer", "minimum": 0, "maximum": 1000 }
+          }
+        }
+      }
+    },
+    {
+      "properties": { "command": { "const": "stats" } },
+      "not": { "required": ["params"] }
+    }
+  ],
+  "$defs": {
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._:-]+$" },
+    "session_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id"],
+      "properties": { "session_id": { "$ref": "#/$defs/session_id" } }
+    }
+  }
+}

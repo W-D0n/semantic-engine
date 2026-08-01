@@ -1,20 +1,37 @@
 # Intégration locale JSONL
 
 La CLI expose le moteur comme un **sidecar local générique** : tout client peut
-garder le processus ouvert, écrire une soumission JSON par ligne sur l'entrée
-standard et recevoir une validation JSON par ligne sur la sortie standard. Il
-n'y a ni réseau, ni compte, ni coût par requête.
+garder le processus ouvert, écrire une requête JSON par ligne sur l'entrée
+standard et recevoir exactement une réponse JSON corrélée par ligne. Il n'y a
+ni réseau, ni compte, ni coût par requête.
 
 ## Essai rapide
+
+```powershell
+cargo run -q -p semantic-engine-cli -- serve
+```
+
+Envoyer ensuite une requête par ligne, en gardant le processus ouvert :
+
+```json
+{"protocol_version":1,"request_id":"req-1","command":"start_session","params":{"session_id":"live-1","round":{"id":"round-1","targets":[{"id":"elden-ring","canonical":"Elden Ring","aliases":["ER"]}],"policy":{"accept_threshold":0.87,"review_threshold":0.72,"ambiguity_margin":0.05}},"context_package_sha256":null}}
+{"protocol_version":1,"request_id":"req-2","command":"submit","params":{"session_id":"live-1","submission":{"message_id":"msg-1","participant_id":"viewer-7","source_sequence":1,"text":"eldern ring"}}}
+{"protocol_version":1,"request_id":"req-3","command":"events","params":{"session_id":"live-1","after_sequence":0,"limit":100}}
+{"protocol_version":1,"request_id":"req-4","command":"end_session","params":{"session_id":"live-1"}}
+```
+
+Les commandes disponibles sont `start_session`, `get_session`, `submit`,
+`resolve`, `events`, `end_session` et `stats`. `request_id` sert uniquement à la
+corrélation. La sortie conserve l'ordre des lignes et `source_sequence` demeure
+inchangé : le workflow appelant peut arbitrer le premier message accepté sans
+confondre reconnaissance et attribution des points.
+
+Le mode historique reste disponible pour les scripts à une seule manche :
 
 ```powershell
 Get-Content examples/submissions.jsonl |
   cargo run -q -p semantic-engine-cli -- validate --round examples/rounds/elden-ring.json
 ```
-
-La sortie conserve l'ordre des entrées. `source_sequence` demeure inchangé : le
-workflow appelant peut arbitrer le premier message accepté sans confondre
-reconnaissance et attribution des points.
 
 ## Contrat
 
@@ -22,7 +39,12 @@ Les schémas stables sont dans :
 
 - `contracts/submission.schema.json` ;
 - `contracts/validation.schema.json` ;
-- `contracts/operator-resolution.schema.json`.
+- `contracts/operator-resolution-request.schema.json` ;
+- `contracts/operator-resolution.schema.json` ;
+- `contracts/round.schema.json` ;
+- `contracts/session-start.schema.json` et `session.schema.json` ;
+- `contracts/session-event.schema.json` et `session-events-page.schema.json` ;
+- `contracts/protocol-request.schema.json` et `protocol-response.schema.json`.
 
 La validation contient toujours l'identité du round, du message, du participant
 et l'ordre fourni par la source. Le moteur ne déclare jamais un vainqueur.
@@ -31,6 +53,25 @@ Une application peut ensuite émettre une `OperatorResolution` à partir d'une
 validation conservée côté backend. Sa clé d'idempotence est
 `(round_id, message_id)` ; participant et ordre source sont recopiés depuis la
 preuve backend, jamais depuis une requête d'arbitrage non fiable.
+
+## Cycle, reprise et limites
+
+`start_session` est idempotente si la définition est identique. Réutiliser le
+même identifiant avec une autre manche ou une autre empreinte de contexte produit
+un conflit explicite. Une session terminée refuse les nouvelles soumissions et
+résolutions. Les événements portent une séquence monotone et excluent le texte
+du chat ainsi que l'expression reconnue.
+
+Le journal de session est actuellement **borné et en mémoire**. Une page
+`events` fournit `earliest_available_sequence`, `latest_sequence` et
+`truncated`; un client ne doit donc jamais interpréter une absence comme la
+preuve qu'aucun événement antérieur n'a existé. L'audit SQLite minimisé reste
+persistant, mais la reprise d'une session après redémarrage appartient encore au
+jalon de durabilité M2.
+
+Le transport refuse une ligne supérieure à 1 Mio, renvoie une erreur structurée,
+vide la fin de cette ligne puis continue avec la suivante. Il ne faut jamais
+envoyer de secret dans `request_id`, les notes ou les identifiants.
 
 ```mermaid
 flowchart LR

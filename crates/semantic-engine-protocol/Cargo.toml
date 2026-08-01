@@ -1,0 +1,10 @@
+[package]
+name = "semantic-engine-protocol"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+semantic-engine-core = { path = "../semantic-engine-core" }
+semantic-engine-service = { path = "../semantic-engine-service" }
+serde.workspace = true
+serde_json.workspace = true

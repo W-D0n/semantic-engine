@@ -7,4 +7,5 @@ edition = "2024"
 semantic-engine-core = { path = "../../crates/semantic-engine-core" }
 serde_json.workspace = true
 semantic-engine-package = { path = "../../crates/semantic-engine-package" }
+semantic-engine-protocol = { path = "../../crates/semantic-engine-protocol" }
 semantic-engine-service = { path = "../../crates/semantic-engine-service" }

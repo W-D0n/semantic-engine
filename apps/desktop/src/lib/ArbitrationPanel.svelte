@@ -6,10 +6,12 @@
   let {
     result,
     round,
+    sessionId,
     onResolved,
   }: {
     result: HistoryItem;
     round: Round | null;
+    sessionId: string;
     onResolved: (resolution: OperatorResolution) => void;
   } = $props();
 
@@ -31,7 +33,8 @@
     busy = true;
     error = '';
     try {
-      const resolution = await invoke<OperatorResolution>('resolve', {
+      const resolution = await invoke<OperatorResolution>('resolve_session_ipc', {
+        sessionId,
         request: {
           round_id: result.round_id,
           message_id: result.message_id,

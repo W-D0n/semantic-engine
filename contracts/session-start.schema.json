@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/session-start.schema.json",
+  "title": "Semantic Engine Session Start",
+  "description": "Idempotent definition of a session. Reusing a session_id with another definition is a conflict.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session_id", "round", "context_package_sha256"],
+  "properties": {
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 256, "pattern": "^[A-Za-z0-9._:-]+$" },
+    "round": { "$ref": "round.schema.json" },
+    "context_package_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    }
+  }
+}

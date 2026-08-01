@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/operator-resolution-request.schema.json",
+  "title": "Semantic Engine Operator Resolution Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["round_id", "message_id", "verdict", "target_id", "note"],
+  "properties": {
+    "round_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "message_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "verdict": { "enum": ["accepted", "rejected"] },
+    "target_id": { "type": ["string", "null"], "maxLength": 256 },
+    "note": { "type": "string", "maxLength": 512 }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "verdict": { "const": "accepted" } } },
+      "then": { "properties": { "target_id": { "type": "string", "minLength": 1 } } }
+    },
+    {
+      "if": { "properties": { "verdict": { "const": "rejected" } } },
+      "then": { "properties": { "target_id": { "type": "null" } } }
+    }
+  ]
+}

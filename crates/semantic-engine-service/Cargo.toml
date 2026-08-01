@@ -9,3 +9,6 @@ semantic-engine-audit-store = { path = "../semantic-engine-audit-store" }
 semantic-engine-core = { path = "../semantic-engine-core" }
 serde.workspace = true
 sha2.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

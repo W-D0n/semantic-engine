@@ -64,6 +64,7 @@ interface.
 | `semantic-engine-context-store` | versions, activation, brouillons et rollback | plateformes externes |
 | `semantic-engine-audit-store` | validations minimisées, résolutions et rétention | chat brut, Tauri et score |
 | `semantic-engine-service` | déduplication, cache borné et orchestration moteur/audit | Tauri et règles métier des consommateurs |
+| `semantic-engine-protocol` | commandes de session et réponses versionnées indépendantes du transport | stdin, HTTP, Tauri et plateformes |
 | adaptateur de transport | traduire IPC, JSONL ou HTTP vers l'interface commune | algorithmes de reconnaissance |
 | adaptateur de source | traduire une plateforme vers `Submission` | score et victoire |
 
@@ -73,8 +74,9 @@ Elle appartient à ce dépôt et se compose de trois niveaux :
 
 1. `contracts/` contient les schémas JSON versionnés qui forment le contrat
    indépendant du langage ;
-2. la CLI expose aujourd'hui ce contrat par un sidecar JSONL local ;
-3. un futur adaptateur `semantic-engine-http` exposera le même contrat en HTTP
+2. `semantic-engine-protocol` traduit ces contrats vers un service partagé ;
+3. la CLI expose aujourd'hui ce contrat par un sidecar JSONL local ;
+4. un futur adaptateur `semantic-engine-http` exposera le même contrat en HTTP
    et WebSocket, sans déplacer la logique hors du produit.
 
 Dans l'application portable, l'adaptateur réseau sera embarqué dans le même
@@ -141,6 +143,7 @@ crates/
   semantic-engine-context-store/
   semantic-engine-audit-store/
   semantic-engine-service/
+  semantic-engine-protocol/
   semantic-engine-http/          # futur adaptateur HTTP/WebSocket
 apps/
   desktop/

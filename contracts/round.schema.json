@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/round.schema.json",
+  "title": "Semantic Engine Round",
+  "description": "Immutable recognition target set and policy bound to one session.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "targets", "policy"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "canonical", "aliases"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "canonical": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "aliases": {
+            "type": "array",
+            "maxItems": 64,
+            "items": { "type": "string", "minLength": 1, "maxLength": 256 }
+          }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accept_threshold", "review_threshold", "ambiguity_margin"],
+      "properties": {
+        "accept_threshold": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "review_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+        "ambiguity_margin": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

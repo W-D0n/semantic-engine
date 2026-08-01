@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/session-events-page.schema.json",
+  "title": "Semantic Engine Session Events Page",
+  "description": "Bounded event page with an explicit truncation signal when an earlier sequence is no longer retained.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "session_id",
+    "earliest_available_sequence",
+    "latest_sequence",
+    "truncated",
+    "events"
+  ],
+  "properties": {
+    "contract_version": { "const": 1 },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "earliest_available_sequence": { "type": "integer", "minimum": 1 },
+    "latest_sequence": { "type": "integer", "minimum": 1 },
+    "truncated": { "type": "boolean" },
+    "events": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": { "$ref": "session-event.schema.json" }
+    }
+  }
+}

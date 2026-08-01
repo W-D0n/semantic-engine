@@ -11,6 +11,7 @@
     HistoryItem,
     OperatorResolution,
     Round,
+    SessionSnapshot,
     TargetRecord,
     Validation,
   } from './lib/contracts';
@@ -53,7 +54,10 @@
   let selectedPackagePath = $state('');
   let activeContext = $state<ContextPackagePreview | null>(null);
   let auditBusy = $state(false);
-  let sessionId = crypto.randomUUID();
+  let sessionId = $state(crypto.randomUUID());
+  let sessionSnapshot = $state<SessionSnapshot | null>(null);
+  let sessionDefinitionKey = '';
+  let sessionBusy = $state(false);
 
   const inTauri = '__TAURI_INTERNALS__' in window;
   const contextBusy = $derived(contextOperation !== 'idle');
@@ -61,9 +65,9 @@
     packagePreview?.package_sha256 === activeContext?.package_sha256,
   );
 
-  function configuredRound(): Round {
+  function configuredRound(id = sessionId): Round {
     return {
-      id: `desktop-${sessionId}`,
+      id: `desktop-${id}`,
       targets: [
         {
           id: canonical.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-|-$/g, ''),
@@ -78,6 +82,43 @@
     };
   }
 
+  function currentSessionDefinitionKey() {
+    return JSON.stringify({
+      canonical: canonical.trim(),
+      aliases: aliases
+        .split('\n')
+        .map((alias) => alias.trim())
+        .filter(Boolean),
+      context_package_sha256: activeContext?.package_sha256 ?? null,
+      policy: { accept_threshold: 0.87, review_threshold: 0.72, ambiguity_margin: 0.05 },
+    });
+  }
+
+  async function ensureSession() {
+    const definitionKey = currentSessionDefinitionKey();
+    if (sessionSnapshot?.state === 'active' && sessionDefinitionKey === definitionKey) {
+      return configuredRound();
+    }
+
+    if (sessionSnapshot?.state === 'active') {
+      sessionSnapshot = await invoke<SessionSnapshot>('end_session_ipc', { sessionId });
+    }
+
+    const nextSessionId = crypto.randomUUID();
+    const round = configuredRound(nextSessionId);
+    const snapshot = await invoke<SessionSnapshot>('start_session_ipc', {
+      request: {
+        session_id: nextSessionId,
+        round,
+        context_package_sha256: activeContext?.package_sha256 ?? null,
+      },
+    });
+    sessionId = nextSessionId;
+    sessionSnapshot = snapshot;
+    sessionDefinitionKey = definitionKey;
+    return round;
+  }
+
   async function runValidation() {
     if (!message.trim() || !canonical.trim() || busy) return;
     if (!inTauri) {
@@ -90,9 +131,9 @@
     const startedAt = performance.now();
 
     try {
-      const round = configuredRound();
-      const validation = await invoke<Validation>('validate', {
-        round,
+      const round = await ensureSession();
+      const validation = await invoke<Validation>('submit_session_ipc', {
+        sessionId,
         submission: {
           message_id: `desktop-${sessionId}-${sequence}`,
           participant_id: participant.trim() || 'anonymous',
@@ -109,6 +150,19 @@
       error = cause instanceof Error ? cause.message : String(cause);
     } finally {
       busy = false;
+    }
+  }
+
+  async function finishSession() {
+    if (!inTauri || sessionSnapshot?.state !== 'active' || busy || sessionBusy) return;
+    sessionBusy = true;
+    error = '';
+    try {
+      sessionSnapshot = await invoke<SessionSnapshot>('end_session_ipc', { sessionId });
+    } catch (cause) {
+      error = `Impossible de terminer la session : ${cause instanceof Error ? cause.message : String(cause)}`;
+    } finally {
+      sessionBusy = false;
     }
   }
 
@@ -270,6 +324,8 @@
     error = '';
     sequence = 101;
     sessionId = crypto.randomUUID();
+    sessionSnapshot = null;
+    sessionDefinitionKey = '';
   }
 
   function decisionLabel(decision: Decision) {
@@ -453,7 +509,22 @@
         </div>
       </div>
 
-      <button class="run-button" onclick={runValidation} disabled={busy || !message.trim()}>
+      <div class:active={sessionSnapshot?.state === 'active'} class="session-strip" aria-live="polite">
+        <div class="session-state">
+          <Radio size={15} />
+          <span>
+            <strong>{sessionSnapshot?.state === 'active' ? 'Session active' : sessionSnapshot?.state === 'ended' ? 'Session terminée' : 'Session prête'}</strong>
+            <small>{sessionSnapshot?.state === 'active' ? `ID ${sessionId.slice(0, 8)}` : 'Créée automatiquement à la première validation'}</small>
+          </span>
+        </div>
+        {#if sessionSnapshot?.state === 'active'}
+          <button class="finish-session-button" onclick={finishSession} disabled={busy || sessionBusy}>
+            {sessionBusy ? 'Fermeture…' : 'Terminer'}
+          </button>
+        {/if}
+      </div>
+
+      <button class="run-button" onclick={runValidation} disabled={busy || sessionBusy || !message.trim()}>
         <Play size={17} fill="currentColor" /> {busy ? 'Validation…' : 'Valider la réponse'}
         <kbd>↵</kbd>
       </button>
@@ -483,7 +554,7 @@
           <div><dt>Preuve</dt><dd>{result.evidence[0]?.kind ?? 'aucune'}</dd></div>
         </dl>
 
-        <ArbitrationPanel {result} round={lastRound} onResolved={applyResolution} />
+        <ArbitrationPanel {result} round={lastRound} {sessionId} onResolved={applyResolution} />
       {:else}
         <div class="empty-result">
           <Database size={30} strokeWidth={1.5} />

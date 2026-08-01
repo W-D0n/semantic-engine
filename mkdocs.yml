@@ -47,3 +47,4 @@ nav:
       - Produit autonome et interface publique: adr/0006-autonomous-public-interface.md
       - Audit minimisé et persistant: adr/0007-privacy-minimized-audit.md
       - Service d’application et cache borné: adr/0008-application-service-cache.md
+      - Cycle de session et événements: adr/0009-session-cycle-and-events.md

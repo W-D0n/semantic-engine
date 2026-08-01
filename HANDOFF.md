@@ -16,9 +16,9 @@ Lire en priorité `docs/architecture/overview.md`,
 
 ## Objectif de la prochaine session
 
-Définir le cycle de session public et sa suite de conformité JSONL, puis ajouter
-le contexte actif au module d’application. Déduplication, cache LRU/TTL, audit
-persistant minimisé et export immuable sont livrés.
+Rendre les sessions et leur journal récupérables après redémarrage, puis faire
+passer un second client indépendant dans la suite de conformité. Le cycle public
+v1, son transport JSONL, le cache, l’audit minimisé et l’export immuable sont livrés.
 
 ## État au 1er août 2026
 
@@ -38,11 +38,16 @@ persistant minimisé et export immuable sont livrés.
   borné à 10 000 entrées et 30 jours, purgeable sans conserver le chat brut ;
 - module `semantic-engine-service` partagé par Tauri, avec identité idempotente,
   conflits explicites et cache 1 024 entrées/10 minutes partitionné par contexte ;
+- cycle de session v1 lié à une manche et à une empreinte de contexte, contrôlable
+  depuis Tauri et journalisé en événements minimisés à séquence monotone ;
+- crate `semantic-engine-protocol` et commande `serve` : JSONL corrélé, versionné,
+  borné à 1 Mio par ligne et capable de continuer après une requête invalide ;
 - benchmark CLI reproductible p50/p95/p99 ; sur 84 titres, le cache chaud réduit
   le p50 du service de 583,1 µs à 399,8 µs sur la machine de référence ;
 - portable Tauri hors ligne avec WebView2 fixe, checksums et lanceur racine ;
 - variante légère `SemanticEngine.exe` toujours disponible ;
-- Twitch, YouTube, auth, cache et scoreboard non implémentés.
+- la reprise de session après redémarrage, HTTP/WebSocket, Twitch, YouTube, auth
+  et scoreboard ne sont pas implémentés.
 
 ## Lire d’abord
 
@@ -62,6 +67,8 @@ persistant minimisé et export immuable sont livrés.
 14. `crates/semantic-engine-audit-store/src/lib.rs`
 15. `crates/semantic-engine-service/src/lib.rs`
 16. `docs/product/performance.md`
+17. `crates/semantic-engine-protocol/src/lib.rs`
+18. `docs/integration/jsonl-sidecar.md`
 
 ## Décisions à préserver
 
@@ -107,7 +114,8 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Écrire d’abord le contrat de cycle de session dans le module d’application, puis
-faire passer le sidecar JSONL et Tauri par la même suite de conformité. Le
-journal d’audit et le cache restent des détails internes : ne pas réintroduire de
-dépendance vers Tauri, de texte brut persistant ni de règle de scoreboard.
+Concevoir d’abord la persistance du journal de session et son mécanisme de reprise,
+sans dupliquer l’audit ni promettre une rétention infinie. Faire ensuite passer
+le sidecar JSONL et un second client par la même suite de conformité. Ne pas
+réintroduire de dépendance vers Tauri, de texte brut persistant ni de règle de
+scoreboard.

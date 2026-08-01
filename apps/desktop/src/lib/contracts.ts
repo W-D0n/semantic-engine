@@ -16,6 +16,17 @@ export type Round = {
   };
 };
 
+export type SessionSnapshot = {
+  contract_version: 1;
+  session_id: string;
+  round_id: string;
+  context_package_sha256: string | null;
+  state: 'active' | 'ended';
+  created_at_ms: number;
+  ended_at_ms: number | null;
+  latest_event_sequence: number;
+};
+
 export type Validation = {
   round_id: string;
   message_id: string;

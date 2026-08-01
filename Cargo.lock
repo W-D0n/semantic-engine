@@ -2642,6 +2642,7 @@ version = "0.1.0"
 dependencies = [
  "semantic-engine-core",
  "semantic-engine-package",
+ "semantic-engine-protocol",
  "semantic-engine-service",
  "serde_json",
 ]
@@ -2702,12 +2703,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "semantic-engine-protocol"
+version = "0.1.0"
+dependencies = [
+ "semantic-engine-core",
+ "semantic-engine-service",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "semantic-engine-service"
 version = "0.1.0"
 dependencies = [
  "semantic-engine-audit-store",
  "semantic-engine-core",
  "serde",
+ "serde_json",
  "sha2",
 ]
 

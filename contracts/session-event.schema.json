@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/session-event.schema.json",
+  "title": "Semantic Engine Session Event",
+  "description": "Privacy-minimized event emitted by a session. Raw chat text and matched expressions are deliberately absent.",
+  "type": "object",
+  "unevaluatedProperties": false,
+  "required": ["contract_version", "session_id", "sequence", "occurred_at_ms", "type"],
+  "properties": {
+    "contract_version": { "const": 1 },
+    "session_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "occurred_at_ms": { "type": "integer", "minimum": 0 },
+    "type": { "enum": ["session_started", "validation_recorded", "resolution_recorded", "session_ended"] },
+    "payload": {}
+  },
+  "oneOf": [
+    {
+      "required": ["payload"],
+      "properties": {
+        "type": { "const": "session_started" },
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["round_id", "context_package_sha256"],
+          "properties": {
+            "round_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+            "context_package_sha256": { "type": ["string", "null"], "pattern": "^[A-Fa-f0-9]{64}$" }
+          }
+        }
+      }
+    },
+    {
+      "required": ["payload"],
+      "properties": {
+        "type": { "const": "validation_recorded" },
+        "payload": { "$ref": "#/$defs/session_validation" }
+      }
+    },
+    {
+      "required": ["payload"],
+      "properties": {
+        "type": { "const": "resolution_recorded" },
+        "payload": { "$ref": "operator-resolution.schema.json" }
+      }
+    },
+    {
+      "properties": {
+        "type": { "const": "session_ended" }
+      },
+      "not": { "required": ["payload"] }
+    }
+  ],
+  "$defs": {
+    "session_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "round_id",
+        "message_id",
+        "participant_id",
+        "source_sequence",
+        "decision",
+        "target_id",
+        "score",
+        "evidence_kinds",
+        "issue"
+      ],
+      "properties": {
+        "round_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "message_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "participant_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "source_sequence": { "type": "integer", "minimum": 0 },
+        "decision": { "enum": ["accepted", "rejected", "abstained"] },
+        "target_id": { "type": ["string", "null"] },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidence_kinds": {
+          "type": "array",
+          "items": { "enum": ["configured_expression", "normalized_expression", "fuzzy_expression", "ambiguous_expression"] }
+        },
+        "issue": { "enum": [null, "invalid_policy", "invalid_round", "invalid_submission"] }
+      }
+    }
+  }
+}
