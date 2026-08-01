@@ -73,7 +73,7 @@ Ce jalon rend le produit pilotable sans donner de statut privilégié à un clie
 - ajouter l'adaptateur HTTP/WebSocket local opt-in ;
 - lier par défaut à `127.0.0.1`, générer un jeton et contrôler les origines ;
 - ajouter quotas, backpressure, idempotence et négociation de version ;
-- documenter un kit de conformité pour clients indépendants ;
+- [x] documenter un kit de conformité et faire passer un client Node indépendant ;
 - prévoir un hôte headless sans le rendre nécessaire à Tauri.
 
 **Critère de sortie** : deux clients de test indépendants passent la même suite
@@ -140,8 +140,8 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Créer une suite de conformité exécutable par un second client indépendant.
-2. Prototyper la passerelle loopback désactivée par défaut.
+1. Prototyper la passerelle loopback désactivée par défaut.
+2. Faire passer la passerelle dans le même kit de conformité.
 3. Ajouter quotas, authentification locale et backpressure avant toute source live.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et

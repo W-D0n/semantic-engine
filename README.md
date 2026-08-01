@@ -69,6 +69,10 @@ Get-Content examples/submissions.jsonl |
 cargo run -q -p semantic-engine-cli -- context validate `
   --package packages/starter-titles/datapackage.json
 
+# Vérifier le protocole avec un client Node indépendant
+cargo build -p semantic-engine-cli
+node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
+
 # Client Tauri en développement
 cd apps/desktop
 npm install

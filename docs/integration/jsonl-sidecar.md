@@ -73,6 +73,20 @@ Le transport refuse une ligne supérieure à 1 Mio, renvoie une erreur structur�
 vide la fin de cette ligne puis continue avec la suivante. Il ne faut jamais
 envoyer de secret dans `request_id`, les notes ou les identifiants.
 
+## Client indépendant et conformité
+
+`conformance/clients/node-client.mjs` est un consommateur sans dépendance npm et
+sans import du code Rust. Il lance deux fois le sidecar sur la même base et
+vérifie le cycle, la corrélation, les erreurs, la reprise et la minimisation :
+
+```powershell
+cargo build -p semantic-engine-cli
+node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
+```
+
+Le futur transport loopback devra passer les mêmes assertions en remplaçant
+uniquement la couche d’échange.
+
 ```mermaid
 flowchart LR
     A["Twitch / YouTube / fichier / WebSocket"] --> B["Adaptateur du client"]
