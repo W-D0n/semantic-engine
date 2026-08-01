@@ -179,7 +179,11 @@ try {
     `/v1/sources/${sourceId}?expected_revision=${sourceRevision}`,
     { method: 'DELETE' },
   );
-  assertEqual(deletedSource.status, 204, 'source deletion status');
+  assertEqual(deletedSource.status, 200, 'source deletion status');
+  const deletionReceipt = await deletedSource.json();
+  assertEqual(deletionReceipt.credential_purged, true, 'source credential purge receipt');
+  assertEqual(deletionReceipt.durable_source_purged, true, 'source state purge receipt');
+  assertEqual(deletionReceipt.provider_revocation, 'not_applicable', 'source revocation receipt');
 
   await stopServer();
   const databaseBytes = await readFile(database);

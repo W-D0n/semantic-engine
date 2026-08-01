@@ -63,10 +63,17 @@ struct ActiveSource {
 pub struct RuntimeSnapshot {
     pub state: Option<SourceRuntimeState>,
     pub detail: Option<String>,
+    pub fault: Option<RuntimeFault>,
     pub session_id: Option<String>,
     pub messages_received: u64,
     pub accepted: u64,
     pub last_event_at_ms: Option<u64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct RuntimeFault {
+    pub code: String,
+    pub retryable: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -89,6 +96,24 @@ pub struct YouTubeSourceTest {
     pub channel_id: String,
     pub display_name: String,
     pub video_id: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderRevocationStatus {
+    Succeeded,
+    Failed,
+    NotApplicable,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct SourceDeletionReceipt {
+    pub source_id: String,
+    pub adapter: String,
+    pub provider_revocation: ProviderRevocationStatus,
+    pub credential_purged: bool,
+    pub durable_source_purged: bool,
+    pub completed_at_ms: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -636,8 +661,13 @@ pub async fn start_twitch_source(
         .await
         .is_err()
         {
-            set_runtime_fault(&runtime_for_connector, &connector_source_id, "connector_failed")
-                .await;
+            set_runtime_fault(
+                &runtime_for_connector,
+                &connector_source_id,
+                "connector_failed",
+                true,
+            )
+            .await;
         }
     });
     let pump = tokio::spawn(pump_source_events(
@@ -767,7 +797,7 @@ pub async fn start_youtube_source(
             .await
             .is_err()
             {
-                set_runtime_fault(&runtime, &connector_source_id, "connector_failed").await;
+                set_runtime_fault(&runtime, &connector_source_id, "connector_failed", true).await;
             }
         })
     };
@@ -999,7 +1029,7 @@ pub async fn delete_source(
     source_id: String,
     expected_revision: u64,
     state: &SourceRuntime,
-) -> Result<(), String> {
+) -> Result<SourceDeletionReceipt, String> {
     if state.active.lock().await.contains_key(&source_id) {
         return Err("pause the source before removing it".to_owned());
     }
@@ -1007,13 +1037,38 @@ pub async fn delete_source(
     if source.revision != expected_revision || source.desired_state != SourceDesiredState::Paused {
         return Err("source changed or is not paused".to_owned());
     }
-    if let Some(credential_id) = source.definition.credential_id {
+    let completed_at_ms = now_ms()?;
+    let adapter = source.definition.adapter.clone();
+    let mut provider_revocation = ProviderRevocationStatus::NotApplicable;
+    if let Some(credential_id) = source.definition.credential_id.clone() {
         let vault = state.vault()?;
-        if source.definition.adapter == YOUTUBE_ADAPTER_ID
-            && let Ok(credential) =
-                load_youtube_from_vault(vault.clone(), credential_id.clone()).await
-        {
-            let _ = state.youtube_oauth.revoke(credential.access_token()).await;
+        if adapter == YOUTUBE_ADAPTER_ID {
+            provider_revocation =
+                match load_youtube_from_vault(vault.clone(), credential_id.clone()).await {
+                    Ok(credential) => state
+                        .youtube_oauth
+                        .revoke(credential.access_token())
+                        .await
+                        .map_or(ProviderRevocationStatus::Failed, |()| {
+                            ProviderRevocationStatus::Succeeded
+                        }),
+                    Err(_) => ProviderRevocationStatus::Failed,
+                };
+        } else if adapter == TWITCH_ADAPTER_ID {
+            provider_revocation = match load_from_vault(vault.clone(), credential_id.clone()).await
+            {
+                Ok(credential) => match source_client_id(&source) {
+                    Ok(client_id) => state
+                        .oauth
+                        .revoke(client_id, credential.access_token())
+                        .await
+                        .map_or(ProviderRevocationStatus::Failed, |()| {
+                            ProviderRevocationStatus::Succeeded
+                        }),
+                    Err(_) => ProviderRevocationStatus::Failed,
+                },
+                Err(_) => ProviderRevocationStatus::Failed,
+            };
         }
         tokio::task::spawn_blocking(move || vault.delete(&credential_id))
             .await
@@ -1028,7 +1083,14 @@ pub async fn delete_source(
     state.pending.lock().await.remove(&source_id);
     state.pending_youtube.lock().await.remove(&source_id);
     state.runtime.write().await.remove(&source_id);
-    Ok(())
+    Ok(SourceDeletionReceipt {
+        source_id,
+        adapter,
+        provider_revocation,
+        credential_purged: true,
+        durable_source_purged: true,
+        completed_at_ms,
+    })
 }
 
 async fn pump_source_events(
@@ -1048,6 +1110,9 @@ async fn pump_source_events(
                 let snapshot = snapshots.entry(source_id.clone()).or_default();
                 snapshot.state = Some(state);
                 snapshot.detail = detail;
+                if state != SourceRuntimeState::Faulted {
+                    snapshot.fault = None;
+                }
                 snapshot.session_id = Some(session_id.clone());
                 snapshot.last_event_at_ms = now_ms().ok();
             }
@@ -1082,6 +1147,7 @@ async fn pump_source_events(
                         &runtime,
                         &source_id,
                         "checkpoint_blocked_after_submit_error",
+                        false,
                     )
                     .await;
                     break;
@@ -1092,13 +1158,13 @@ async fn pump_source_events(
                 })
                 .await;
                 if result.is_err() {
-                    set_runtime_fault(&runtime, &source_id, "checkpoint_failed").await;
+                    set_runtime_fault(&runtime, &source_id, "checkpoint_failed", false).await;
                     break;
                 }
                 checkpoint_safe = true;
             }
-            SourceAdapterEvent::Fault { code, .. } => {
-                set_runtime_fault(&runtime, &source_id, &code).await;
+            SourceAdapterEvent::Fault { code, retryable, .. } => {
+                set_runtime_fault(&runtime, &source_id, &code, retryable).await;
             }
         }
     }
@@ -1108,6 +1174,7 @@ async fn set_runtime_fault(
     runtime: &Arc<RwLock<HashMap<String, RuntimeSnapshot>>>,
     source_id: &str,
     code: &str,
+    retryable: bool,
 ) {
     let mut snapshots = runtime.write().await;
     let snapshot = snapshots.entry(source_id.to_owned()).or_default();
@@ -1119,6 +1186,7 @@ async fn set_runtime_fault(
     }
     snapshot.state = Some(SourceRuntimeState::Faulted);
     snapshot.detail = Some(code.to_owned());
+    snapshot.fault = Some(RuntimeFault { code: code.to_owned(), retryable });
     snapshot.last_event_at_ms = now_ms().ok();
 }
 

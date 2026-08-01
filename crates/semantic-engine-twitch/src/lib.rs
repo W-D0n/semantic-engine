@@ -20,6 +20,7 @@ pub fn validate_twitch_client_id(client_id: &str) -> Result<(), TwitchError> {
 const DEVICE_ENDPOINT: &str = "https://id.twitch.tv/oauth2/device";
 const TOKEN_ENDPOINT: &str = "https://id.twitch.tv/oauth2/token";
 const VALIDATE_ENDPOINT: &str = "https://id.twitch.tv/oauth2/validate";
+const REVOKE_ENDPOINT: &str = "https://id.twitch.tv/oauth2/revoke";
 const MAX_RESPONSE_BYTES: usize = 64 * 1024;
 const MAX_CLIENT_ID_CHARS: usize = 128;
 const MAX_TOKEN_CHARS: usize = 2_048;
@@ -141,17 +142,19 @@ pub struct TwitchOAuthClient {
     device_endpoint: Url,
     token_endpoint: Url,
     validate_endpoint: Url,
+    revoke_endpoint: Url,
 }
 
 impl TwitchOAuthClient {
     pub fn new() -> Result<Self, TwitchError> {
-        Self::with_endpoints(DEVICE_ENDPOINT, TOKEN_ENDPOINT, VALIDATE_ENDPOINT)
+        Self::with_endpoints(DEVICE_ENDPOINT, TOKEN_ENDPOINT, VALIDATE_ENDPOINT, REVOKE_ENDPOINT)
     }
 
     fn with_endpoints(
         device_endpoint: &str,
         token_endpoint: &str,
         validate_endpoint: &str,
+        revoke_endpoint: &str,
     ) -> Result<Self, TwitchError> {
         let client = Client::builder()
             .redirect(Policy::none())
@@ -165,6 +168,7 @@ impl TwitchOAuthClient {
             device_endpoint: parse_https_or_loopback(device_endpoint)?,
             token_endpoint: parse_https_or_loopback(token_endpoint)?,
             validate_endpoint: parse_https_or_loopback(validate_endpoint)?,
+            revoke_endpoint: parse_https_or_loopback(revoke_endpoint)?,
         })
     }
 
@@ -294,6 +298,21 @@ impl TwitchOAuthClient {
             return Err(TwitchError::InvalidResponse);
         }
         Ok(validated)
+    }
+
+    pub async fn revoke(&self, client_id: &str, access_token: &str) -> Result<(), TwitchError> {
+        validate_client_id(client_id)?;
+        validate_token(access_token)?;
+        let response = self
+            .client
+            .post(self.revoke_endpoint.clone())
+            .form(&[("client_id", client_id), ("token", access_token)])
+            .send()
+            .await
+            .map_err(TwitchError::transport)?;
+        let status = response.status();
+        let body = read_limited(response).await?;
+        if status.is_success() { Ok(()) } else { Err(api_error(status, &body)) }
     }
 }
 
@@ -523,7 +542,7 @@ mod tests {
 
     use axum::{
         Json, Router,
-        extract::State,
+        extract::{Form, State},
         http::StatusCode,
         routing::{get, post},
     };
@@ -606,6 +625,14 @@ mod tests {
                     }))
                 }),
             )
+            .route(
+                "/revoke",
+                post(|Form(form): Form<HashMap<String, String>>| async move {
+                    assert_eq!(form.get("client_id").map(String::as_str), Some("client123"));
+                    assert_eq!(form.get("token").map(String::as_str), Some("access-token"));
+                    StatusCode::OK
+                }),
+            )
             .with_state(state);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
@@ -614,6 +641,7 @@ mod tests {
             &format!("http://{address}/device"),
             &format!("http://{address}/token"),
             &format!("http://{address}/validate"),
+            &format!("http://{address}/revoke"),
         )
         .unwrap();
 
@@ -630,6 +658,7 @@ mod tests {
             panic!("second poll should authorize");
         };
         assert_eq!(client.validate(credential.access_token()).await.unwrap().user_id, "42");
+        client.revoke("client123", credential.access_token()).await.unwrap();
 
         let vault = MemoryVault::default();
         store_credential(&vault, "twitch-main", &credential).unwrap();

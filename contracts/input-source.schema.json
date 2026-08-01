@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:semantic-engine:schema:input-source:1",
+  "$id": "urn:semantic-engine:schema:input-source:2",
   "title": "Semantic Engine input source",
   "type": "object",
   "additionalProperties": false,
@@ -17,7 +17,7 @@
     "updated_at_ms"
   ],
   "properties": {
-    "contract_version": { "const": 1 },
+    "contract_version": { "const": 2 },
     "source_id": { "$ref": "#/$defs/identifier" },
     "adapter": { "$ref": "#/$defs/identifier" },
     "display_name": { "type": "string", "minLength": 1, "maxLength": 80 },

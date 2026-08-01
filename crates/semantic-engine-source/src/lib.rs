@@ -9,7 +9,7 @@ use rusqlite::{Connection, ErrorCode, OptionalExtension, params};
 use semantic_engine_core::Submission;
 use serde::{Deserialize, Serialize};
 
-pub const SOURCE_CONTRACT_VERSION: u32 = 1;
+pub const SOURCE_CONTRACT_VERSION: u32 = 2;
 pub const MAX_SOURCES: usize = 64;
 pub const MAX_SETTINGS: usize = 32;
 

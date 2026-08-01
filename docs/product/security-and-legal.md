@@ -59,6 +59,11 @@ tente de révoquer le jeton avant suppression locale. L’exploitation publique 
 verdicts ou points reste feature-gated jusqu’à validation du cas dans un YouTube
 API Compliance Audit. Voir [Connecter un live YouTube](../integration/youtube.md).
 
+La suppression d’une source tente la révocation officielle chez Twitch ou
+Google, puis supprime toujours le secret du coffre natif et l’état SQLite local.
+Un reçu minimisé expose `succeeded`, `failed` ou `not_applicable` pour la
+révocation distante et confirme séparément les purges locales, sans jeton.
+
 ## Safety
 
 Une faible confiance produit une abstention. Les sanctions, paiements, diagnostics,

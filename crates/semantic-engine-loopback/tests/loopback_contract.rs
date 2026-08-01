@@ -261,7 +261,9 @@ async fn source_api_is_authenticated_and_never_returns_platform_tokens() {
         false,
     )
     .await;
-    assert_eq!(deleted.status, 204, "{}", deleted.body);
+    assert_eq!(deleted.status, 200, "{}", deleted.body);
+    assert_eq!(deleted.json()["credential_purged"], true);
+    assert_eq!(deleted.json()["durable_source_purged"], true);
 
     let deleted_youtube = authorized_request(
         server.addr(),
@@ -272,7 +274,8 @@ async fn source_api_is_authenticated_and_never_returns_platform_tokens() {
         false,
     )
     .await;
-    assert_eq!(deleted_youtube.status, 204, "{}", deleted_youtube.body);
+    assert_eq!(deleted_youtube.status, 200, "{}", deleted_youtube.body);
+    assert_eq!(deleted_youtube.json()["provider_revocation"], "not_applicable");
 
     let listed =
         authorized_request(server.addr(), server.token(), "GET", "/v1/sources", "", false).await;

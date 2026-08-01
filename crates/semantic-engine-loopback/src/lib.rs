@@ -696,7 +696,7 @@ async fn delete_source(
     match semantic_engine_source_runtime::delete_source(source_id, query.expected_revision, sources)
         .await
     {
-        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Ok(receipt) => json_response(StatusCode::OK, receipt),
         Err(_) => transport_error(
             StatusCode::CONFLICT,
             "source_delete_failed",

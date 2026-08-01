@@ -1,7 +1,7 @@
 use semantic_engine_source_runtime::{
-    BrowserAuthorizationPrompt, DeviceAuthorizationPrompt, SourceRuntime, SourceView,
-    TwitchAuthorizationStatus, TwitchSourceTest, YouTubeAuthorizationStatus, YouTubeBroadcast,
-    YouTubeSourceTest,
+    BrowserAuthorizationPrompt, DeviceAuthorizationPrompt, SourceDeletionReceipt, SourceRuntime,
+    SourceView, TwitchAuthorizationStatus, TwitchSourceTest, YouTubeAuthorizationStatus,
+    YouTubeBroadcast, YouTubeSourceTest,
 };
 use std::sync::Arc;
 use tauri::State;
@@ -211,7 +211,7 @@ pub async fn delete_source_ipc(
     source_id: String,
     expected_revision: u64,
     state: State<'_, Arc<SourceRuntime>>,
-) -> Result<(), String> {
+) -> Result<SourceDeletionReceipt, String> {
     semantic_engine_source_runtime::delete_source(
         source_id,
         expected_revision,

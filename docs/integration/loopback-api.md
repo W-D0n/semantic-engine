@@ -89,6 +89,23 @@ Device Code Grant est volontairement visible par le client local authentifié et
 expire rapidement. `expected_revision` impose un contrôle optimiste avant les
 actions destructives.
 
+Le contrat source v2 ajoute `runtime.fault = { code, retryable }` pour que les
+clients distinguent une panne transitoire d’une action opérateur. La suppression
+retourne un `SourceDeletionReceipt` confirmant séparément révocation distante,
+purge du coffre et purge SQLite, sans secret.
+
+### Migration source v1 → v2
+
+- accepter `contract_version: 2` pour `input-source` et `source-view` ;
+- lire `runtime.fault` au lieu d’interpréter librement `runtime.detail` ;
+- après `DELETE`, attendre `200` et lire le reçu, au lieu d’attendre `204` ;
+- aucune migration SQLite ni réautorisation n’est nécessaire : les définitions
+  persistées sont relues avec le contrat courant et les jetons restent au coffre.
+
+Le protocole de commande reste v1 : seule la ressource source évolue. Un client
+qui exige encore le schéma source v1 doit refuser explicitement la ressource au
+lieu d’ignorer le changement de version.
+
 ## Événements WebSocket
 
 Le client se connecte à

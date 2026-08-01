@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { Check, CirclePause, Copy, ExternalLink, ListVideo, Plus, Radio, RefreshCw, ShieldCheck, Trash2, TriangleAlert } from '@lucide/svelte';
   import { onMount } from 'svelte';
-  import type { BrowserAuthorizationPrompt, DeviceAuthorizationPrompt, SourceRuntimeState, SourceView, TwitchAuthorizationStatus, TwitchSourceTest, YouTubeAuthorizationStatus, YouTubeBroadcast, YouTubeSourceTest } from './contracts';
+  import type { BrowserAuthorizationPrompt, DeviceAuthorizationPrompt, SourceDeletionReceipt, SourceRuntimeState, SourceView, TwitchAuthorizationStatus, TwitchSourceTest, YouTubeAuthorizationStatus, YouTubeBroadcast, YouTubeSourceTest } from './contracts';
 
   let { inTauri, onEnsureSession }: { inTauri: boolean; onEnsureSession: () => Promise<string> } = $props();
   let sources = $state<SourceView[]>([]);
@@ -170,11 +170,15 @@
     if (busy || source.desired_state !== 'paused' || !window.confirm(`Supprimer « ${source.display_name} » et son jeton du coffre système ?`)) return;
     busy = `delete-${source.source_id}`; error = '';
     try {
-      await invoke('delete_source_ipc', { sourceId: source.source_id, expectedRevision: source.revision });
+      const receipt = await invoke<SourceDeletionReceipt>('delete_source_ipc', { sourceId: source.source_id, expectedRevision: source.revision });
       sources = sources.filter((item) => item.source_id !== source.source_id);
       delete testedIdentity[source.source_id]; testedIdentity = { ...testedIdentity };
       delete broadcastsBySource[source.source_id]; broadcastsBySource = { ...broadcastsBySource };
-      notice = 'Source et identifiant local supprimés.';
+      notice = receipt.provider_revocation === 'failed'
+        ? 'Source et jeton local supprimés. La révocation distante a échoué : retirez aussi l’accès depuis les paramètres du fournisseur.'
+        : receipt.provider_revocation === 'succeeded'
+          ? 'Source, jeton local et accès fournisseur supprimés.'
+          : 'Source et données locales supprimées.';
     } catch (cause) { error = readableError(cause); }
     finally { busy = ''; }
   }
@@ -236,7 +240,7 @@
           <div class="source-summary"><span class="state-dot"></span><div><strong>{source.display_name}</strong><small>{testedIdentity[source.source_id] ?? (isYouTube(source) ? 'YouTube Live' : 'Twitch EventSub')}</small></div><span class="state-label">{stateLabel(source.runtime.state)}</span></div>
           <dl><div><dt>Messages</dt><dd>{source.runtime.messages_received}</dd></div><div><dt>Acceptés</dt><dd>{source.runtime.accepted}</dd></div><div><dt>Session</dt><dd>{source.runtime.session_id?.slice(0, 8) ?? '—'}</dd></div></dl>
           {#if isYouTube(source)}<p class="source-video">Live : <strong>{source.settings.video_id || 'à sélectionner'}</strong></p>{/if}
-          {#if source.runtime.detail}<p class="source-detail">Code : {source.runtime.detail}</p>{/if}
+          {#if source.runtime.fault}<p class="source-detail">Code : {source.runtime.fault.code} · {source.runtime.fault.retryable ? 'nouvel essai possible' : 'action opérateur requise'}</p>{:else if source.runtime.detail}<p class="source-detail">État : {source.runtime.detail}</p>{/if}
           <div class="source-actions">
             {#if !source.authenticated}<button onclick={() => beginAuthorization(source)} disabled={!!busy}><ShieldCheck size={15} /> Autoriser</button>
             {:else}<button onclick={() => testSource(source)} disabled={!!busy || source.desired_state === 'active'}><RefreshCw size={15} /> Tester</button>{#if isYouTube(source) && source.desired_state !== 'active'}<button onclick={() => discoverBroadcasts(source)} disabled={!!busy}><ListVideo size={15} /> Trouver mes lives</button>{/if}{#if source.desired_state === 'active'}<button class="pause" onclick={() => stopSource(source)} disabled={!!busy}><CirclePause size={15} /> Pause</button>{:else}<button class="start" onclick={() => startSource(source)} disabled={!!busy || (isYouTube(source) && !source.settings.video_id)}><Radio size={15} /> Écouter</button>{/if}{/if}

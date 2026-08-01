@@ -83,6 +83,8 @@ live avec `expected_revision` et `video_id`. Les routes génériques
 `DELETE /v1/sources/{source_id}` dispatchent ensuite selon l’adaptateur.
 L’authentification bearer et l’en-tête de version du protocole restent
 obligatoires. Aucune réponse publique ne contient de jeton.
+La suppression renvoie un reçu indiquant séparément la révocation Google et la
+purge locale.
 
 ## Limites et conformité
 

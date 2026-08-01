@@ -70,6 +70,8 @@ et durable.
   p99 32,30 ms sur la machine de référence ;
 - YouTube OAuth Desktop PKCE, découverte/sélection des lives de la chaîne,
   `streamList` gRPC, checkpoint durable, reprise et fautes quota/auth typées ;
+- contrat source v2 avec faute `{code,retryable}`, révocation OAuth Twitch/Google
+  et reçu de purge locale exposé par Tauri et l’API loopback ;
 - corpus qualité v2 : 84 titres, 328 annotations multi-catégories, quality gate
   précision/rappel obligatoire, résultat de référence 1,0/1,0 sans faux positif ;
 - le pilote YouTube réel, l’audit de conformité, la release signée et le

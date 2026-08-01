@@ -337,7 +337,11 @@ paths:
           required: true
           schema: { type: integer, minimum: 1 }
       responses:
-        "204": { description: Source et secret supprimés }
+        "200":
+          description: Reçu de révocation et de purge, sans jeton ni contenu du chat
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SourceDeletionReceipt" }
         "400": { $ref: "#/components/responses/TransportError" }
         "401": { $ref: "#/components/responses/TransportError" }
         "409": { $ref: "#/components/responses/TransportError" }
@@ -426,6 +430,17 @@ components:
         title: { type: string, minLength: 1, maxLength: 256 }
         scheduled_start_time: { type: [string, "null"], format: date-time }
         actual_start_time: { type: [string, "null"], format: date-time }
+    SourceDeletionReceipt:
+      type: object
+      additionalProperties: false
+      required: [source_id, adapter, provider_revocation, credential_purged, durable_source_purged, completed_at_ms]
+      properties:
+        source_id: { type: string, minLength: 1, maxLength: 128 }
+        adapter: { type: string, enum: [twitch-eventsub, youtube-live-chat] }
+        provider_revocation: { type: string, enum: [succeeded, failed, not_applicable] }
+        credential_purged: { const: true }
+        durable_source_purged: { const: true }
+        completed_at_ms: { type: integer, minimum: 0 }
     AuthorizationPending:
       type: object
       additionalProperties: false

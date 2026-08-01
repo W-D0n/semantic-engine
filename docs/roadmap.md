@@ -110,7 +110,7 @@ l'application autonome et peut exploiter les validations via l'interface publiqu
   durable, reprise après redémarrage et rebaseline observable si le curseur est refusé ;
 - [ ] mesurer la latence p50/p95/p99 sur un live YouTube réel ;
 - [x] découvrir les lives de la chaîne connectée et laisser l’opérateur sélectionner la diffusion ;
-- [ ] exposer états quota/auth typés et audit de révocation/purge ;
+- [x] exposer états quota/auth typés et reçu vérifiable de révocation/purge ;
 - [ ] faire valider le workflow verdict/points via YouTube API Compliance Audit avant ouverture commerciale ;
 - valider le comportement avec et sans fonctionnalités avancées.
 
@@ -127,7 +127,7 @@ montre un gain utile sans sacrifier précision, explicabilité ou portabilité.
 - [x] benchmarks reproductibles et documentation versionnée ;
 - [x] faire passer la CI distante sur Windows, Linux et macOS ;
 - [ ] publier une release signée `v0.1.0` ;
-- [ ] documenter la politique de migration après la première rupture réelle.
+- [x] documenter la migration du contrat source v1 vers v2 après la première rupture réelle.
 
 Le code et les petits fixtures peuvent être publics. Les caches de fournisseurs
 et données non redistribuables restent hors du dépôt. Answer Atlas peut fournir

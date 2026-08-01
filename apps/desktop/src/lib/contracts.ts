@@ -170,6 +170,7 @@ export type SourceRuntimeState =
 export type SourceRuntimeSnapshot = {
   state: SourceRuntimeState | null;
   detail: string | null;
+  fault: { code: string; retryable: boolean } | null;
   session_id: string | null;
   messages_received: number;
   accepted: number;
@@ -189,6 +190,15 @@ export type SourceView = {
   updated_at_ms: number;
   runtime: SourceRuntimeSnapshot;
   authenticated: boolean;
+};
+
+export type SourceDeletionReceipt = {
+  source_id: string;
+  adapter: string;
+  provider_revocation: 'succeeded' | 'failed' | 'not_applicable';
+  credential_purged: boolean;
+  durable_source_purged: boolean;
+  completed_at_ms: number;
 };
 
 export type DeviceAuthorizationPrompt = {

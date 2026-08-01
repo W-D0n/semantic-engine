@@ -30,6 +30,11 @@ SQLite, les logs ou l’interface.
 Déplacer le dossier portable ne déplace volontairement pas les jetons : une
 nouvelle machine ou un autre compte système doit être autorisé à nouveau.
 
+La suppression d’une source appelle l’[endpoint officiel de révocation Twitch](https://dev.twitch.tv/docs/authentication/revoke-tokens),
+puis purge le jeton du coffre même si Twitch est temporairement indisponible.
+L’UI et l’API retournent un reçu sans secret distinguant révocation distante et
+purge locale ; en cas d’échec distant, retirez aussi l’accès depuis Twitch.
+
 ## Lancer une partie
 
 1. Configurer la réponse attendue ou choisir une cible du paquet actif.

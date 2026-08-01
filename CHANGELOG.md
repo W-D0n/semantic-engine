@@ -15,6 +15,7 @@ et les versions suivent SemVer.
 - YouTube OAuth Desktop PKCE, découverte/sélection de live et chat gRPC reprenable ;
 - API publique de sources et ordre global durable multi-source ;
 - corpus annoté et quality gate précision/rappel reproductible ;
+- contrat source v2 avec faute typée et reçu de révocation/purge sans secret ;
 - benchmark live reproductible, SBOM, CI et documentation de sécurité.
 
 ### Security
