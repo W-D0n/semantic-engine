@@ -5,7 +5,9 @@ param(
 
     [string]$OutputDirectory,
 
-    [switch]$Archive
+    [switch]$Archive,
+
+    [switch]$Release
 )
 
 Set-StrictMode -Version Latest
@@ -19,6 +21,10 @@ if (-not (Get-Command cargo.exe -ErrorAction SilentlyContinue)) {
     throw 'Cargo is required to build Semantic Engine and was not found.'
 }
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$codeLicense = Join-Path $repoRoot 'LICENSE'
+if ($Release -and -not (Test-Path -LiteralPath $codeLicense -PathType Leaf)) {
+    throw 'Release packaging requires a root LICENSE file.'
+}
 $desktopRoot = Join-Path $repoRoot 'apps\desktop'
 $sourceRuntimeLink = Join-Path $desktopRoot 'src-tauri\WebView2'
 $cargoTargetDirectory = if ($env:CARGO_TARGET_DIR) {
@@ -130,6 +136,17 @@ try {
 
     Copy-Item -LiteralPath $releaseExecutable -Destination (Join-Path $packageStaging 'SemanticEngine.exe')
     Copy-Item -LiteralPath $runtimeRoot -Destination (Join-Path $packageStaging 'WebView2') -Recurse
+
+    if (Test-Path -LiteralPath $codeLicense -PathType Leaf) {
+        Copy-Item -LiteralPath $codeLicense -Destination (Join-Path $packageStaging 'LICENSE')
+    }
+    else {
+        [IO.File]::WriteAllText(
+            (Join-Path $packageStaging 'PREVIEW-NOT-LICENSED.txt'),
+            "Preview artifact for validation only. No software license has been granted yet; do not redistribute.`r`n",
+            [Text.UTF8Encoding]::new($false)
+        )
+    }
 
     $launcher = @'
 @echo off

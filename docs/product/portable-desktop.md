@@ -49,6 +49,12 @@ WebView2 exact référencé par `scripts/webview2-runtime.json`.
   -WebView2Cab C:\tmp\Microsoft.WebView2.FixedVersionRuntime.150.0.4078.105.x64.cab
 ```
 
+Sans `LICENSE` racine, ce build est une prévisualisation et embarque
+`PREVIEW-NOT-LICENSED.txt`. Une distribution publique doit ajouter `-Release` ;
+le script refuse alors de compiler si la licence manque. Le processus complet,
+les paquets multi-OS et la vérification de provenance sont décrits dans
+[Distribution et releases](releases.md).
+
 Si le volume du dépôt manque d’espace, définir `CARGO_TARGET_DIR` vers un volume
 temporaire disposant d’au moins quelques gigaoctets. Le script utilise alors ce
 répertoire aussi bien pour la compilation fixe que pour la variante légère et
@@ -174,7 +180,7 @@ journal après confirmation ; voir [Audit local et confidentialité](audit.md).
 
 ## Prochain durcissement
 
-- signer les binaires et publier SBOM + checksums dans une release ;
+- signer nativement les binaires Windows avant de publier le brouillon de release ;
 - automatiser le test sur une machine Windows propre ;
 - valider le Device Code Grant avec un Client ID de distribution et un pilote réel ;
 - mesurer p50/p95/p99 sur des corpus de 500 à 50 000 cibles.

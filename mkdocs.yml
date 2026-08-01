@@ -25,6 +25,7 @@ nav:
       - Threat model: product/threat-model.md
       - Marché: product/market.md
       - Application portable: product/portable-desktop.md
+      - Distribution et releases: product/releases.md
       - Audit local: product/audit.md
       - Performance et benchmark: product/performance.md
   - Architecture:
@@ -34,10 +35,12 @@ nav:
       - Sidecar JSONL générique: integration/jsonl-sidecar.md
       - API locale HTTP et WebSocket: integration/loopback-api.md
       - Chat Twitch: integration/twitch.md
+      - Chat YouTube Live: integration/youtube.md
       - Paquets de contexte: integration/context-packages.md
   - Recherche:
       - Solutions et données existantes: research/existing-solutions-and-data.md
       - Conventions des paquets: research/context-package-conventions.md
+      - Intégration YouTube Live: research/youtube-live-integration.md
   - Exécution:
       - Roadmap: roadmap.md
       - Continuité: contributing/session-continuity.md

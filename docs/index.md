@@ -32,11 +32,14 @@ ni un entrepôt permanent de conversations.
 5. [Sécurité et cadre légal](product/security-and-legal.md)
 6. [Connecter Twitch](integration/twitch.md)
 7. [Connecter YouTube Live](integration/youtube.md)
-8. [Roadmap](roadmap.md)
+8. [Distribuer et vérifier une release](product/releases.md)
+9. [Roadmap](roadmap.md)
 
 Le projet possède un moteur Rust testé, une application portable, des contextes
 Data Package vérifiés, des sessions/audits durables et une API locale/headless.
 Twitch est intégré de bout en bout. YouTube Live possède son flux vertical OAuth,
 coffre, découverte des diffusions actives, `streamList` gRPC, API et UI, mais sa
 conformité verdict/score et ses mesures sur un live réel restent des critères de
-sortie explicites de M4.
+sortie explicites de M4. La CI construit désormais les prévisualisations CLI
+Windows, Linux et macOS avec checksums et attestations de provenance ; une release
+publique reste bloquée par le choix de licence et la signature Windows native.

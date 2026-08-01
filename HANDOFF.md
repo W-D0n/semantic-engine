@@ -66,6 +66,8 @@ et durable.
 - validations live visibles et arbitrables sans conserver le texte du chat ;
 - API publique de gestion des sources et agrégation multi-source ordonnée ;
 - CI publique, SBOM CycloneDX, threat model et politiques de contribution/sécurité ;
+- workflow de distribution : CLI Windows x64/Linux x64/macOS arm64, portable
+  Windows optionnelle, checksums, provenance attestée et release GitHub en brouillon ;
 - benchmark loopback live (500 messages) : p50 15,95 ms, p95 23,21 ms,
   p99 32,30 ms sur la machine de référence ;
 - YouTube OAuth Desktop PKCE, découverte/sélection des lives de la chaîne,
@@ -74,7 +76,7 @@ et durable.
   et reçu de purge locale exposé par Tauri et l’API loopback ;
 - corpus qualité v2 : 84 titres, 328 annotations multi-catégories, quality gate
   précision/rappel obligatoire, résultat de référence 1,0/1,0 sans faux positif ;
-- le pilote YouTube réel, l’audit de conformité, la release signée et le
+- le pilote YouTube réel, l’audit de conformité, la licence, la signature Windows native et le
   scoreboard consommateur restent à faire.
 
 ## Lire d’abord
@@ -127,6 +129,7 @@ et durable.
 - variante légère : `SemanticEngine.exe` ;
 - source du runtime verrouillée : `scripts/webview2-runtime.json` ;
 - générateur : `scripts/build-portable.ps1`.
+- guide de publication et vérification : `docs/product/releases.md`.
 
 ## Vérifications de référence
 

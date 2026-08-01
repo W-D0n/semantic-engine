@@ -17,6 +17,8 @@ et les versions suivent SemVer.
 - corpus annoté et quality gate précision/rappel reproductible ;
 - contrat source v2 avec faute typée et reçu de révocation/purge sans secret ;
 - benchmark live reproductible, SBOM, CI et documentation de sécurité.
+- paquets CLI natifs Windows/Linux/macOS, checksums indépendamment vérifiés,
+  attestations de provenance et brouillon de release protégé.
 
 ### Security
 

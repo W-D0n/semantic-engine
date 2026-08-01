@@ -1,0 +1,211 @@
+name: Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      include_windows_portable:
+        description: Build the large offline Windows portable preview
+        required: true
+        type: boolean
+        default: false
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+concurrency:
+  group: distribution-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_VERSION: 0.1.0
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.mode.outputs.release }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - id: mode
+        name: Validate versions, licence and changelog gate
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            [[ "$GITHUB_REF_NAME" == "v${RELEASE_VERSION}" ]] || {
+              echo "Tag ${GITHUB_REF_NAME} does not match v${RELEASE_VERSION}" >&2
+              exit 1
+            }
+            node scripts/verify-release.mjs "$RELEASE_VERSION" --release
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            node scripts/verify-release.mjs "$RELEASE_VERSION"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  cli:
+    needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows
+            arch: x64
+            binary: target/release/semantic-engine-cli.exe
+          - runner: ubuntu-latest
+            platform: linux
+            arch: x64
+            binary: target/release/semantic-engine-cli
+          - runner: macos-latest
+            platform: macos
+            arch: arm64
+            binary: target/release/semantic-engine-cli
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Build the exact standalone CLI
+        run: cargo build --locked --release -p semantic-engine-cli --bin semantic-engine-cli
+      - name: Run the annotated quality gate
+        shell: bash
+        run: >-
+          "${{ matrix.binary }}" evaluate
+          --titles tests/corpus/titles.json
+          --cases tests/corpus/cases.json
+          --minimum-precision 0.95
+          --minimum-recall 0.90
+      - name: Package and independently verify checksums
+        shell: bash
+        run: |
+          package="semantic-engine-cli-${RELEASE_VERSION}-${{ matrix.platform }}-${{ matrix.arch }}"
+          release_argument=()
+          if [[ "${{ needs.preflight.outputs.release }}" == "true" ]]; then
+            release_argument+=(--release)
+          fi
+          node scripts/package-cli.mjs \
+            --binary "${{ matrix.binary }}" \
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}" \
+            --output "artifacts/${package}" \
+            --commit "$GITHUB_SHA" \
+            "${release_argument[@]}"
+          node scripts/verify-checksums.mjs "artifacts/${package}"
+          tar -czf "artifacts/${package}.tar.gz" -C artifacts "$package"
+      - name: Attest CLI package provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: artifacts/*.tar.gz
+      - uses: actions/upload-artifact@v6
+        with:
+          name: semantic-engine-cli-${{ matrix.platform }}-${{ matrix.arch }}
+          path: artifacts/*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-portable:
+    needs: preflight
+    if: ${{ github.ref_type == 'tag' || inputs.include_windows_portable == true }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.97.1
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Download the locked WebView2 Fixed Version runtime
+        shell: pwsh
+        run: |
+          $runtime = Get-Content scripts/webview2-runtime.json -Raw | ConvertFrom-Json
+          Invoke-WebRequest -Uri $runtime.source -OutFile (Join-Path $env:RUNNER_TEMP $runtime.filename)
+      - name: Build fixed and lightweight Windows variants
+        shell: pwsh
+        run: |
+          $runtime = Get-Content scripts/webview2-runtime.json -Raw | ConvertFrom-Json
+          $arguments = @{
+            WebView2Cab = Join-Path $env:RUNNER_TEMP $runtime.filename
+            OutputDirectory = Join-Path $PWD 'artifacts\SemanticEngine'
+            Archive = $true
+          }
+          if ('${{ needs.preflight.outputs.release }}' -eq 'true') { $arguments.Release = $true }
+          .\scripts\build-portable.ps1 @arguments
+      - name: Generate SBOM and outer release checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts\windows-release | Out-Null
+          Move-Item artifacts\SemanticEngine.zip artifacts\windows-release\SemanticEngine-0.1.0-windows-x64-portable.zip
+          Copy-Item SemanticEngine.exe artifacts\windows-release\SemanticEngine-0.1.0-windows-x64.exe
+          node scripts/generate-sbom.mjs artifacts\windows-release\semantic-engine-0.1.0.cdx.json
+          $lines = Get-ChildItem artifacts\windows-release -File |
+            Sort-Object Name |
+            ForEach-Object {
+              $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+              "$hash  $($_.Name)"
+            }
+          [IO.File]::WriteAllLines(
+            (Join-Path $PWD 'artifacts\windows-release\SHA256SUMS.txt'),
+            $lines,
+            [Text.UTF8Encoding]::new($false)
+          )
+      - name: Attest Windows artifact provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: artifacts/windows-release/*
+
+      - name: Attest the Windows executables with their SBOM
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            artifacts/windows-release/SemanticEngine-0.1.0-windows-x64-portable.zip
+            artifacts/windows-release/SemanticEngine-0.1.0-windows-x64.exe
+          sbom-path: artifacts/windows-release/semantic-engine-0.1.0.cdx.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: semantic-engine-windows-x64
+          path: artifacts/windows-release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  draft-release:
+    needs: [preflight, cli, windows-portable]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+      - name: Create or refresh a draft GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mapfile -t assets < <(find release-assets -type f -print | sort)
+          ((${#assets[@]} > 0)) || { echo "No release assets found" >&2; exit 1; }
+          if gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft' 2>/dev/null | grep -qx true; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" --clobber
+          elif gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Refusing to modify non-draft release ${GITHUB_REF_NAME}" >&2
+            exit 1
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+              --draft --verify-tag --generate-notes \
+              --title "Semantic Engine ${GITHUB_REF_NAME}"
+          fi

@@ -12,7 +12,8 @@ devenir nécessaire au fonctionnement de l'application portable.
 | M2 | terminé — cycle v1 durable, JSONL, HTTP/WebSocket et conformité indépendante |
 | M3 | en cours — source générique, coffre, OAuth et EventSub intégrés |
 | M4 | en cours — YouTube Live vertical et gRPC intégrés, conformité/qualité à finaliser |
-| M5–M6 | planifiés, non démarrés |
+| M5 | en cours — CI, SBOM, sécurité et chaîne de distribution présents ; licence/signature à finaliser |
+| M6 | planifié, non démarré |
 
 ```mermaid
 gantt
@@ -57,7 +58,7 @@ paquet de titres importable.
 - [x] exporter les brouillons comme nouvelle version immuable de paquet ;
 - [x] persister l'audit des validations et résolutions ;
 - [x] ajouter déduplication et cache borné ;
-- [ ] fournir les commandes d'évaluation et les paquets multi-OS ;
+- [x] fournir les commandes d'évaluation et les paquets multi-OS attestés ;
 - [ ] publier index, signatures et règles de révocation des contextes.
 
 **Critère de sortie** : une personne peut créer ou importer un contexte, lancer
@@ -126,6 +127,7 @@ montre un gain utile sans sacrifier précision, explicabilité ou portabilité.
 - [x] définition CI Windows complète + cœur Linux/macOS + frontend + docs ;
 - [x] benchmarks reproductibles et documentation versionnée ;
 - [x] faire passer la CI distante sur Windows, Linux et macOS ;
+- [x] produire des prévisualisations multi-OS avec checksums, SBOM et provenance attestée ;
 - [ ] publier une release signée `v0.1.0` ;
 - [x] documenter la migration du contrat source v1 vers v2 après la première rupture réelle.
 
@@ -158,7 +160,7 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Arbitrer la licence du code puis publier une release signée.
+1. Arbitrer la licence du code, signer nativement Windows puis publier le brouillon `v0.1.0`.
 2. Préparer un Client ID de distribution puis réaliser un pilote réel consenti.
 3. Étendre le corpus annoté avant de comparer le moteur lexical à des embeddings locaux.
 

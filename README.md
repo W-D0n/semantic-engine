@@ -35,6 +35,7 @@ quand la réponse n’est pas assez sûre.
 - [Connecter Twitch](docs/integration/twitch.md)
 - [Connecter YouTube Live](docs/integration/youtube.md)
 - [Application portable](docs/product/portable-desktop.md)
+- [Distribution, checksums et attestations](docs/product/releases.md)
 - [Audit local et confidentialité](docs/product/audit.md)
 - [Performance et benchmark](docs/product/performance.md)
 - [Roadmap](docs/roadmap.md)
@@ -126,6 +127,11 @@ Le catalogue public de titres vit dans
 [Answer Atlas](https://github.com/W-D0n/answer-atlas). Son paquet
 `packages/core-titles/datapackage.json` est directement importable ; le corpus
 embarqué ici reste un fixture contractuel du moteur.
+
+Le workflow **Distribution** produit aussi des prévisualisations CLI natives pour
+Windows x64, Linux x64 et macOS arm64, avec checksums et attestations GitHub. Une
+prévisualisation n’accorde aucune licence de redistribution. Voir le
+[guide de release](docs/product/releases.md) pour les garde-fous et la vérification.
 
 ## Documentation locale
 
