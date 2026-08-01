@@ -5,7 +5,7 @@ imparfaits en interprétations configurées : fautes, abréviations, initiales e
 formulations proches comprises.
 
 > État actuel : moteur Rust, CLI JSONL et client Tauri portable hors ligne avec
-> inspection/rollback des paquets, tuning local des titres et arbitrage opérateur.
+> inspection/rollback des paquets, tuning local des titres, export de versions et arbitrage opérateur.
 > Le corpus contractuel couvre 84 titres et 28 cas de validation.
 
 ## Pourquoi ce projet
@@ -77,8 +77,9 @@ et les checksums : aucune installation ni aucun téléchargement au premier lanc
 La variante légère `SemanticEngine.exe` reste disponible et utilise WebView2 système.
 
 Dans l’app : activer un paquet, ouvrir **Voir et régler le dictionnaire**, rechercher
-un titre, modifier canonique/alias et enregistrer le brouillon local. Après une
-validation, **Arbitrage manuel** permet d’accepter ou rejeter sans effacer la
+un titre, modifier canonique/alias et enregistrer le brouillon local. **Exporter le
+paquet** crée ensuite une nouvelle version immuable dans le dossier choisi. Après
+une validation, **Arbitrage manuel** permet d’accepter ou rejeter sans effacer la
 décision du moteur. Voir le [guide portable](docs/product/portable-desktop.md).
 
 Le catalogue public de titres vit dans

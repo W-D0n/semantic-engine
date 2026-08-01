@@ -1,5 +1,6 @@
 use std::{fs, path::Path};
 
+use rusqlite::params;
 use semantic_engine_context_store::ContextStore;
 use semantic_engine_package::import_package;
 
@@ -85,6 +86,61 @@ fn a_published_package_version_cannot_be_replaced_with_different_bytes() {
         .expect_err("same id and version with different bytes must be rejected");
     assert!(error.to_string().contains("version is immutable"));
 }
+
+#[test]
+fn reactivating_a_legacy_stored_context_upgrades_derived_metadata_without_conflict() {
+    let workspace = tempfile::tempdir().expect("temporary workspace must be available");
+    let database = workspace.path().join("contexts.sqlite3");
+    let first_descriptor = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../packages/starter-titles/datapackage.json");
+    let second_descriptor = copy_package_with_version(
+        &first_descriptor,
+        &workspace.path().join("starter-v0.2.0"),
+        "0.2.0",
+    );
+    let first = import_package(&first_descriptor).expect("first package must be inspectable");
+    let second = import_package(&second_descriptor).expect("second package must be inspectable");
+
+    let mut store = ContextStore::open(&database).expect("store must open");
+    store.activate(&first).expect("first activation must succeed");
+    store.activate(&second).expect("second activation must succeed");
+    drop(store);
+
+    let connection = rusqlite::Connection::open(&database).expect("legacy database must open");
+    let payload: String = connection
+        .query_row(
+            "SELECT payload_json FROM context_versions WHERE package_sha256 = ?1",
+            [&first.package_sha256],
+            |row| row.get(0),
+        )
+        .expect("stored context payload must exist");
+    let mut legacy: serde_json::Value =
+        serde_json::from_str(&payload).expect("stored context payload must be JSON");
+    let object = legacy.as_object_mut().expect("stored context payload must be an object");
+    object.remove("licenses");
+    object.remove("target_kinds");
+    object.remove("metadata");
+    object.remove("storage_format_version");
+    object.remove("attachments");
+    object.remove("targets_resource_metadata");
+    connection
+        .execute(
+            "UPDATE context_versions SET payload_json = ?1 WHERE package_sha256 = ?2",
+            params![serde_json::to_string(&legacy).unwrap(), first.package_sha256],
+        )
+        .expect("legacy payload must be installed");
+    drop(connection);
+
+    let mut reopened = ContextStore::open(&database).expect("legacy store must reopen");
+    reopened.activate(&first).expect("same immutable bytes must upgrade stored metadata");
+    let draft = reopened
+        .exportable_draft(&first.package_sha256)
+        .expect("upgraded context must export without losing metadata");
+    assert_eq!(draft.licenses, first.licenses);
+    assert_eq!(draft.target_kinds, first.target_kinds);
+    assert_eq!(draft.metadata, first.metadata);
+}
+
 fn copy_package_with_version(
     source: &Path,
     destination: &Path,

@@ -16,11 +16,11 @@ Lire en priorité `docs/architecture/overview.md`,
 
 ## Objectif de la prochaine session
 
-Exporter les brouillons locaux comme une nouvelle version immuable de paquet,
-puis persister un journal d’arbitrage minimal avant d’implémenter déduplication,
-cache LRU/TTL et benchmark p50/p95/p99.
+Définir et persister un journal d’arbitrage minimal avant d’implémenter
+déduplication, cache LRU/TTL et benchmark p50/p95/p99. L’export immuable des
+brouillons est maintenant livré et testé par réimport public.
 
-## État au 30 juillet 2026
+## État au 1er août 2026
 
 - moteur Rust déterministe avec normalisation, alias, fautes, marge et abstention ;
 - contrats `Submission`, `Validation` et résolution opérateur ;
@@ -30,11 +30,13 @@ cache LRU/TTL et benchmark p50/p95/p99.
 - paquet Data Package v2 vérifié par SemVer, SPDX, limites, chemins et SHA-256 ;
 - inspection, activation SQLite immuable, état actif au redémarrage et rollback ;
 - recherche bornée dans le contexte actif et brouillons locaux persistants ;
+- export d’une nouvelle version immuable, atomique et réimportable depuis l’atelier,
+  avec profils hors ligne, README, notice de licence et checksums ;
 - atelier Svelte pour modifier canonique/alias, restaurer le publié et choisir la cible du round ;
 - arbitrage manuel accepter/rejeter avec note, sans effacer la décision moteur ;
 - portable Tauri hors ligne avec WebView2 fixe, checksums et lanceur racine ;
 - variante légère `SemanticEngine.exe` toujours disponible ;
-- Twitch, YouTube, auth, cache, scoreboard, export et audit persistant non implémentés.
+- Twitch, YouTube, auth, cache, scoreboard et audit persistant non implémentés.
 
 ## Lire d’abord
 
@@ -94,7 +96,9 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Écrire un test public `drafts locaux → export nouvelle version → réimport propre`
-avant d’ajouter le bouton d’export. Le package source ne doit jamais être modifié
-sur place. En parallèle, définir le schéma et la politique de rétention du journal
-d’arbitrage avant de le persister.
+Écrire d’abord le schéma et les tests publics du journal d’audit : association
+validation/résolution, idempotence, ordre source, rétention et suppression. Le
+stockage ne doit pas conserver le chat brut par défaut ni rendre l’audit dépendant
+de Tauri. Le test d’export livré dans
+`crates/semantic-engine-context-store/tests/export_contract.rs` reste le contrat
+de non-régression `brouillon → nouvelle version → réimport`.

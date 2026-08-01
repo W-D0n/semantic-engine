@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     error::Error,
     fmt,
     path::Path,
@@ -10,7 +10,10 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
 use semantic_engine_core::{
     AnswerTarget, MAX_ALIASES_PER_TARGET, MAX_EXPRESSION_CHARS, MAX_IDENTIFIER_CHARS,
 };
-use semantic_engine_package::{ImportedContext, SourceMetadata};
+use semantic_engine_package::{
+    ContextAttachment, ContextPackageDraft, ContextTargetKind, ImportedContext, LicenseMetadata,
+    SourceMetadata,
+};
 use serde::{Deserialize, Serialize};
 use unicode_normalization::{UnicodeNormalization, char::is_combining_mark};
 
@@ -18,31 +21,49 @@ const MAX_TARGET_SEARCH_RESULTS: usize = 100;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct StoredContext {
+    #[serde(default)]
+    pub storage_format_version: u32,
     pub name: String,
     pub package_id: String,
     pub version: String,
     pub license: String,
     pub locales: Vec<String>,
     pub sources: Vec<SourceMetadata>,
+    #[serde(default)]
+    pub licenses: Vec<LicenseMetadata>,
     pub target_count: usize,
     pub package_sha256: String,
     pub targets_sha256: String,
     pub targets: Vec<AnswerTarget>,
+    #[serde(default)]
+    pub target_kinds: HashMap<String, ContextTargetKind>,
+    #[serde(default)]
+    pub metadata: BTreeMap<String, serde_json::Value>,
+    #[serde(default)]
+    pub attachments: BTreeMap<String, ContextAttachment>,
+    #[serde(default)]
+    pub targets_resource_metadata: BTreeMap<String, serde_json::Value>,
 }
 
 impl StoredContext {
     fn from_imported(context: &ImportedContext) -> Self {
         Self {
+            storage_format_version: 1,
             name: context.name.clone(),
             package_id: context.id.clone(),
             version: context.version.to_string(),
             license: context.spdx_license_expression.clone(),
             locales: context.locales.clone(),
             sources: context.sources.clone(),
+            licenses: context.licenses.clone(),
             target_count: context.targets.len(),
             package_sha256: context.package_sha256.clone(),
             targets_sha256: context.targets_sha256.clone(),
             targets: context.targets.clone(),
+            target_kinds: context.target_kinds.clone(),
+            metadata: context.metadata.clone(),
+            attachments: context.attachments.clone(),
+            targets_resource_metadata: context.targets_resource_metadata.clone(),
         }
     }
 }
@@ -66,6 +87,7 @@ pub enum StoreError {
     InvalidTargetDraft(&'static str),
     InvalidSearch,
     ActiveContextChanged,
+    ContextMetadataUpgradeRequired,
 }
 
 impl fmt::Display for StoreError {
@@ -86,6 +108,10 @@ impl fmt::Display for StoreError {
             Self::ActiveContextChanged => {
                 write!(formatter, "active context changed; reload targets before writing")
             }
+            Self::ContextMetadataUpgradeRequired => write!(
+                formatter,
+                "active context metadata is outdated; reactivate its original package before export"
+            ),
         }
     }
 }
@@ -100,7 +126,8 @@ impl Error for StoreError {
             | Self::UnknownTarget(_)
             | Self::InvalidTargetDraft(_)
             | Self::InvalidSearch
-            | Self::ActiveContextChanged => None,
+            | Self::ActiveContextChanged
+            | Self::ContextMetadataUpgradeRequired => None,
         }
     }
 }
@@ -165,6 +192,10 @@ impl ContextStore {
         let current = current_pointer(&transaction)?;
 
         if current.as_ref().is_some_and(|(_, hash)| hash == &context.package_sha256) {
+            transaction.execute(
+                "UPDATE context_versions SET payload_json = ?1 WHERE package_sha256 = ?2",
+                params![payload, context.package_sha256],
+            )?;
             transaction.commit()?;
             return Ok(context);
         }
@@ -184,11 +215,19 @@ impl ContextStore {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
-        if stored_identity.as_ref() != Some(&(context.package_sha256.clone(), payload.clone())) {
-            return Err(StoreError::ImmutableVersionConflict {
-                package_id: context.package_id.clone(),
-                version: context.version.clone(),
-            });
+        match stored_identity {
+            Some((stored_hash, _)) if stored_hash == context.package_sha256 => {
+                transaction.execute(
+                    "UPDATE context_versions SET payload_json = ?1 WHERE package_sha256 = ?2",
+                    params![payload, context.package_sha256],
+                )?;
+            }
+            _ => {
+                return Err(StoreError::ImmutableVersionConflict {
+                    package_id: context.package_id.clone(),
+                    version: context.version.clone(),
+                });
+            }
         }
 
         transaction.execute(
@@ -319,6 +358,41 @@ impl ContextStore {
         )?;
         transaction.commit()?;
         Ok(removed > 0)
+    }
+
+    pub fn exportable_draft(
+        &self,
+        package_sha256: &str,
+    ) -> Result<ContextPackageDraft, StoreError> {
+        let context = self.current()?.ok_or(StoreError::NoActiveContext)?;
+        ensure_active_package(&context, package_sha256)?;
+        if context.storage_format_version != 1
+            || context.licenses.is_empty()
+            || context.target_kinds.len() != context.targets.len()
+            || context.targets.iter().any(|target| !context.target_kinds.contains_key(&target.id))
+        {
+            return Err(StoreError::ContextMetadataUpgradeRequired);
+        }
+        let drafts = self.target_drafts(&context.package_sha256)?;
+        let targets = context
+            .targets
+            .iter()
+            .map(|published| drafts.get(&published.id).unwrap_or(published).clone())
+            .collect::<Vec<_>>();
+        Ok(ContextPackageDraft {
+            name: context.name,
+            id: context.package_id,
+            base_version: context.version,
+            spdx_license_expression: context.license,
+            licenses: context.licenses,
+            locales: context.locales,
+            sources: context.sources,
+            targets,
+            target_kinds: context.target_kinds,
+            metadata: context.metadata,
+            attachments: context.attachments,
+            targets_resource_metadata: context.targets_resource_metadata,
+        })
     }
 
     fn target_drafts(

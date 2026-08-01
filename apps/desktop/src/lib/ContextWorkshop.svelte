@@ -1,14 +1,20 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
+  import { open } from '@tauri-apps/plugin-dialog';
   import {
     Check,
+    FolderOutput,
     Library,
     RotateCcw,
     Search,
     SlidersHorizontal,
     TriangleAlert,
   } from '@lucide/svelte';
-  import type { ContextPackagePreview, TargetRecord } from './contracts';
+  import type {
+    ContextPackagePreview,
+    ExportedContextPackage,
+    TargetRecord,
+  } from './contracts';
 
   let {
     activeContext,
@@ -23,7 +29,9 @@
   let selected = $state<TargetRecord | null>(null);
   let canonical = $state('');
   let aliases = $state('');
-  let operation = $state<'idle' | 'search' | 'save' | 'discard'>('idle');
+  let exportVersion = $state('');
+  let exportedPath = $state('');
+  let operation = $state<'idle' | 'search' | 'save' | 'discard' | 'export'>('idle');
   let error = $state('');
   let observedPackage = '';
 
@@ -33,6 +41,8 @@
       observedPackage = packageSha256;
       query = '';
       records = [];
+      exportVersion = suggestNextVersion(activeContext?.version ?? '');
+      exportedPath = '';
       select(null);
       if (packageSha256) void searchTargets();
     }
@@ -42,6 +52,11 @@
     selected = record;
     canonical = record?.canonical ?? '';
     aliases = record?.aliases.join('\n') ?? '';
+  }
+
+  function suggestNextVersion(version: string) {
+    const match = /^(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(version);
+    return match ? `${match[1]}.${match[2]}.${Number(match[3]) + 1}` : '';
   }
 
   async function searchTargets() {
@@ -99,6 +114,32 @@
       select(records.find((record) => record.id === targetId) ?? null);
     } catch (cause) {
       error = `Restauration impossible : ${cause instanceof Error ? cause.message : String(cause)}`;
+    } finally {
+      operation = 'idle';
+    }
+  }
+
+  async function exportDraft() {
+    if (!activeContext || operation !== 'idle' || !exportVersion.trim()) return;
+    operation = 'export';
+    error = '';
+    exportedPath = '';
+    try {
+      const selectedDirectory = await open({
+        directory: true,
+        multiple: false,
+        title: 'Choisir le dossier parent du paquet exporté',
+      });
+      if (typeof selectedDirectory !== 'string') return;
+      const exported = await invoke<ExportedContextPackage>('export_context_draft_ipc', {
+        parentDirectory: selectedDirectory,
+        packageSha256: activeContext.package_sha256,
+        newVersion: exportVersion.trim(),
+      });
+      exportedPath = exported.descriptor_path;
+      exportVersion = suggestNextVersion(exported.preview.version);
+    } catch (cause) {
+      error = `Export impossible : ${cause instanceof Error ? cause.message : String(cause)}. Aucun paquet existant n’a été modifié.`;
     } finally {
       operation = 'idle';
     }
@@ -193,6 +234,42 @@
         {/if}
       </div>
     </div>
+
+    <div class="export-panel">
+      <div class="export-copy">
+        <FolderOutput size={18} />
+        <div>
+          <strong>Diffuser les réglages</strong>
+          <p>Crée un nouveau paquet immuable, vérifié et réimportable. Le paquet actif reste intact.</p>
+        </div>
+      </div>
+      <div class="export-controls">
+        <label for="export-version">Nouvelle version</label>
+        <input
+          id="export-version"
+          bind:value={exportVersion}
+          maxlength="32"
+          inputmode="decimal"
+          autocomplete="off"
+          placeholder="0.2.0"
+          aria-describedby="export-version-hint"
+        />
+        <button
+          type="button"
+          onclick={exportDraft}
+          disabled={operation !== 'idle' || !exportVersion.trim()}
+        >
+          <FolderOutput size={15} />
+          {operation === 'export' ? 'Export en cours…' : 'Exporter le paquet'}
+        </button>
+      </div>
+      <small id="export-version-hint">SemVer strictement supérieure à v{activeContext.version}. Le dossier de version ne doit pas déjà exister.</small>
+      {#if exportedPath}
+        <p class="export-success" role="status">
+          <Check size={15} /> Paquet créé : <code>{exportedPath}</code>
+        </p>
+      {/if}
+    </div>
   {:else}
     <div class="empty">
       <Library size={26} />
@@ -251,6 +328,17 @@
   .editor-empty { min-height: 280px; display: grid; place-items: center; align-content: center; text-align: center; color: #5f665b; }
   .editor-empty strong { margin-top: 12px; color: #a5aca0; font-size: 11px; }
   .editor-empty p { max-width: 285px; margin: 6px 0 0; color: #777e72; font-size: 10px; line-height: 1.5; }
+  .export-panel { display: grid; grid-template-columns: minmax(230px, 1fr) minmax(320px, auto); gap: 12px 26px; margin-top: 24px; padding-top: 20px; border-top: 1px solid #30342d; }
+  .export-copy { display: flex; gap: 10px; min-width: 0; color: #c8f15b; }
+  .export-copy strong { color: #d9ded2; font-size: 11px; }
+  .export-copy p { max-width: 62ch; margin: 4px 0 0; color: #7f877a; font-size: 10px; line-height: 1.5; }
+  .export-controls { display: grid; grid-template-columns: minmax(110px, 135px) auto; gap: 6px 8px; align-items: stretch; }
+  .export-controls label { grid-column: 1 / -1; margin: 0; }
+  .export-controls input { min-height: 44px; font: 600 11px/1.2 "Cascadia Code", Consolas, monospace; }
+  .export-controls button { min-height: 44px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid #7c943e; border-radius: 4px; padding-inline: 15px; color: #171a12; background: #c8f15b; cursor: pointer; font-size: 10px; font-weight: 800; }
+  #export-version-hint { grid-column: 1 / -1; color: #727a6e; font-size: 9px; line-height: 1.45; }
+  .export-success { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 7px; margin: 2px 0 0; color: #b9df54; font-size: 10px; line-height: 1.5; overflow-wrap: anywhere; }
+  .export-success code { color: #d5dabf; font-size: 9px; }
   .empty { gap: 12px; margin-top: 22px; padding: 18px; border: 1px dashed #394036; color: #687063; }
   .empty strong { color: #a4ab9f; font-size: 11px; }
   .empty p { margin: 4px 0 0; font-size: 10px; }
@@ -260,6 +348,7 @@
   @media (max-width: 800px) {
     .body { grid-template-columns: 1fr; }
     .editor { padding: 22px 0 0; border-left: 0; border-top: 1px solid #30342d; }
+    .export-panel { grid-template-columns: 1fr; }
   }
   @media (max-width: 600px) {
     .workshop { padding-inline: 20px; }
@@ -267,5 +356,7 @@
     .scope { display: inline-block; margin-top: 13px; }
     .editor-actions { grid-template-columns: 1fr; }
     .discard { grid-column: auto; }
+    .export-controls { grid-template-columns: 1fr; }
+    .export-controls label { grid-column: auto; }
   }
 </style>

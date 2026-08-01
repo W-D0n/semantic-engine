@@ -70,11 +70,20 @@ L’opérateur suit ce parcours :
 5. modifier le titre canonique et les alias, un alias par ligne ;
 6. **Enregistrer localement** pour conserver le réglage après redémarrage ;
 7. **Utiliser pour la manche** pour injecter immédiatement cette cible dans le round ;
-8. **Revenir au publié** pour supprimer le brouillon local.
+8. saisir une version supérieure, puis **Exporter le paquet** et choisir son dossier parent ;
+9. réimporter le `datapackage.json` affiché ou publier ce nouveau paquet ;
+10. **Revenir au publié** pour supprimer un brouillon local devenu inutile.
 
 Le paquet publié n’est jamais modifié. Les réglages sont un calque SQLite local,
-indexé par empreinte du paquet et identifiant de cible. Une future commande
-d’export créera une nouvelle version diffusable au lieu de réécrire une release.
+indexé par empreinte du paquet et identifiant de cible. L’export fusionne ce calque
+dans une nouvelle version, recalcule ses empreintes, embarque ses profils et la
+valide avant de rendre le dossier final visible. Il refuse une version non
+supérieure et n’écrase jamais une destination existante.
+Les exports incluent README, notice de licence, checksums et schéma Data Package v2
+pour une validation hors ligne. Les petits fichiers locaux de licence et de
+provenance référencés par le manifeste sont conservés sans accepter de chemin hors
+du paquet. Si l’application demande une mise à niveau des métadonnées, réactiver
+simplement le paquet original puis relancer l’export ; les brouillons sont conservés.
 
 ```mermaid
 flowchart LR
@@ -82,7 +91,7 @@ flowchart LR
     A --> S["Recherche bornée"]
     S --> D["Brouillon local"]
     D --> R["Cible de la manche"]
-    D --> X["Future nouvelle version exportée"]
+    D --> X["Nouvelle version exportée et vérifiée"]
 ```
 
 ## Arbitrer une validation
@@ -115,7 +124,6 @@ session UI ; sa persistance d’audit appartient au prochain jalon.
 
 - signer les binaires et publier SBOM + checksums dans une release ;
 - automatiser le test sur une machine Windows propre ;
-- exporter les brouillons comme nouvelle version de paquet ;
 - persister le journal d’arbitrage avec rétention et consentement explicites ;
 - mesurer p50/p95/p99 sur des corpus de 500 à 50 000 cibles.
 

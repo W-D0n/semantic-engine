@@ -68,6 +68,11 @@ export type ContextPackagePreview = {
   targets_sha256: string;
 };
 
+export type ExportedContextPackage = {
+  preview: ContextPackagePreview;
+  descriptor_path: string;
+};
+
 export type TargetRecord = AnswerTarget & {
   is_draft: boolean;
   package_sha256: string;

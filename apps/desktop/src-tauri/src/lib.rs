@@ -1,11 +1,12 @@
-use std::{collections::VecDeque, fs, sync::Mutex};
+use std::{collections::VecDeque, fs, path::PathBuf, sync::Mutex};
 
 use semantic_engine_context_store::{ContextStore, StoredContext, TargetRecord};
 use semantic_engine_core::{
     AnswerTarget, OperatorResolution, OperatorResolutionRequest, ResolutionIssue, Round,
     Submission, Validation, Validator, resolve_validation,
 };
-use semantic_engine_package::{ImportedContext, SourceMetadata, import_package};
+use semantic_engine_package::{ImportedContext, SourceMetadata, export_package, import_package};
+use semver::Version;
 use serde::Serialize;
 use tauri::{Manager, State};
 
@@ -70,6 +71,12 @@ pub struct ContextPackagePreview {
     pub target_count: usize,
     pub package_sha256: String,
     pub targets_sha256: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ExportedContextPackage {
+    pub preview: ContextPackagePreview,
+    pub descriptor_path: String,
 }
 
 impl From<&ImportedContext> for ContextPackagePreview {
@@ -139,6 +146,29 @@ pub fn activate_context_package(
     }
     let active = store.activate(&imported).map_err(|error| error.to_string())?;
     Ok(ContextPackagePreview::from(&active))
+}
+
+pub fn export_context_draft(
+    parent_directory: String,
+    package_sha256: String,
+    new_version: String,
+    store: &ContextStore,
+) -> Result<ExportedContextPackage, String> {
+    let parsed_version = Version::parse(&new_version)
+        .map_err(|_| "export version is not Semantic Versioning 2.0.0".to_string())?;
+    let parent = PathBuf::from(parent_directory);
+    if !parent.is_absolute() || !parent.is_dir() {
+        return Err("export parent must be an existing absolute directory".to_string());
+    }
+    let draft = store.exportable_draft(&package_sha256).map_err(|error| error.to_string())?;
+    let descriptor_path =
+        parent.join(format!("{}-{parsed_version}", draft.name)).join("datapackage.json");
+    let exported = export_package(&draft, &parsed_version.to_string(), &descriptor_path)
+        .map_err(|error| error.to_string())?;
+    Ok(ExportedContextPackage {
+        preview: ContextPackagePreview::from(&exported),
+        descriptor_path: descriptor_path.to_string_lossy().into_owned(),
+    })
 }
 
 // Keep the Tauri macro on a private wrapper: exporting the annotated function
@@ -219,6 +249,17 @@ fn discard_target_draft_ipc(
         .discard_target_draft(&package_sha256, &target_id)
         .map_err(|error| error.to_string())
 }
+#[tauri::command]
+fn export_context_draft_ipc(
+    parent_directory: String,
+    package_sha256: String,
+    new_version: String,
+    store: State<'_, Mutex<ContextStore>>,
+) -> Result<ExportedContextPackage, String> {
+    let store = store.lock().map_err(|_| "context store lock is poisoned".to_string())?;
+    export_context_draft(parent_directory, package_sha256, new_version, &store)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -240,7 +281,8 @@ pub fn run() {
             rollback_context_ipc,
             find_targets_ipc,
             save_target_draft_ipc,
-            discard_target_draft_ipc
+            discard_target_draft_ipc,
+            export_context_draft_ipc
         ])
         .run(tauri::generate_context!())
         .expect("error while running Semantic Engine");

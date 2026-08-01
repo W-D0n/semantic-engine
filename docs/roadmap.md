@@ -5,7 +5,7 @@ d'ajouter un nouveau transport ou une nouvelle plateforme. L'autonomie du produi
 est un critère de sortie à chaque étape : une intégration externe ne doit jamais
 devenir nécessaire au fonctionnement de l'application portable.
 
-| Jalon | État au 31 juillet 2026 |
+| Jalon | État au 1er août 2026 |
 |---|---|
 | M0 | terminé — corpus initial, contrats et décisions techniques |
 | M1 | en cours — produit portable autonome et atelier opérateur |
@@ -51,7 +51,7 @@ paquet de titres importable.
 - [x] recherche bornée et brouillons locaux persistants ;
 - [x] résolution opérateur accepter/rejeter sans effacer la décision moteur ;
 - [x] portable Windows hors ligne avec WebView2 fixe et checksums ;
-- [ ] exporter les brouillons comme nouvelle version de paquet ;
+- [x] exporter les brouillons comme nouvelle version immuable de paquet ;
 - [ ] persister l'audit des validations et résolutions ;
 - [ ] ajouter déduplication et cache borné ;
 - [ ] fournir les commandes d'évaluation et les paquets multi-OS ;
@@ -137,11 +137,11 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Tester puis implémenter l'export des brouillons vers une nouvelle version
-   immuable de paquet.
-2. Définir et persister le journal d'audit avec sa politique de rétention.
-3. Écrire le contrat du module d'application et un test de conformité JSONL.
-4. Seulement ensuite, prototyper la passerelle loopback désactivée par défaut.
+1. Définir puis tester le schéma du journal d'audit et sa politique de rétention.
+2. Persister validations et résolutions opérateur sans stocker le chat brut par défaut.
+3. Ajouter déduplication et cache borné, puis mesurer p50/p95/p99.
+4. Écrire le contrat du module d'application et un test de conformité JSONL.
+5. Seulement ensuite, prototyper la passerelle loopback désactivée par défaut.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et
 consomment uniquement des contrats publics ; elles ne bloquent aucun de ces jalons.

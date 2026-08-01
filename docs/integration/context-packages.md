@@ -11,11 +11,14 @@ mon-contexte/
 ├── datapackage.json
 ├── README.md
 ├── LICENSE.md
+├── SHA256SUMS.txt
 ├── data/
 │   └── titles.json
 └── profile/
     ├── context-package.schema.json
-    └── title-resource.schema.json
+    ├── title-resource.schema.json
+    └── vendor/
+        └── datapackage-v2.schema.json
 ```
 
 Le paquet de référence se trouve dans `packages/starter-titles`. Il contient
@@ -55,9 +58,29 @@ modifier le titre canonique et les alias, persiste après redémarrage et dispar
 avec **Revenir au publié**. La recherche fusionne paquet et brouillons en une
 lecture groupée, puis ne renvoie au frontend qu’un résultat borné.
 
-Le brouillon n’est pas encore un paquet diffusable. L’export futur devra produire
-une nouvelle version SemVer, recalculer les empreintes et passer la même validation
-qu’un paquet tiers. Une version déjà publiée ne sera jamais réécrite.
+**Diffuser les réglages** demande une version SemVer strictement supérieure et un
+dossier parent. Le backend crée un nouveau dossier `<name>-<version>`, fusionne les
+brouillons avec les cibles publiées, conserve identité, types, provenance et licence,
+recalcule les empreintes, embarque les profils puis réimporte le résultat avec le
+même validateur qu’un paquet tiers. Le dossier final apparaît par renommage atomique
+seulement après validation. Une destination existante est refusée et une version
+publiée n’est jamais réécrite.
+
+L’export conserve aussi les métadonnées Data Package facultatives, génère un README,
+une notice de licence et les sommes SHA-256, et réécrit la référence du profil vers
+la copie Data Package v2 embarquée. Un validateur JSON Schema tiers peut donc lire
+les profils sans accès réseau. Les fichiers locaux référencés par `licenses.path`
+ou `sources.path` sont importés en octets sous limites strictes, stockés comme pièces jointes
+du contexte puis recopiés au même chemin relatif ; chemins absolus, traversées,
+fichiers spéciaux, noms Windows réservés, segments hors alphabet portable ASCII,
+pièces trop grandes et collisions avec les fichiers générés sont refusés. Les
+anciens contextes SQLite doivent être réactivés une fois depuis leur
+`datapackage.json` original avant export : cette réactivation enrichit les
+métadonnées dérivées sans créer une nouvelle version ni un conflit.
+
+Le chemin exact de `datapackage.json` est affiché après succès. Il peut être validé
+avec la CLI, réimporté dans Semantic Engine ou publié dans Answer Atlas comme toute
+autre release de données.
 
 ```json
 {
@@ -128,13 +151,13 @@ flowchart LR
     Q -- non --> X["Refus expliqué"]
     Q -- oui --> A["Aperçu opérateur"] --> T["Activation transactionnelle"]
     T --> B["Rollback vers la version précédente"]
+    T --> E["Brouillons locaux"] --> N["Nouvelle version exportée"]
 ```
 
 Aujourd’hui, validation, aperçu, activation idempotente, rollback, recherche de
-cibles et brouillons locaux sont disponibles dans des modules Rust séparés et
-dans le client Tauri. SQLite conserve les versions immuables, le contexte actif,
-le lien vers l’activation précédente et les calques locaux. Le prochain incrément
-exportera ces calques comme une nouvelle version vérifiable.
+cibles, brouillons locaux et export immuable sont disponibles dans des modules
+Rust séparés et dans le client Tauri. SQLite conserve les versions immuables, le
+contexte actif, le lien vers l’activation précédente et les calques locaux.
 
 ## Compatibilité et mises à jour
 

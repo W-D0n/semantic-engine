@@ -1,11 +1,12 @@
 use std::{
-    collections::HashSet,
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     error::Error,
     fmt, fs,
     io::{self, Read},
     path::{Component, Path, PathBuf},
 };
 
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use semantic_engine_core::{
     AnswerTarget, MAX_ALIASES_PER_TARGET, MAX_EXPRESSION_CHARS, MAX_IDENTIFIER_CHARS,
 };
@@ -15,16 +16,53 @@ use sha2::{Digest, Sha256};
 
 const MAX_DESCRIPTOR_BYTES: u64 = 256 * 1024;
 const MAX_RESOURCE_BYTES: u64 = 10 * 1024 * 1024;
+const MAX_METADATA_ATTACHMENT_BYTES: u64 = 256 * 1024;
+const MAX_METADATA_ATTACHMENTS: usize = 32;
+const MAX_METADATA_ATTACHMENTS_TOTAL_BYTES: usize = 1024 * 1024;
 const MAX_IMPORTED_TARGETS: usize = 50_000;
 const SUPPORTED_FORMAT_VERSION: &str = "0.1.0";
 const SUPPORTED_PACKAGE_SCHEMA: &str = "profile/context-package.schema.json";
 const SUPPORTED_TARGET_SCHEMA: &str = "profile/title-resource.schema.json";
+const CONTEXT_PACKAGE_PROFILE: &str =
+    include_str!("../../../contracts/context-package.schema.json");
+const TITLE_RESOURCE_PROFILE: &str = include_str!("../../../contracts/title-resource.schema.json");
+const DATA_PACKAGE_PROFILE: &str =
+    include_str!("../../../contracts/vendor/datapackage-v2.schema.json");
+
+mod export;
+pub use export::export_package;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct SourceMetadata {
     pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    #[serde(flatten)]
+    pub metadata: BTreeMap<String, serde_json::Value>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct LicenseMetadata {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    #[serde(flatten)]
+    pub metadata: BTreeMap<String, serde_json::Value>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ContextTargetKind {
+    Movie,
+    Game,
+    Other,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+pub struct ContextAttachment {
+    pub content_base64: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -33,11 +71,32 @@ pub struct ImportedContext {
     pub locales: Vec<String>,
     pub spdx_license_expression: String,
     pub sources: Vec<SourceMetadata>,
+    pub licenses: Vec<LicenseMetadata>,
     pub package_sha256: String,
     pub targets_sha256: String,
     pub id: String,
     pub version: Version,
     pub targets: Vec<AnswerTarget>,
+    pub target_kinds: HashMap<String, ContextTargetKind>,
+    pub metadata: BTreeMap<String, serde_json::Value>,
+    pub attachments: BTreeMap<String, ContextAttachment>,
+    pub targets_resource_metadata: BTreeMap<String, serde_json::Value>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ContextPackageDraft {
+    pub name: String,
+    pub id: String,
+    pub base_version: String,
+    pub spdx_license_expression: String,
+    pub licenses: Vec<LicenseMetadata>,
+    pub locales: Vec<String>,
+    pub sources: Vec<SourceMetadata>,
+    pub targets: Vec<AnswerTarget>,
+    pub target_kinds: HashMap<String, ContextTargetKind>,
+    pub metadata: BTreeMap<String, serde_json::Value>,
+    pub attachments: BTreeMap<String, ContextAttachment>,
+    pub targets_resource_metadata: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Debug)]
@@ -83,7 +142,7 @@ impl From<serde_json::Error> for PackageError {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Descriptor {
     #[serde(rename = "$schema")]
     schema: String,
@@ -95,15 +154,21 @@ struct Descriptor {
     #[serde(rename = "semanticEngine")]
     semantic_engine: PackageMarker,
     resources: Vec<Resource>,
+    #[serde(flatten)]
+    metadata: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct License {
+    #[serde(skip_serializing_if = "Option::is_none")]
     name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     path: Option<String>,
+    #[serde(flatten)]
+    metadata: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 struct PackageMarker {
@@ -113,7 +178,7 @@ struct PackageMarker {
     spdx_license_expression: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 struct Resource {
     name: String,
     path: String,
@@ -121,38 +186,32 @@ struct Resource {
     hash: String,
     #[serde(rename = "semanticEngine")]
     semantic_engine: Option<ResourceMarker>,
+    #[serde(flatten)]
+    metadata: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct ResourceMarker {
     role: String,
     schema: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct TitleDocument {
     version: u32,
     titles: Vec<Title>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 struct Title {
     id: String,
     #[serde(rename = "kind")]
-    _kind: TitleKind,
+    kind: ContextTargetKind,
     canonical: String,
     aliases: Vec<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "lowercase")]
-enum TitleKind {
-    Movie,
-    Game,
-    Other,
 }
 
 pub fn import_package(descriptor_path: impl AsRef<Path>) -> Result<ImportedContext, PackageError> {
@@ -176,6 +235,8 @@ pub fn import_package(descriptor_path: impl AsRef<Path>) -> Result<ImportedConte
         .ok_or(PackageError::Invalid("missing targets resource"))?;
     let resource_path = resolve_resource(&package_root, &resource.path)?;
     let resource_bytes = read_limited(&resource_path, MAX_RESOURCE_BYTES)?;
+    let targets_resource_metadata = resource.metadata.clone();
+    let attachments = read_metadata_attachments(&descriptor, &package_root)?;
 
     if resource.bytes != resource_bytes.len() as u64 {
         return Err(PackageError::Invalid("declared resource byte size does not match"));
@@ -194,7 +255,7 @@ pub fn import_package(descriptor_path: impl AsRef<Path>) -> Result<ImportedConte
     }
 
     let document: TitleDocument = serde_json::from_slice(&resource_bytes)?;
-    let targets = validate_titles(document)?;
+    let (targets, target_kinds) = validate_titles(document)?;
     let mut package_hasher = Sha256::new();
     package_hasher.update(&descriptor_bytes);
     package_hasher.update([0]);
@@ -208,9 +269,22 @@ pub fn import_package(descriptor_path: impl AsRef<Path>) -> Result<ImportedConte
         locales: descriptor.semantic_engine.locales,
         spdx_license_expression: descriptor.semantic_engine.spdx_license_expression,
         sources: descriptor.sources,
+        licenses: descriptor
+            .licenses
+            .into_iter()
+            .map(|license| LicenseMetadata {
+                name: license.name.unwrap_or_default(),
+                path: license.path,
+                metadata: license.metadata,
+            })
+            .collect(),
         package_sha256,
         targets_sha256: expected_hash.to_owned(),
         targets,
+        target_kinds,
+        metadata: descriptor.metadata,
+        attachments,
+        targets_resource_metadata,
     })
 }
 
@@ -272,6 +346,7 @@ fn validate_descriptor(descriptor: &Descriptor) -> Result<(), PackageError> {
         })
         .count();
     if target_resources != 1
+        || descriptor.resources.len() != 1
         || descriptor.resources.iter().any(|resource| {
             resource.name.is_empty()
                 || resource.semantic_engine.as_ref().is_some_and(|marker| {
@@ -282,6 +357,100 @@ fn validate_descriptor(descriptor: &Descriptor) -> Result<(), PackageError> {
         })
     {
         return Err(PackageError::Invalid("exactly one supported targets resource is required"));
+    }
+    Ok(())
+}
+
+fn read_metadata_attachments(
+    descriptor: &Descriptor,
+    package_root: &Path,
+) -> Result<BTreeMap<String, ContextAttachment>, PackageError> {
+    let paths = descriptor
+        .licenses
+        .iter()
+        .filter_map(|license| license.path.as_deref())
+        .chain(descriptor.sources.iter().filter_map(|source| source.path.as_deref()))
+        .filter(|path| !is_remote_metadata_path(path))
+        .collect::<BTreeSet<_>>();
+    if paths.len() > MAX_METADATA_ATTACHMENTS {
+        return Err(PackageError::Invalid("too many local metadata attachments"));
+    }
+
+    let mut total_bytes = 0usize;
+    let mut attachments = BTreeMap::new();
+    for relative in paths {
+        validate_metadata_attachment_path(relative)?;
+        let path = resolve_resource(package_root, relative)?;
+        let bytes = read_limited(&path, MAX_METADATA_ATTACHMENT_BYTES)?;
+        total_bytes = total_bytes.saturating_add(bytes.len());
+        if total_bytes > MAX_METADATA_ATTACHMENTS_TOTAL_BYTES {
+            return Err(PackageError::Invalid("local metadata attachments exceed the total limit"));
+        }
+        attachments.insert(
+            relative.to_owned(),
+            ContextAttachment { content_base64: BASE64.encode(bytes) },
+        );
+    }
+    Ok(attachments)
+}
+
+pub(crate) fn is_remote_metadata_path(path: &str) -> bool {
+    ["https://", "http://", "ftps://", "ftp://"].iter().any(|scheme| path.starts_with(scheme))
+}
+
+pub(crate) fn validate_metadata_attachment_path(path: &str) -> Result<(), PackageError> {
+    if path.is_empty() || path.contains(['\\', ':']) {
+        return Err(PackageError::Invalid("metadata attachment path is not portable"));
+    }
+    let relative = Path::new(path);
+    if relative.components().any(|component| {
+        let Component::Normal(segment) = component else {
+            return true;
+        };
+        let segment = segment.to_string_lossy();
+        let portable = segment
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || "._-".contains(character));
+        let base_name = segment.split('.').next().unwrap_or_default().to_ascii_uppercase();
+        let reserved_device = matches!(
+            base_name.as_str(),
+            "CON"
+                | "PRN"
+                | "AUX"
+                | "NUL"
+                | "COM1"
+                | "COM2"
+                | "COM3"
+                | "COM4"
+                | "COM5"
+                | "COM6"
+                | "COM7"
+                | "COM8"
+                | "COM9"
+                | "LPT1"
+                | "LPT2"
+                | "LPT3"
+                | "LPT4"
+                | "LPT5"
+                | "LPT6"
+                | "LPT7"
+                | "LPT8"
+                | "LPT9"
+                | "CLOCK$"
+        );
+        !portable || reserved_device || segment.ends_with(['.', ' '])
+    }) {
+        return Err(PackageError::Invalid("metadata attachment path is not portable"));
+    }
+    let normalized = path.to_ascii_lowercase();
+    if normalized == "datapackage.json"
+        || normalized == "sha256sums.txt"
+        || normalized.starts_with("data/")
+        || normalized.starts_with("profile/")
+    {
+        return Err(PackageError::Invalid(
+            "metadata attachment path conflicts with generated package files",
+        ));
     }
     Ok(())
 }
@@ -299,7 +468,9 @@ fn valid_locale(locale: &str) -> bool {
     valid_language && valid_region && no_more
 }
 
-fn validate_titles(document: TitleDocument) -> Result<Vec<AnswerTarget>, PackageError> {
+fn validate_titles(
+    document: TitleDocument,
+) -> Result<(Vec<AnswerTarget>, HashMap<String, ContextTargetKind>), PackageError> {
     if document.version != 1
         || document.titles.is_empty()
         || document.titles.len() > MAX_IMPORTED_TARGETS
@@ -309,6 +480,7 @@ fn validate_titles(document: TitleDocument) -> Result<Vec<AnswerTarget>, Package
 
     let mut ids = HashSet::with_capacity(document.titles.len());
     let mut targets = Vec::with_capacity(document.titles.len());
+    let mut target_kinds = HashMap::with_capacity(document.titles.len());
     for title in document.titles {
         let valid = !title.id.is_empty()
             && title.id.chars().count() <= MAX_IDENTIFIER_CHARS
@@ -329,13 +501,14 @@ fn validate_titles(document: TitleDocument) -> Result<Vec<AnswerTarget>, Package
         if !valid {
             return Err(PackageError::Invalid("invalid or duplicate target"));
         }
+        target_kinds.insert(title.id.clone(), title.kind);
         targets.push(AnswerTarget {
             id: title.id,
             canonical: title.canonical,
             aliases: title.aliases,
         });
     }
-    Ok(targets)
+    Ok((targets, target_kinds))
 }
 
 fn resolve_resource(package_root: &Path, relative: &str) -> Result<PathBuf, PackageError> {
@@ -398,5 +571,18 @@ mod tests {
         let root = Path::new("package");
         assert!(resolve_resource(root, "../secret.json").is_err());
         assert!(resolve_resource(root, "C:/secret.json").is_err());
+    }
+
+    #[test]
+    fn metadata_paths_are_portable_and_remote_schemes_are_not_read_locally() {
+        assert!(validate_metadata_attachment_path("legal/license.pdf").is_ok());
+        assert!(validate_metadata_attachment_path("PROFILE/context-package.schema.json").is_err());
+        assert!(validate_metadata_attachment_path("profile\\context-package.schema.json").is_err());
+        assert!(validate_metadata_attachment_path("legal/CON.txt").is_err());
+        assert!(validate_metadata_attachment_path("legal/résumé.pdf").is_err());
+        assert!(is_remote_metadata_path("https://example.test/license"));
+        assert!(is_remote_metadata_path("ftp://example.test/source"));
+        assert!(is_remote_metadata_path("ftps://example.test/source"));
+        assert!(!is_remote_metadata_path("legal/license.pdf"));
     }
 }

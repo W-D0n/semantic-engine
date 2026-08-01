@@ -2664,6 +2664,7 @@ dependencies = [
  "semantic-engine-context-store",
  "semantic-engine-core",
  "semantic-engine-package",
+ "semver",
  "serde",
  "tauri",
  "tauri-build",
@@ -2675,12 +2676,16 @@ dependencies = [
 name = "semantic-engine-package"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "libc",
  "semantic-engine-core",
  "semver",
  "serde",
  "serde_json",
  "sha2",
  "spdx",
+ "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
