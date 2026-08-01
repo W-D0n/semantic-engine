@@ -84,8 +84,8 @@ cargo build -p semantic-engine-cli
 node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
 ```
 
-Le futur transport loopback devra passer les mêmes assertions en remplaçant
-uniquement la couche d’échange.
+Le transport loopback passe les mêmes assertions en remplaçant uniquement la
+couche d’échange. Voir [API locale HTTP et WebSocket](loopback-api.md).
 
 ```mermaid
 flowchart LR
@@ -107,10 +107,10 @@ MyVault peut, par exemple, démarrer le sidecar, traduire ses messages de chat e
 `Submission`, puis republier les `Validation` sur son propre bus. Il s'agit
 d'un exemple de consommation, sans statut privilégié dans l'architecture.
 
-## Évolution vers HTTP/WebSocket
+## HTTP/WebSocket disponible
 
-Le sidecar JSONL est le transport public disponible aujourd'hui. Le futur
-adaptateur HTTP/WebSocket local exposera les mêmes concepts et les mêmes schémas.
+Le sidecar JSONL et l'adaptateur HTTP/WebSocket local sont disponibles. Ils
+exposent les mêmes concepts et les mêmes schémas.
 Un client pourra donc changer de transport sans déplacer la reconnaissance ou le
 scoreboard.
 

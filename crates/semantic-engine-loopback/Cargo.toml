@@ -1,0 +1,19 @@
+[package]
+name = "semantic-engine-loopback"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum.workspace = true
+getrandom.workspace = true
+semantic-engine-protocol = { path = "../semantic-engine-protocol" }
+semantic-engine-service = { path = "../semantic-engine-service" }
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+
+[dev-dependencies]
+futures-util = "0.3"
+tokio-tungstenite = "0.30.0"

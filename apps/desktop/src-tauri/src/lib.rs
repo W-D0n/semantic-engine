@@ -4,10 +4,13 @@ use semantic_engine_context_store::{ContextStore, StoredContext, TargetRecord};
 use semantic_engine_core::{
     AnswerTarget, OperatorResolution, OperatorResolutionRequest, Submission, Validation,
 };
+use semantic_engine_loopback::{
+    LoopbackConfig, LoopbackServer, SharedService, start_shared as start_loopback,
+};
 use semantic_engine_package::{ImportedContext, SourceMetadata, export_package, import_package};
 use semantic_engine_service::{
-    AuditEntry, ResumableSession, SemanticEngineService, SessionEventsPage, SessionSnapshot,
-    StartSession,
+    AuditEntry, ResumableSession, SemanticEngineService, ServiceError, SessionEventsPage,
+    SessionSnapshot, StartSession,
 };
 use semver::Version;
 use serde::Serialize;
@@ -30,6 +33,22 @@ pub struct ContextPackagePreview {
 pub struct ExportedContextPackage {
     pub preview: ContextPackagePreview,
     pub descriptor_path: String,
+}
+
+struct ActiveLoopback {
+    server: LoopbackServer,
+    allowed_origins: Vec<String>,
+}
+
+struct LoopbackRuntime(tokio::sync::Mutex<Option<ActiveLoopback>>);
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct LoopbackStatus {
+    pub running: bool,
+    pub address: Option<String>,
+    pub token: Option<String>,
+    pub protocol_version: u32,
+    pub allowed_origins: Vec<String>,
 }
 
 impl From<&ImportedContext> for ContextPackagePreview {
@@ -65,110 +84,147 @@ impl From<&StoredContext> for ContextPackagePreview {
 }
 
 #[tauri::command]
-fn recent_audit_ipc(
+async fn recent_audit_ipc(
     limit: usize,
-    service: State<'_, Mutex<SemanticEngineService>>,
+    service: State<'_, SharedService>,
 ) -> Result<Vec<AuditEntry>, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .recent_audit(limit)
-        .map_err(|error| error.to_string())
+    execute_service(service.inner(), move |service| service.recent_audit(limit)).await
 }
 
 #[tauri::command]
-fn purge_audit_ipc(service: State<'_, Mutex<SemanticEngineService>>) -> Result<usize, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .purge_audit()
-        .map_err(|error| error.to_string())
+async fn purge_audit_ipc(service: State<'_, SharedService>) -> Result<usize, String> {
+    execute_service(service.inner(), SemanticEngineService::purge_audit).await
 }
 
 #[tauri::command]
-fn start_session_ipc(
+async fn start_session_ipc(
     request: StartSession,
-    service: State<'_, Mutex<SemanticEngineService>>,
+    service: State<'_, SharedService>,
 ) -> Result<SessionSnapshot, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .start_session(request)
-        .map_err(|error| error.to_string())
+    execute_service(service.inner(), move |service| service.start_session(request)).await
 }
 
 #[tauri::command]
-fn current_session_ipc(
+async fn current_session_ipc(
     session_id: String,
-    service: State<'_, Mutex<SemanticEngineService>>,
+    service: State<'_, SharedService>,
 ) -> Result<SessionSnapshot, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .session(&session_id)
-        .map_err(|error| error.to_string())
+    execute_service(service.inner(), move |service| service.session(&session_id)).await
 }
 
 #[tauri::command]
-fn latest_active_session_ipc(
-    service: State<'_, Mutex<SemanticEngineService>>,
+async fn latest_active_session_ipc(
+    service: State<'_, SharedService>,
 ) -> Result<Option<ResumableSession>, String> {
-    Ok(service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .latest_active_session())
+    execute_service(service.inner(), |service| Ok(service.latest_active_session())).await
 }
 
 #[tauri::command]
-fn submit_session_ipc(
+async fn submit_session_ipc(
     session_id: String,
     submission: Submission,
-    service: State<'_, Mutex<SemanticEngineService>>,
+    service: State<'_, SharedService>,
 ) -> Result<Validation, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .submit(&session_id, submission)
-        .map_err(|error| error.to_string())
+    execute_service(service.inner(), move |service| service.submit(&session_id, submission)).await
 }
 
 #[tauri::command]
-fn resolve_session_ipc(
+async fn resolve_session_ipc(
     session_id: String,
     request: OperatorResolutionRequest,
-    service: State<'_, Mutex<SemanticEngineService>>,
+    service: State<'_, SharedService>,
 ) -> Result<OperatorResolution, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .resolve_session(&session_id, request)
-        .map_err(|error| error.to_string())
+    execute_service(service.inner(), move |service| service.resolve_session(&session_id, request))
+        .await
 }
 
 #[tauri::command]
-fn end_session_ipc(
+async fn end_session_ipc(
     session_id: String,
-    service: State<'_, Mutex<SemanticEngineService>>,
+    service: State<'_, SharedService>,
 ) -> Result<SessionSnapshot, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .end_session(&session_id)
-        .map_err(|error| error.to_string())
+    execute_service(service.inner(), move |service| service.end_session(&session_id)).await
 }
 
 #[tauri::command]
-fn session_events_ipc(
+async fn session_events_ipc(
     session_id: String,
     after_sequence: u64,
     limit: usize,
-    service: State<'_, Mutex<SemanticEngineService>>,
+    service: State<'_, SharedService>,
 ) -> Result<SessionEventsPage, String> {
-    service
-        .lock()
-        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
-        .session_events(&session_id, after_sequence, limit)
+    execute_service(service.inner(), move |service| {
+        service.session_events(&session_id, after_sequence, limit)
+    })
+    .await
+}
+
+async fn execute_service<T, F>(service: &SharedService, operation: F) -> Result<T, String>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut SemanticEngineService) -> Result<T, ServiceError> + Send + 'static,
+{
+    let service = service.clone();
+    tokio::task::spawn_blocking(move || operation(&mut service.blocking_lock()))
+        .await
+        .map_err(|_| "semantic engine service worker did not complete".to_string())?
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn loopback_status_ipc(
+    runtime: State<'_, LoopbackRuntime>,
+) -> Result<LoopbackStatus, String> {
+    let runtime = runtime.0.lock().await;
+    Ok(loopback_status(runtime.as_ref()))
+}
+
+#[tauri::command]
+async fn start_loopback_ipc(
+    port: u16,
+    origin: Option<String>,
+    service: State<'_, SharedService>,
+    runtime: State<'_, LoopbackRuntime>,
+) -> Result<LoopbackStatus, String> {
+    let mut runtime = runtime.0.lock().await;
+    if runtime.as_ref().is_some_and(|active| active.server.is_running()) {
+        return Ok(loopback_status(runtime.as_ref()));
+    }
+    if let Some(stale) = runtime.take() {
+        stale.server.shutdown().await.map_err(|error| error.to_string())?;
+    }
+    let mut config = LoopbackConfig::default();
+    config.bind_addr.set_port(port);
+    if let Some(origin) =
+        origin.map(|value| value.trim().to_owned()).filter(|value| !value.is_empty())
+    {
+        config.allowed_origins.push(origin);
+    }
+    let allowed_origins = config.allowed_origins.clone();
+    let server =
+        start_loopback(service.inner().clone(), config).await.map_err(|error| error.to_string())?;
+    *runtime = Some(ActiveLoopback { server, allowed_origins });
+    Ok(loopback_status(runtime.as_ref()))
+}
+
+#[tauri::command]
+async fn stop_loopback_ipc(runtime: State<'_, LoopbackRuntime>) -> Result<LoopbackStatus, String> {
+    let active = runtime.0.lock().await.take();
+    if let Some(active) = active {
+        active.server.shutdown().await.map_err(|error| error.to_string())?;
+    }
+    Ok(loopback_status(None))
+}
+
+fn loopback_status(active: Option<&ActiveLoopback>) -> LoopbackStatus {
+    let active = active.filter(|active| active.server.is_running());
+    LoopbackStatus {
+        running: active.is_some(),
+        address: active.map(|active| format!("http://{}", active.server.addr())),
+        token: active.map(|active| active.server.token().to_owned()),
+        protocol_version: semantic_engine_loopback::PROTOCOL_VERSION,
+        allowed_origins: active.map_or_else(Vec::new, |active| active.allowed_origins.clone()),
+    }
 }
 pub fn inspect_context_package(path: String) -> Result<ContextPackagePreview, String> {
     let imported = import_package(path).map_err(|error| error.to_string())?;
@@ -309,9 +365,12 @@ pub fn run() {
             let data_directory = app.path().app_local_data_dir()?;
             fs::create_dir_all(&data_directory)?;
             let store = ContextStore::open(data_directory.join("contexts.sqlite3"))?;
-            let service = SemanticEngineService::open(data_directory.join("audit.sqlite3"))?;
+            let service = std::sync::Arc::new(tokio::sync::Mutex::new(
+                SemanticEngineService::open(data_directory.join("audit.sqlite3"))?,
+            ));
             app.manage(Mutex::new(store));
-            app.manage(Mutex::new(service));
+            app.manage(service);
+            app.manage(LoopbackRuntime(tokio::sync::Mutex::new(None)));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -324,6 +383,9 @@ pub fn run() {
             resolve_session_ipc,
             end_session_ipc,
             session_events_ipc,
+            loopback_status_ipc,
+            start_loopback_ipc,
+            stop_loopback_ipc,
             inspect_context_package_ipc,
             activate_context_package_ipc,
             current_context_ipc,

@@ -33,8 +33,11 @@ Tester l’API contre l’[OWASP API Security Top 10](https://owasp.org/www-proj
 
 ## Auth
 
-En local : loopback par défaut, secret généré, tokens dans le trousseau système,
-action explicite pour exposer le réseau. En équipe : OpenID Connect, rôles
+En local : réseau désactivé par défaut, bind loopback imposé, secret éphémère
+généré par le système, allowlist d'origines et action explicite pour démarrer la
+passerelle. Le jeton n'est ni persisté ni placé dans une URL ; l'application
+desktop le garde en mémoire, le masque par défaut et permet de le copier pour un
+client local. En équipe : OpenID Connect, rôles
 `viewer/operator/owner`, OAuth plateforme séparé, scopes minimaux et journal des
 changements sans contenu intégral du chat.
 

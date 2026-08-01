@@ -116,3 +116,11 @@ export type TargetRecord = AnswerTarget & {
   is_draft: boolean;
   package_sha256: string;
 };
+
+export type LoopbackStatus = {
+  running: boolean;
+  address: string | null;
+  token: string | null;
+  protocol_version: number;
+  allowed_origins: string[];
+};

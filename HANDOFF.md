@@ -16,10 +16,10 @@ Lire en priorité `docs/architecture/overview.md`,
 
 ## Objectif de la prochaine session
 
-Prototyper la passerelle loopback désactivée par défaut puis la faire passer dans
-la suite de conformité. Le cycle public v1, sa reprise SQLite, son transport
-JSONL, son client Node indépendant, le cache, l’audit minimisé et l’export
-immuable sont livrés.
+Construire l'interface de source générique puis l'adaptateur Twitch sur les
+contrats existants. Le cycle public v1, sa reprise SQLite, ses transports JSONL
+et loopback, ses clients Node indépendants, le cache, l’audit minimisé et
+l’export immuable sont livrés.
 
 ## État au 1er août 2026
 
@@ -47,11 +47,15 @@ immuable sont livrés.
   borné à 1 Mio par ligne et capable de continuer après une requête invalide ;
 - kit `conformance/` avec un client Node sans dépendance au code Rust, validant
   cycle, redémarrage, erreurs et confidentialité sur le binaire réel ;
+- crate `semantic-engine-loopback` : HTTP/WebSocket opt-in, bind loopback imposé,
+  jeton éphémère, origines exactes, quotas et refus sous backpressure ;
+- second client Node indépendant couvrant santé, auth, HTTP, WebSocket,
+  idempotence et absence de chat brut dans SQLite ;
 - benchmark CLI reproductible p50/p95/p99 ; sur 84 titres, le cache chaud réduit
   le p50 du service de 583,1 µs à 399,8 µs sur la machine de référence ;
 - portable Tauri hors ligne avec WebView2 fixe, checksums et lanceur racine ;
 - variante légère `SemanticEngine.exe` toujours disponible ;
-- HTTP/WebSocket, Twitch, YouTube, auth et scoreboard ne sont pas implémentés.
+- Twitch, YouTube, OAuth plateforme et scoreboard ne sont pas implémentés.
 
 ## Lire d’abord
 
@@ -106,6 +110,7 @@ cargo test --workspace
 cargo run -q -p semantic-engine-cli -- context validate `
   --package packages/starter-titles/datapackage.json
 node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
+node conformance/clients/node-loopback-client.mjs target/debug/semantic-engine-cli.exe
 cd apps/desktop
 npm run check
 npm run build
@@ -119,6 +124,6 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Construire l’adaptateur loopback sur le contrat existant, puis faire passer ses
-échanges dans le kit de conformité. Ne pas réintroduire de dépendance vers Tauri,
-de texte brut persistant ni de règle de scoreboard.
+Construire l'interface générique de source et son coffre local avant Twitch. Ne
+pas réintroduire de dépendance vers MyVault/Tauri dans le transport, de texte brut
+persistant ni de règle de scoreboard.

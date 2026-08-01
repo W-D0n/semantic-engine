@@ -12,6 +12,7 @@ Construire la CLI puis lancer le client :
 ```powershell
 cargo build -p semantic-engine-cli
 node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
+node conformance/clients/node-loopback-client.mjs target/debug/semantic-engine-cli.exe
 ```
 
 Le scénario vérifie :
@@ -24,6 +25,6 @@ Le scénario vérifie :
 - refus des écritures après fermeture ;
 - limites de taille côté client et délais bornés.
 
-La base temporaire est supprimée à la fin. Un futur adaptateur HTTP/WebSocket
-devra passer les mêmes assertions sémantiques, seules les fonctions de transport
-étant remplacées.
+Les bases temporaires sont supprimées à la fin. Le premier client utilise JSONL ;
+le second lance la passerelle loopback, vérifie HTTP et WebSocket, puis applique
+les mêmes assertions sémantiques sans importer le code Rust.

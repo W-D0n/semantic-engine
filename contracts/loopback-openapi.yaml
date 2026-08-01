@@ -1,0 +1,104 @@
+openapi: 3.1.0
+info:
+  title: Semantic Engine Loopback API
+  version: 1.0.0
+  description: >-
+    Transport HTTP local et opt-in du protocole public Semantic Engine v1.
+    Cette description n'autorise pas une exposition LAN ou Internet.
+servers:
+  - url: http://127.0.0.1:17831
+paths:
+  /v1/health:
+    get:
+      operationId: getHealth
+      summary: Vérifier la disponibilité et les versions de protocole
+      responses:
+        "200":
+          description: Passerelle disponible
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, transport, protocol_versions]
+                properties:
+                  status: { const: ok }
+                  transport: { const: loopback }
+                  protocol_versions:
+                    type: array
+                    prefixItems: [{ const: 1 }]
+                    minItems: 1
+                    maxItems: 1
+  /v1/commands:
+    post:
+      operationId: dispatchCommand
+      summary: Exécuter une commande du protocole public v1
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: X-Semantic-Engine-Protocol
+          in: header
+          required: true
+          schema: { const: "1" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ./protocol-request.schema.json
+      responses:
+        "200":
+          description: Réponse métier corrélée, succès ou erreur du protocole
+          content:
+            application/json:
+              schema:
+                $ref: ./protocol-response.schema.json
+        "400": { $ref: "#/components/responses/TransportError" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "403": { $ref: "#/components/responses/TransportError" }
+        "413": { $ref: "#/components/responses/TransportError" }
+        "415": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+        "500": { $ref: "#/components/responses/TransportError" }
+  /v1/events/ws:
+    get:
+      operationId: streamSessionEventsUpgrade
+      summary: Mettre à niveau la connexion vers le flux WebSocket d'événements
+      description: >-
+        Le client propose les sous-protocoles semantic-engine.v1 et
+        semantic-engine.token.<jeton>. Le serveur sélectionne seulement
+        semantic-engine.v1. Chaque message est une ProtocolResponse v1.
+      parameters:
+        - { name: session_id, in: query, required: true, schema: { type: string } }
+        - { name: after_sequence, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 1000, default: 100 } }
+      responses:
+        "101": { description: Connexion WebSocket établie }
+        "400": { $ref: "#/components/responses/TransportError" }
+        "401": { $ref: "#/components/responses/TransportError" }
+        "403": { $ref: "#/components/responses/TransportError" }
+        "426": { $ref: "#/components/responses/TransportError" }
+        "429": { $ref: "#/components/responses/TransportError" }
+        "503": { $ref: "#/components/responses/TransportError" }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  responses:
+    TransportError:
+      description: Erreur de transport avant exécution d'une commande
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [error]
+            properties:
+              error:
+                type: object
+                required: [code, message, retryable]
+                properties:
+                  code: { type: string }
+                  message: { type: string }
+                  retryable: { type: boolean }

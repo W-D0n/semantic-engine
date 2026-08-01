@@ -73,6 +73,12 @@ cargo run -q -p semantic-engine-cli -- context validate `
 cargo build -p semantic-engine-cli
 node conformance/clients/node-client.mjs target/debug/semantic-engine-cli.exe
 
+# Vérifier aussi HTTP/WebSocket loopback
+node conformance/clients/node-loopback-client.mjs target/debug/semantic-engine-cli.exe
+
+# Démarrer explicitement l'API locale (désactivée sinon)
+cargo run -p semantic-engine-cli -- loopback --enable --audit semantic-engine.sqlite3 --port 17831 --origin http://localhost:5173
+
 # Client Tauri en développement
 cd apps/desktop
 npm install

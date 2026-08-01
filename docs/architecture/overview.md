@@ -66,6 +66,7 @@ interface.
 | `semantic-engine-service` | déduplication, cache borné et orchestration moteur/audit | Tauri et règles métier des consommateurs |
 | `semantic-engine-session-store` | sessions, livraisons idempotentes et événements durables | règles de reconnaissance et texte du chat |
 | `semantic-engine-protocol` | commandes de session et réponses versionnées indépendantes du transport | stdin, HTTP, Tauri et plateformes |
+| `semantic-engine-loopback` | HTTP/WebSocket local, auth éphémère, origines et backpressure | moteur, Tauri et plateformes live |
 | adaptateur de transport | traduire IPC, JSONL ou HTTP vers l'interface commune | algorithmes de reconnaissance |
 | adaptateur de source | traduire une plateforme vers `Submission` | score et victoire |
 
@@ -76,9 +77,9 @@ Elle appartient à ce dépôt et se compose de trois niveaux :
 1. `contracts/` contient les schémas JSON versionnés qui forment le contrat
    indépendant du langage ;
 2. `semantic-engine-protocol` traduit ces contrats vers un service partagé ;
-3. la CLI expose aujourd'hui ce contrat par un sidecar JSONL local ;
-4. un futur adaptateur `semantic-engine-http` exposera le même contrat en HTTP
-   et WebSocket, sans déplacer la logique hors du produit.
+3. la CLI expose ce contrat par un sidecar JSONL local ;
+4. `semantic-engine-loopback` expose le même contrat en HTTP et WebSocket, sans
+   déplacer la logique hors du produit.
 
 Dans l'application portable, l'adaptateur réseau sera embarqué dans le même
 exécutable et désactivé par défaut. Quand l'opérateur l'active, il écoute
@@ -94,13 +95,14 @@ adaptée et les protections décrites dans la documentation de sécurité.
 L'interface réseau initiale doit rester petite :
 
 - créer, consulter et terminer une session ;
-- charger une version de contexte dans une session ;
+- référencer une version de contexte dans une session et fournir sa manche ;
 - soumettre un message et obtenir sa validation ;
 - enregistrer une résolution opérateur ;
 - suivre les événements de session ;
 - vérifier santé, version et compatibilité du contrat.
 
-Les endpoints précis seront figés par tests de contrat avant implémentation.
+Les endpoints sont décrits dans `contracts/loopback-openapi.yaml` et figés par
+les tests Rust et les deux clients Node du kit `conformance/`.
 
 ## Modes d'utilisation
 
@@ -146,7 +148,7 @@ crates/
   semantic-engine-session-store/
   semantic-engine-service/
   semantic-engine-protocol/
-  semantic-engine-http/          # futur adaptateur HTTP/WebSocket
+  semantic-engine-loopback/      # adaptateur HTTP/WebSocket local
 apps/
   desktop/
   semantic-engine-cli/

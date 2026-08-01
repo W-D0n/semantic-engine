@@ -97,6 +97,24 @@ flowchart LR
     D --> X["Nouvelle version exportée et vérifiée"]
 ```
 
+## Connecter une webapp locale
+
+Le panneau **API HTTP et WebSocket**, en bas de l'application, affiche d'abord
+**Aucun port réseau ouvert**. Pour connecter une webapp :
+
+1. saisir un port local, ou `0` pour choisir automatiquement un port libre ;
+2. saisir l'origine exacte du client, par exemple `http://localhost:5173` ;
+3. cliquer **Activer explicitement** ;
+4. copier l'adresse et le jeton éphémère masqué ;
+5. configurer le client avec le protocole v1 décrit dans le guide de
+   [l'API locale](../integration/loopback-api.md) ;
+6. cliquer **Désactiver** dès que l'intégration n'est plus utilisée.
+
+La passerelle partage exactement le même service et la même session que
+l'interface Tauri. Elle ne peut écouter que sur `127.0.0.1`, n'autorise aucune
+origine web par défaut et reçoit une nouvelle clé à chaque activation ou
+redémarrage. L'application reste entièrement utilisable sans l'activer.
+
 ## Arbitrer une validation
 
 Après **Valider la réponse**, la carte conserve la décision, le score et la
@@ -116,7 +134,7 @@ journal après confirmation ; voir [Audit local et confidentialité](audit.md).
 
 ## Sécurité par défaut
 
-- CSP restrictive et aucune capability shell ou réseau exposée au frontend ;
+- CSP restrictive et aucune capability shell exposée au frontend ;
 - dialogue de fichier limité, puis canonisation et validation Rust ;
 - limites appliquées côté moteur aux messages, titres, alias, recherches et notes ;
 - cible d’une acceptation opérateur obligatoirement présente dans le round ;

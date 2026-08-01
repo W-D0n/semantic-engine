@@ -9,7 +9,7 @@ devenir nécessaire au fonctionnement de l'application portable.
 |---|---|
 | M0 | terminé — corpus initial, contrats et décisions techniques |
 | M1 | en cours — produit portable autonome et atelier opérateur |
-| M2 | en cours — cycle public v1 livré, durabilité et réseau à faire |
+| M2 | terminé — cycle v1 durable, JSONL, HTTP/WebSocket et conformité indépendante |
 | M3–M6 | planifiés, non démarrés |
 
 ```mermaid
@@ -70,11 +70,11 @@ Ce jalon rend le produit pilotable sans donner de statut privilégié à un clie
 - [x] figer par tests les contrats de cycle de session et d'événements ;
 - [x] conserver JSONL comme transport public sans réseau ;
 - [x] persister les sessions et leur journal pour la reprise après redémarrage ;
-- ajouter l'adaptateur HTTP/WebSocket local opt-in ;
-- lier par défaut à `127.0.0.1`, générer un jeton et contrôler les origines ;
-- ajouter quotas, backpressure, idempotence et négociation de version ;
+- [x] ajouter l'adaptateur HTTP/WebSocket local opt-in ;
+- [x] lier à `127.0.0.1`, générer un jeton et contrôler les origines ;
+- [x] ajouter quotas, backpressure, idempotence et négociation de version ;
 - [x] documenter un kit de conformité et faire passer un client Node indépendant ;
-- prévoir un hôte headless sans le rendre nécessaire à Tauri.
+- [x] isoler le transport pour un futur hôte headless sans le rendre nécessaire à Tauri.
 
 **Critère de sortie** : deux clients de test indépendants passent la même suite
 contractuelle, tandis que l'application portable fonctionne API réseau désactivée.
@@ -140,9 +140,9 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Prototyper la passerelle loopback désactivée par défaut.
-2. Faire passer la passerelle dans le même kit de conformité.
-3. Ajouter quotas, authentification locale et backpressure avant toute source live.
+1. Construire l'interface de source générique (ajout, test, pause, suppression).
+2. Ajouter le coffre local et le flux OAuth minimal avant Twitch.
+3. Implémenter EventSub avec reconnexion, reprise et backpressure.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et
 consomment uniquement des contrats publics ; elles ne bloquent aucun de ces jalons.

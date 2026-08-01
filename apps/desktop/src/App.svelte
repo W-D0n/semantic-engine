@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import ArbitrationPanel from './lib/ArbitrationPanel.svelte';
   import ContextWorkshop from './lib/ContextWorkshop.svelte';
+  import LoopbackPanel from './lib/LoopbackPanel.svelte';
   import type {
     AuditEntry,
     ContextPackagePreview,
@@ -399,7 +400,7 @@
     </div>
     <div class="stage-facts" aria-label="Propriétés du moteur">
       <span><Zap size={15} /> Synchrone</span>
-      <span><ShieldCheck size={15} /> Hors réseau</span>
+      <span><ShieldCheck size={15} /> Local par défaut</span>
       <span><Braces size={15} /> Contrat JSON</span>
     </div>
   </section>
@@ -617,4 +618,6 @@
       <p class="history-empty">Aucune validation conservée sur cet appareil.</p>
     {/if}
   </section>
+
+  <LoopbackPanel {inTauri} />
 </main>

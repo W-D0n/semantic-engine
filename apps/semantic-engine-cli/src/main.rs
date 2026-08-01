@@ -9,6 +9,7 @@ use std::{
 
 use semantic_engine_core::{Round, Submission, ValidationPolicy, Validator};
 
+use semantic_engine_loopback::{DEFAULT_PORT, LoopbackConfig, start as start_loopback};
 use semantic_engine_package::import_package;
 use semantic_engine_protocol::{handle_json_line, line_too_large_response};
 use semantic_engine_service::{SemanticEngineService, ServiceConfig};
@@ -69,6 +70,10 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     if command.as_deref() == Some("serve") {
         return run_server(args);
+    }
+
+    if command.as_deref() == Some("loopback") {
+        return run_loopback(args);
     }
 
     if command.as_deref() != Some("validate") || args.next().as_deref() != Some("--round") {
@@ -132,6 +137,54 @@ fn run_server(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Erro
         stdout.flush()?;
     }
     Ok(())
+}
+
+fn run_loopback(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>> {
+    if args.next().as_deref() != Some("--enable") || args.next().as_deref() != Some("--audit") {
+        return Err(loopback_usage().into());
+    }
+    let audit_path = args.next().ok_or("missing loopback audit database path")?;
+    let mut config = LoopbackConfig::default();
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--port" => {
+                let port = args
+                    .next()
+                    .ok_or("missing loopback port")?
+                    .parse::<u16>()
+                    .map_err(|_| "loopback port must be between 0 and 65535")?;
+                config.bind_addr.set_port(port);
+            }
+            "--origin" => {
+                let origin = args.next().ok_or("missing allowed browser origin")?;
+                config.allowed_origins.push(origin);
+            }
+            _ => return Err(loopback_usage().into()),
+        }
+    }
+    let service = SemanticEngineService::open(audit_path)?;
+    tokio::runtime::Runtime::new()?.block_on(async move {
+        let server = start_loopback(service, config).await?;
+        println!(
+            "{}",
+            serde_json::json!({
+                "status": "ready",
+                "address": format!("http://{}", server.addr()),
+                "token": server.token(),
+                "protocol_version": semantic_engine_protocol::PROTOCOL_VERSION,
+            })
+        );
+        io::stdout().flush()?;
+        tokio::signal::ctrl_c().await?;
+        server.shutdown().await?;
+        Ok::<(), Box<dyn Error>>(())
+    })
+}
+
+fn loopback_usage() -> String {
+    format!(
+        "usage: semantic-engine-cli loopback --enable --audit <state.sqlite3> [--port <0..65535>] [--origin <origin>] (default port: {DEFAULT_PORT})"
+    )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -322,7 +375,8 @@ fn print_help() {
          Usage:\n  semantic-engine-cli validate --round <round.json>\n  \
          semantic-engine-cli context validate --package <datapackage.json>\n  \
          semantic-engine-cli benchmark (--round <round.json> | --package <datapackage.json>) --submissions <submissions.jsonl> [--iterations <1..1000>]\n  \
-         semantic-engine-cli serve [--audit <audit.sqlite3>]\n\n\
+         semantic-engine-cli serve [--audit <audit.sqlite3>]\n  \
+         semantic-engine-cli loopback --enable --audit <state.sqlite3> [--port <0..65535>] [--origin <origin>]\n\n\
          Reads one Submission JSON object per stdin line and immediately writes one Validation JSON object."
     );
 }
