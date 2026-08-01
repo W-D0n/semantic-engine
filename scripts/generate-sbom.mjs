@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
@@ -9,9 +10,9 @@ const cargo = JSON.parse(
     maxBuffer: 64 * 1024 * 1024,
   }),
 );
-const packageLock = JSON.parse(
-  await readFile(resolve('apps/desktop/package-lock.json'), 'utf8'),
-);
+const cargoLockContent = await readFile(resolve('Cargo.lock'), 'utf8');
+const packageLockContent = await readFile(resolve('apps/desktop/package-lock.json'), 'utf8');
+const packageLock = JSON.parse(packageLockContent);
 const components = new Map();
 
 for (const packageRecord of cargo.packages) {
@@ -57,6 +58,9 @@ for (const [packagePath, packageRecord] of Object.entries(packageLock.packages ?
 const document = {
   bomFormat: 'CycloneDX',
   specVersion: '1.6',
+  serialNumber: `urn:uuid:${uuidV5(
+    'github.com/W-D0n/semantic-engine\0' + cargoLockContent + '\0' + packageLockContent,
+  )}`,
   version: 1,
   metadata: {
     component: {
@@ -83,4 +87,13 @@ process.stdout.write(`CycloneDX SBOM: ${document.components.length} components -
 
 function compact(value) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
+}
+
+function uuidV5(name) {
+  const dnsNamespace = Buffer.from('6ba7b8109dad11d180b400c04fd430c8', 'hex');
+  const bytes = createHash('sha1').update(dnsNamespace).update(name, 'utf8').digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }

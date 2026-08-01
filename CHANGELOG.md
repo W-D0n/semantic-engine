@@ -29,5 +29,7 @@ et les versions suivent SemVer.
 
 - les deux variantes Windows utilisent le frontend isolé produit par le build
   portable et ne dépendent plus d’un ancien `apps/desktop/dist` local.
+- le SBOM CycloneDX possède un numéro de série UUIDv5 reproductible et est
+  contrôlé avant son attestation GitHub.
 
 [Unreleased]: https://github.com/W-D0n/semantic-engine/compare/v0.1.0...HEAD

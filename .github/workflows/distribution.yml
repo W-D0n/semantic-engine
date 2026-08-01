@@ -152,6 +152,7 @@ jobs:
           Move-Item artifacts\SemanticEngine.zip artifacts\windows-release\SemanticEngine-0.1.0-windows-x64-portable.zip
           Copy-Item SemanticEngine.exe artifacts\windows-release\SemanticEngine-0.1.0-windows-x64.exe
           node scripts/generate-sbom.mjs artifacts\windows-release\semantic-engine-0.1.0.cdx.json
+          node scripts/verify-sbom.mjs artifacts\windows-release\semantic-engine-0.1.0.cdx.json
           $lines = Get-ChildItem artifacts\windows-release -File |
             Sort-Object Name |
             ForEach-Object {
