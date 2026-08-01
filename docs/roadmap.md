@@ -69,7 +69,7 @@ Ce jalon rend le produit pilotable sans donner de statut privilégié à un clie
 - [x] ajouter le cycle de sessions et le contexte actif au module d’application ;
 - [x] figer par tests les contrats de cycle de session et d'événements ;
 - [x] conserver JSONL comme transport public sans réseau ;
-- [ ] persister les sessions et leur journal pour la reprise après redémarrage ;
+- [x] persister les sessions et leur journal pour la reprise après redémarrage ;
 - ajouter l'adaptateur HTTP/WebSocket local opt-in ;
 - lier par défaut à `127.0.0.1`, générer un jeton et contrôler les origines ;
 - ajouter quotas, backpressure, idempotence et négociation de version ;
@@ -140,9 +140,9 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Rendre le journal de session durable sans dupliquer l’audit ni conserver le chat brut.
-2. Créer une suite de conformité exécutable par un second client indépendant.
-3. Prototyper ensuite la passerelle loopback désactivée par défaut.
+1. Créer une suite de conformité exécutable par un second client indépendant.
+2. Prototyper la passerelle loopback désactivée par défaut.
+3. Ajouter quotas, authentification locale et backpressure avant toute source live.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et
 consomment uniquement des contrats publics ; elles ne bloquent aucun de ces jalons.

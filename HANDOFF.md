@@ -16,9 +16,10 @@ Lire en priorité `docs/architecture/overview.md`,
 
 ## Objectif de la prochaine session
 
-Rendre les sessions et leur journal récupérables après redémarrage, puis faire
-passer un second client indépendant dans la suite de conformité. Le cycle public
-v1, son transport JSONL, le cache, l’audit minimisé et l’export immuable sont livrés.
+Faire passer un second client indépendant dans la suite de conformité, puis
+prototyper la passerelle loopback désactivée par défaut. Le cycle public v1, sa
+reprise SQLite, son transport JSONL, le cache, l’audit minimisé et l’export
+immuable sont livrés.
 
 ## État au 1er août 2026
 
@@ -40,14 +41,15 @@ v1, son transport JSONL, le cache, l’audit minimisé et l’export immuable so
   conflits explicites et cache 1 024 entrées/10 minutes partitionné par contexte ;
 - cycle de session v1 lié à une manche et à une empreinte de contexte, contrôlable
   depuis Tauri et journalisé en événements minimisés à séquence monotone ;
+- store de sessions SQLite normalisé : reprise de l’état actif dans la portable,
+  rejeu et arbitrage idempotents après redémarrage, sans texte du chat ;
 - crate `semantic-engine-protocol` et commande `serve` : JSONL corrélé, versionné,
   borné à 1 Mio par ligne et capable de continuer après une requête invalide ;
 - benchmark CLI reproductible p50/p95/p99 ; sur 84 titres, le cache chaud réduit
   le p50 du service de 583,1 µs à 399,8 µs sur la machine de référence ;
 - portable Tauri hors ligne avec WebView2 fixe, checksums et lanceur racine ;
 - variante légère `SemanticEngine.exe` toujours disponible ;
-- la reprise de session après redémarrage, HTTP/WebSocket, Twitch, YouTube, auth
-  et scoreboard ne sont pas implémentés.
+- HTTP/WebSocket, Twitch, YouTube, auth et scoreboard ne sont pas implémentés.
 
 ## Lire d’abord
 
@@ -114,8 +116,6 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Concevoir d’abord la persistance du journal de session et son mécanisme de reprise,
-sans dupliquer l’audit ni promettre une rétention infinie. Faire ensuite passer
-le sidecar JSONL et un second client par la même suite de conformité. Ne pas
-réintroduire de dépendance vers Tauri, de texte brut persistant ni de règle de
-scoreboard.
+Faire passer le sidecar JSONL et un second client par la même suite de conformité,
+puis construire l’adaptateur loopback sur ce contrat. Ne pas réintroduire de
+dépendance vers Tauri, de texte brut persistant ni de règle de scoreboard.

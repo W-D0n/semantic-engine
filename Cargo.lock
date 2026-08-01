@@ -2718,9 +2718,19 @@ version = "0.1.0"
 dependencies = [
  "semantic-engine-audit-store",
  "semantic-engine-core",
+ "semantic-engine-session-store",
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
+]
+
+[[package]]
+name = "semantic-engine-session-store"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "tempfile",
 ]
 
 [[package]]

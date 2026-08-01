@@ -10,6 +10,7 @@
     Decision,
     HistoryItem,
     OperatorResolution,
+    ResumableSession,
     Round,
     SessionSnapshot,
     TargetRecord,
@@ -54,7 +55,7 @@
   let selectedPackagePath = $state('');
   let activeContext = $state<ContextPackagePreview | null>(null);
   let auditBusy = $state(false);
-  let sessionId = $state(crypto.randomUUID());
+  let sessionId = $state<string>(crypto.randomUUID());
   let sessionSnapshot = $state<SessionSnapshot | null>(null);
   let sessionDefinitionKey = '';
   let sessionBusy = $state(false);
@@ -82,14 +83,16 @@
     };
   }
 
-  function currentSessionDefinitionKey() {
+  function currentSessionDefinitionKey(
+    contextPackageSha256 = activeContext?.package_sha256 ?? null,
+  ) {
     return JSON.stringify({
       canonical: canonical.trim(),
       aliases: aliases
         .split('\n')
         .map((alias) => alias.trim())
         .filter(Boolean),
-      context_package_sha256: activeContext?.package_sha256 ?? null,
+      context_package_sha256: contextPackageSha256,
       policy: { accept_threshold: 0.87, review_threshold: 0.72, ambiguity_margin: 0.05 },
     });
   }
@@ -168,10 +171,29 @@
 
   onMount(() => {
     if (inTauri) {
-      void loadCurrentContext();
+      void restoreApplicationState();
       void loadAudit();
     }
   });
+
+  async function restoreApplicationState() {
+    await loadCurrentContext();
+    try {
+      const resumable = await invoke<ResumableSession | null>('latest_active_session_ipc');
+      const target = resumable?.round.targets[0];
+      if (!resumable || !target) return;
+      canonical = target.canonical;
+      aliases = target.aliases.join('\n');
+      sessionId = resumable.snapshot.session_id;
+      sessionSnapshot = resumable.snapshot;
+      sequence = resumable.next_source_sequence;
+      sessionDefinitionKey = currentSessionDefinitionKey(
+        resumable.snapshot.context_package_sha256,
+      );
+    } catch (cause) {
+      error = `Impossible de reprendre la session active : ${cause instanceof Error ? cause.message : String(cause)}`;
+    }
+  }
 
   function historyFromAudit(entry: AuditEntry): HistoryItem {
     const validation = entry.validation;

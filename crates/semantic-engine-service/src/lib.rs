@@ -8,8 +8,13 @@ use std::{
 pub use semantic_engine_audit_store::AuditEntry;
 use semantic_engine_audit_store::{AuditError, AuditStore, RetentionPolicy};
 use semantic_engine_core::{
-    Decision, EvidenceKind, MAX_IDENTIFIER_CHARS, OperatorResolution, OperatorResolutionRequest,
-    ResolutionIssue, Round, Submission, Validation, ValidationIssue, Validator, resolve_validation,
+    Decision, Evidence, EvidenceKind, MAX_IDENTIFIER_CHARS, OperatorResolution,
+    OperatorResolutionRequest, ResolutionIssue, Round, Submission, Validation, ValidationIssue,
+    Validator, resolve_validation,
+};
+use semantic_engine_session_store::{
+    SessionStore, SessionStoreError, StoredDelivery, StoredEvent, StoredSessionHeader,
+    StoredSessionState,
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -65,6 +70,7 @@ pub enum ServiceError {
     InvalidSession,
     Resolution(String),
     Audit(String),
+    SessionStore(String),
     Internal(String),
 }
 
@@ -87,6 +93,9 @@ impl fmt::Display for ServiceError {
             Self::InvalidSession => write!(formatter, "session definition is invalid"),
             Self::Resolution(message) => write!(formatter, "resolution was refused: {message}"),
             Self::Audit(message) => write!(formatter, "audit failed: {message}"),
+            Self::SessionStore(message) => {
+                write!(formatter, "session persistence failed: {message}")
+            }
             Self::Internal(message) => write!(formatter, "service internal error: {message}"),
         }
     }
@@ -118,6 +127,13 @@ pub struct SessionSnapshot {
     pub created_at_ms: u64,
     pub ended_at_ms: Option<u64>,
     pub latest_event_sequence: u64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ResumableSession {
+    pub snapshot: SessionSnapshot,
+    pub round: Round,
+    pub next_source_sequence: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -168,6 +184,12 @@ impl From<AuditError> for ServiceError {
     }
 }
 
+impl From<SessionStoreError> for ServiceError {
+    fn from(error: SessionStoreError) -> Self {
+        Self::SessionStore(error.to_string())
+    }
+}
+
 #[derive(Clone)]
 struct RecordedValidation {
     request_fingerprint: [u8; 32],
@@ -192,12 +214,18 @@ struct SessionRecord {
     ended_at_ms: Option<u64>,
     latest_event_sequence: u64,
     events: VecDeque<SessionEvent>,
-    emitted_validation_ids: VecDeque<String>,
-    emitted_resolution_ids: VecDeque<String>,
+    deliveries: VecDeque<SessionDelivery>,
+}
+
+struct SessionDelivery {
+    request_fingerprint: [u8; 32],
+    validation: SessionValidation,
+    resolution_emitted: bool,
 }
 
 pub struct SemanticEngineService {
     audit: AuditStore,
+    session_store: SessionStore,
     config: ServiceConfig,
     recorded: VecDeque<RecordedValidation>,
     cache: VecDeque<CacheEntry>,
@@ -207,21 +235,34 @@ pub struct SemanticEngineService {
 
 impl SemanticEngineService {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, ServiceError> {
+        let path = path.as_ref();
         let audit = AuditStore::open(path, RetentionPolicy::default())?;
-        Self::new(audit, ServiceConfig::default())
+        let session_store = SessionStore::open(path)?;
+        Self::new_with_session_store(audit, session_store, ServiceConfig::default())
     }
 
     pub fn in_memory() -> Result<Self, ServiceError> {
         let audit = AuditStore::open_in_memory(RetentionPolicy::default())?;
-        Self::new(audit, ServiceConfig::default())
+        let session_store = SessionStore::open_in_memory()?;
+        Self::new_with_session_store(audit, session_store, ServiceConfig::default())
     }
 
     pub fn in_memory_with_config(config: ServiceConfig) -> Result<Self, ServiceError> {
         let audit = AuditStore::open_in_memory(RetentionPolicy::default())?;
-        Self::new(audit, config)
+        let session_store = SessionStore::open_in_memory()?;
+        Self::new_with_session_store(audit, session_store, config)
     }
 
     pub fn new(audit: AuditStore, config: ServiceConfig) -> Result<Self, ServiceError> {
+        let session_store = SessionStore::open_in_memory()?;
+        Self::new_with_session_store(audit, session_store, config)
+    }
+
+    fn new_with_session_store(
+        audit: AuditStore,
+        session_store: SessionStore,
+        config: ServiceConfig,
+    ) -> Result<Self, ServiceError> {
         if config.max_recorded_validations == 0
             || config.max_recorded_validations > MAX_RECORDED_VALIDATIONS
             || config.cache_capacity > MAX_CACHE_CAPACITY
@@ -233,12 +274,14 @@ impl SemanticEngineService {
         {
             return Err(ServiceError::InvalidConfig);
         }
+        let sessions = restore_sessions(&session_store, &config)?;
         Ok(Self {
             audit,
+            session_store,
             config,
             recorded: VecDeque::new(),
             cache: VecDeque::new(),
-            sessions: VecDeque::new(),
+            sessions,
             stats: ServiceStats::default(),
         })
     }
@@ -312,6 +355,7 @@ impl SemanticEngineService {
     }
 
     pub fn purge_audit(&mut self) -> Result<usize, ServiceError> {
+        self.session_store.purge_all()?;
         let deleted = self.audit.purge_all()?;
         self.recorded.clear();
         self.cache.clear();
@@ -344,6 +388,7 @@ impl SemanticEngineService {
             if let Some(position) =
                 self.sessions.iter().position(|session| session.state == SessionState::Ended)
             {
+                self.session_store.delete_ended(&self.sessions[position].session_id)?;
                 self.sessions.remove(position);
             } else {
                 return Err(ServiceError::SessionCapacityExceeded);
@@ -361,8 +406,7 @@ impl SemanticEngineService {
             ended_at_ms: None,
             latest_event_sequence: 0,
             events: VecDeque::new(),
-            emitted_validation_ids: VecDeque::new(),
-            emitted_resolution_ids: VecDeque::new(),
+            deliveries: VecDeque::new(),
         };
         let started_event = SessionEventKind::SessionStarted {
             round_id: session.round.id.clone(),
@@ -374,6 +418,12 @@ impl SemanticEngineService {
             started_event,
             self.config.max_events_per_session,
         );
+        let header = stored_session_header(&session)?;
+        let event = session
+            .events
+            .back()
+            .ok_or_else(|| ServiceError::Internal("started session event is missing".into()))?;
+        self.session_store.create_session(&header, &stored_event(event)?)?;
         let snapshot = session_snapshot(&session);
         self.sessions.push_back(session);
         Ok(snapshot)
@@ -390,6 +440,21 @@ impl SemanticEngineService {
             .ok_or(ServiceError::SessionMissing)
     }
 
+    pub fn latest_active_session(&self) -> Option<ResumableSession> {
+        self.sessions.iter().rev().find(|session| session.state == SessionState::Active).map(
+            |session| ResumableSession {
+                snapshot: session_snapshot(session),
+                round: session.round.clone(),
+                next_source_sequence: session
+                    .deliveries
+                    .iter()
+                    .map(|delivery| delivery.validation.source_sequence)
+                    .max()
+                    .map_or(0, |sequence| sequence.saturating_add(1)),
+            },
+        )
+    }
+
     pub fn submit(
         &mut self,
         session_id: &str,
@@ -398,7 +463,7 @@ impl SemanticEngineService {
         if !valid_session_identifier(session_id) {
             return Err(ServiceError::InvalidSession);
         }
-        let (round, context_package_sha256) = {
+        let (round, context_package_sha256, existing_delivery) = {
             let session = self
                 .sessions
                 .iter()
@@ -407,27 +472,63 @@ impl SemanticEngineService {
             if session.state == SessionState::Ended {
                 return Err(ServiceError::SessionEnded);
             }
-            (session.round.clone(), session.context_package_sha256.clone())
+            (
+                session.round.clone(),
+                session.context_package_sha256.clone(),
+                session
+                    .deliveries
+                    .iter()
+                    .find(|delivery| delivery.validation.message_id == submission.message_id)
+                    .map(|delivery| (delivery.request_fingerprint, delivery.validation.clone())),
+            )
         };
+        let fingerprint =
+            request_fingerprint(&round, &submission, context_package_sha256.as_deref());
+        if let Some((existing_fingerprint, _)) = existing_delivery {
+            if existing_fingerprint != fingerprint {
+                return Err(ServiceError::IdentityConflict);
+            }
+            self.stats.deduplicated = self.stats.deduplicated.saturating_add(1);
+            return Ok(Validator::default().validate(&round, &submission));
+        }
+
         let validation = self.validate(round, submission, context_package_sha256.as_deref())?;
+        let occurred_at_ms = now_ms()?;
+        let validation_summary = session_validation(&validation);
+        let (event, delivery) = {
+            let session = self
+                .sessions
+                .iter()
+                .find(|session| session.session_id == session_id)
+                .ok_or(ServiceError::SessionMissing)?;
+            let event = new_session_event(
+                session,
+                occurred_at_ms,
+                SessionEventKind::ValidationRecorded(validation_summary.clone()),
+            );
+            let delivery = SessionDelivery {
+                request_fingerprint: fingerprint,
+                validation: validation_summary,
+                resolution_emitted: false,
+            };
+            (event, delivery)
+        };
+        self.session_store.record_validation(
+            session_id,
+            &stored_event(&event)?,
+            &stored_delivery(&delivery, event.sequence)?,
+            self.config.max_events_per_session,
+            self.config.max_recorded_validations,
+        )?;
         let session = self
             .sessions
             .iter_mut()
             .find(|session| session.session_id == session_id)
             .ok_or(ServiceError::SessionMissing)?;
-        let already_emitted = session.emitted_validation_ids.contains(&validation.message_id);
-        if !already_emitted {
-            append_session_event(
-                session,
-                now_ms()?,
-                SessionEventKind::ValidationRecorded(session_validation(&validation)),
-                self.config.max_events_per_session,
-            );
-            remember_emitted_identity(
-                &mut session.emitted_validation_ids,
-                validation.message_id.clone(),
-                self.config.max_recorded_validations,
-            );
+        push_session_event(session, event, self.config.max_events_per_session);
+        session.deliveries.push_back(delivery);
+        while session.deliveries.len() > self.config.max_recorded_validations {
+            session.deliveries.pop_front();
         }
         Ok(validation)
     }
@@ -440,37 +541,65 @@ impl SemanticEngineService {
         if !valid_session_identifier(session_id) {
             return Err(ServiceError::InvalidSession);
         }
-        let session = self
-            .sessions
-            .iter()
-            .find(|session| session.session_id == session_id)
-            .ok_or(ServiceError::SessionMissing)?;
-        if session.state == SessionState::Ended {
-            return Err(ServiceError::SessionEnded);
+        let (round, validation, already_emitted) = {
+            let session = self
+                .sessions
+                .iter()
+                .find(|session| session.session_id == session_id)
+                .ok_or(ServiceError::SessionMissing)?;
+            if session.state == SessionState::Ended {
+                return Err(ServiceError::SessionEnded);
+            }
+            if session.round.id != request.round_id {
+                return Err(ServiceError::SessionConflict);
+            }
+            let delivery = session
+                .deliveries
+                .iter()
+                .find(|delivery| delivery.validation.message_id == request.message_id)
+                .ok_or(ServiceError::ValidationMissing)?;
+            (
+                session.round.clone(),
+                validation_from_session(&delivery.validation),
+                delivery.resolution_emitted,
+            )
+        };
+        let resolution =
+            resolve_validation(&round, &validation, request).map_err(resolution_error)?;
+        self.audit.record_resolution(&resolution)?;
+        if already_emitted {
+            return Ok(resolution);
         }
-        if session.round.id != request.round_id {
-            return Err(ServiceError::SessionConflict);
-        }
-        let resolution = self.resolve(request)?;
+        let event = {
+            let session = self
+                .sessions
+                .iter()
+                .find(|session| session.session_id == session_id)
+                .ok_or(ServiceError::SessionMissing)?;
+            new_session_event(
+                session,
+                now_ms()?,
+                SessionEventKind::ResolutionRecorded(resolution.clone()),
+            )
+        };
+        self.session_store.record_resolution(
+            session_id,
+            &resolution.message_id,
+            &stored_event(&event)?,
+            self.config.max_events_per_session,
+        )?;
         let session = self
             .sessions
             .iter_mut()
             .find(|session| session.session_id == session_id)
             .ok_or(ServiceError::SessionMissing)?;
-        let already_emitted = session.emitted_resolution_ids.contains(&resolution.message_id);
-        if !already_emitted {
-            append_session_event(
-                session,
-                now_ms()?,
-                SessionEventKind::ResolutionRecorded(resolution.clone()),
-                self.config.max_events_per_session,
-            );
-            remember_emitted_identity(
-                &mut session.emitted_resolution_ids,
-                resolution.message_id.clone(),
-                self.config.max_recorded_validations,
-            );
-        }
+        push_session_event(session, event, self.config.max_events_per_session);
+        let delivery = session
+            .deliveries
+            .iter_mut()
+            .find(|delivery| delivery.validation.message_id == resolution.message_id)
+            .ok_or(ServiceError::ValidationMissing)?;
+        delivery.resolution_emitted = true;
         Ok(resolution)
     }
 
@@ -487,14 +616,15 @@ impl SemanticEngineService {
             return Ok(session_snapshot(session));
         }
         let occurred_at_ms = now_ms()?;
+        let event = new_session_event(session, occurred_at_ms, SessionEventKind::SessionEnded);
+        self.session_store.end_session(
+            session_id,
+            &stored_event(&event)?,
+            self.config.max_events_per_session,
+        )?;
         session.state = SessionState::Ended;
         session.ended_at_ms = Some(occurred_at_ms);
-        append_session_event(
-            session,
-            occurred_at_ms,
-            SessionEventKind::SessionEnded,
-            self.config.max_events_per_session,
-        );
+        push_session_event(session, event, self.config.max_events_per_session);
         Ok(session_snapshot(session))
     }
 
@@ -635,23 +765,176 @@ fn append_session_event(
     kind: SessionEventKind,
     max_events: usize,
 ) {
-    session.latest_event_sequence = session.latest_event_sequence.saturating_add(1);
-    session.events.push_back(SessionEvent {
+    let event = new_session_event(session, occurred_at_ms, kind);
+    push_session_event(session, event, max_events);
+}
+
+fn new_session_event(
+    session: &SessionRecord,
+    occurred_at_ms: u64,
+    kind: SessionEventKind,
+) -> SessionEvent {
+    SessionEvent {
         contract_version: SESSION_CONTRACT_VERSION,
         session_id: session.session_id.clone(),
-        sequence: session.latest_event_sequence,
+        sequence: session.latest_event_sequence.saturating_add(1),
         occurred_at_ms,
         kind,
-    });
+    }
+}
+
+fn push_session_event(session: &mut SessionRecord, event: SessionEvent, max_events: usize) {
+    session.latest_event_sequence = event.sequence;
+    session.events.push_back(event);
     while session.events.len() > max_events {
         session.events.pop_front();
     }
 }
 
-fn remember_emitted_identity(identities: &mut VecDeque<String>, identity: String, capacity: usize) {
-    identities.push_back(identity);
-    while identities.len() > capacity {
-        identities.pop_front();
+fn stored_session_header(session: &SessionRecord) -> Result<StoredSessionHeader, ServiceError> {
+    let definition = StartSession {
+        session_id: session.session_id.clone(),
+        round: session.round.clone(),
+        context_package_sha256: session.context_package_sha256.clone(),
+    };
+    Ok(StoredSessionHeader {
+        session_id: session.session_id.clone(),
+        definition_fingerprint: session.definition_fingerprint,
+        definition_json: serde_json::to_string(&definition)
+            .map_err(|error| ServiceError::Internal(error.to_string()))?,
+        state: match session.state {
+            SessionState::Active => StoredSessionState::Active,
+            SessionState::Ended => StoredSessionState::Ended,
+        },
+        created_at_ms: session.created_at_ms,
+        ended_at_ms: session.ended_at_ms,
+        latest_event_sequence: session.latest_event_sequence,
+    })
+}
+
+fn stored_event(event: &SessionEvent) -> Result<StoredEvent, ServiceError> {
+    Ok(StoredEvent {
+        sequence: event.sequence,
+        occurred_at_ms: event.occurred_at_ms,
+        payload_json: serde_json::to_string(event)
+            .map_err(|error| ServiceError::Internal(error.to_string()))?,
+    })
+}
+
+fn stored_delivery(
+    delivery: &SessionDelivery,
+    sequence: u64,
+) -> Result<StoredDelivery, ServiceError> {
+    Ok(StoredDelivery {
+        message_id: delivery.validation.message_id.clone(),
+        sequence,
+        request_fingerprint: delivery.request_fingerprint,
+        validation_json: serde_json::to_string(&delivery.validation)
+            .map_err(|error| ServiceError::Internal(error.to_string()))?,
+        resolution_emitted: delivery.resolution_emitted,
+    })
+}
+
+fn restore_sessions(
+    store: &SessionStore,
+    config: &ServiceConfig,
+) -> Result<VecDeque<SessionRecord>, ServiceError> {
+    let stored = store.load_sessions()?;
+    if stored.len() > config.max_sessions {
+        return Err(ServiceError::SessionCapacityExceeded);
+    }
+    stored
+        .into_iter()
+        .map(|stored| {
+            let definition: StartSession = serde_json::from_str(&stored.header.definition_json)
+                .map_err(|error| ServiceError::SessionStore(error.to_string()))?;
+            validate_session_request(&definition)?;
+            if definition.session_id != stored.header.session_id
+                || session_definition_fingerprint(&definition)
+                    != stored.header.definition_fingerprint
+            {
+                return Err(ServiceError::SessionStore(
+                    "durable session definition fingerprint is invalid".into(),
+                ));
+            }
+            let mut events = stored
+                .events
+                .into_iter()
+                .map(|item| {
+                    let event: SessionEvent = serde_json::from_str(&item.payload_json)
+                        .map_err(|error| ServiceError::SessionStore(error.to_string()))?;
+                    if event.session_id != definition.session_id
+                        || event.sequence != item.sequence
+                        || event.occurred_at_ms != item.occurred_at_ms
+                        || event.contract_version != SESSION_CONTRACT_VERSION
+                    {
+                        return Err(ServiceError::SessionStore(
+                            "durable session event identity is invalid".into(),
+                        ));
+                    }
+                    Ok(event)
+                })
+                .collect::<Result<VecDeque<_>, _>>()?;
+            while events.len() > config.max_events_per_session {
+                events.pop_front();
+            }
+            let mut deliveries = stored
+                .deliveries
+                .into_iter()
+                .map(|item| {
+                    let validation: SessionValidation = serde_json::from_str(&item.validation_json)
+                        .map_err(|error| ServiceError::SessionStore(error.to_string()))?;
+                    if validation.message_id != item.message_id {
+                        return Err(ServiceError::SessionStore(
+                            "durable delivery identity is invalid".into(),
+                        ));
+                    }
+                    Ok(SessionDelivery {
+                        request_fingerprint: item.request_fingerprint,
+                        validation,
+                        resolution_emitted: item.resolution_emitted,
+                    })
+                })
+                .collect::<Result<VecDeque<_>, _>>()?;
+            while deliveries.len() > config.max_recorded_validations {
+                deliveries.pop_front();
+            }
+            let state = match stored.header.state {
+                StoredSessionState::Active => SessionState::Active,
+                StoredSessionState::Ended => SessionState::Ended,
+            };
+            Ok(SessionRecord {
+                definition_fingerprint: stored.header.definition_fingerprint,
+                session_id: definition.session_id,
+                round: definition.round,
+                context_package_sha256: definition.context_package_sha256,
+                state,
+                created_at_ms: stored.header.created_at_ms,
+                ended_at_ms: stored.header.ended_at_ms,
+                latest_event_sequence: stored.header.latest_event_sequence,
+                events,
+                deliveries,
+            })
+        })
+        .collect()
+}
+
+fn validation_from_session(validation: &SessionValidation) -> Validation {
+    Validation {
+        round_id: validation.round_id.clone(),
+        message_id: validation.message_id.clone(),
+        participant_id: validation.participant_id.clone(),
+        source_sequence: validation.source_sequence,
+        decision: validation.decision.clone(),
+        target_id: validation.target_id.clone(),
+        score: validation.score,
+        evidence: validation
+            .evidence_kinds
+            .iter()
+            .cloned()
+            .map(|kind| Evidence { kind, matched_expression: String::new() })
+            .collect(),
+        issue: validation.issue.clone(),
     }
 }
 

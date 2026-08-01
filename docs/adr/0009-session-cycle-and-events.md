@@ -19,7 +19,7 @@ idempotent pour une définition identique et conflictuel pour une redéfinition.
 
 Chaque changement utile crée un événement à séquence monotone. Les événements de
 validation ne contiennent ni texte du chat ni expression correspondante. La
-rétention en mémoire est bornée ; les pages signalent explicitement une lacune
+rétention SQLite est bornée ; les pages signalent explicitement une lacune
 avec `truncated` et la première séquence encore disponible.
 
 `semantic-engine-protocol` adapte ces opérations vers des enveloppes versionnées.
@@ -31,5 +31,6 @@ futur HTTP/WebSocket devra conserver la même sémantique.
 - un workflow de score peut consommer des validations sans entrer dans le cœur ;
 - changer de cible ou de contexte exige une nouvelle session ;
 - un client doit traiter les conflits, fins de session et lacunes d’événements ;
-- la reprise après redémarrage n’est pas encore garantie et reste un travail M2 ;
+- la reprise après redémarrage conserve session, événements, empreintes
+  d’idempotence et résolutions, sans conserver le texte soumis ;
 - toute persistance future conserve la minimisation des données et les limites.

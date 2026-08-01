@@ -49,6 +49,13 @@ l’application, à côté de `contexts.sqlite3`, pas dans le dossier de l’ex�
 Le module `semantic-engine-audit-store` peut être réutilisé par un hôte headless
 ou un autre transport sans lancer la WebView.
 
+Le même fichier contient des tables séparées gérées par
+`semantic-engine-session-store`. Elles conservent la définition de la manche,
+les événements minimisés et des empreintes SHA-256 pour détecter un rejeu
+contradictoire après redémarrage. Le texte soumis n’y est jamais écrit. Effacer
+le journal depuis l’application purge ensemble audit et sessions afin de ne pas
+laisser d’identifiants orphelins.
+
 ```mermaid
 flowchart LR
     S["Soumission en mémoire"] --> V["Validation moteur"]

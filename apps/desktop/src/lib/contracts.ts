@@ -27,6 +27,12 @@ export type SessionSnapshot = {
   latest_event_sequence: number;
 };
 
+export type ResumableSession = {
+  snapshot: SessionSnapshot;
+  round: Round;
+  next_source_sequence: number;
+};
+
 export type Validation = {
   round_id: string;
   message_id: string;

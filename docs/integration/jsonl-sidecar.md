@@ -62,12 +62,12 @@ un conflit explicite. Une session terminée refuse les nouvelles soumissions et
 résolutions. Les événements portent une séquence monotone et excluent le texte
 du chat ainsi que l'expression reconnue.
 
-Le journal de session est actuellement **borné et en mémoire**. Une page
-`events` fournit `earliest_available_sequence`, `latest_sequence` et
-`truncated`; un client ne doit donc jamais interpréter une absence comme la
-preuve qu'aucun événement antérieur n'a existé. L'audit SQLite minimisé reste
-persistant, mais la reprise d'une session après redémarrage appartient encore au
-jalon de durabilité M2.
+Le journal de session est **borné et persistant** lorsque le sidecar reçoit
+`--audit <chemin.sqlite3>`. Sans cette option, `serve` reste volontairement
+éphémère. Une page `events` fournit `earliest_available_sequence`,
+`latest_sequence` et `truncated`; un client ne doit donc jamais interpréter une
+absence comme la preuve qu'aucun événement antérieur n'a existé. L'application
+portable active toujours la persistance et reprend sa dernière session active.
 
 Le transport refuse une ligne supérieure à 1 Mio, renvoie une erreur structurée,
 vide la fin de cette ligne puis continue avec la suivante. Il ne faut jamais

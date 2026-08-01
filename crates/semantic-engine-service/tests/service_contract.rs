@@ -119,6 +119,13 @@ fn invalid_non_finite_policy_still_returns_the_core_validation_issue() {
 #[test]
 fn resolution_and_purge_flow_through_the_shared_service() {
     let mut service = service(4, Duration::from_secs(60));
+    service
+        .start_session(StartSession {
+            session_id: "purged-session".to_owned(),
+            round: round(),
+            context_package_sha256: None,
+        })
+        .expect("session before purge");
     let validation = service
         .validate(round(), submission("m1", "v1", 1, "elden kings"), None)
         .expect("validation");
@@ -137,6 +144,7 @@ fn resolution_and_purge_flow_through_the_shared_service() {
 
     assert_eq!(service.purge_audit().expect("purge"), 1);
     assert!(service.recent_audit(8).expect("empty audit").is_empty());
+    assert_eq!(service.session("purged-session"), Err(ServiceError::SessionMissing));
     assert_eq!(
         service.resolve(OperatorResolutionRequest {
             round_id: "round-1".to_owned(),
@@ -237,4 +245,92 @@ fn bounded_event_page_reports_a_gap_instead_of_hiding_loss() {
         .expect("deduplicated submit");
     let deduplicated = service.session_events("session-1", 0, 10).expect("events");
     assert_eq!(deduplicated.latest_sequence, 6);
+}
+
+#[test]
+fn active_session_idempotence_and_resolution_survive_service_restart() {
+    let directory = tempfile::tempdir().expect("temporary directory");
+    let database = directory.path().join("semantic-engine.sqlite3");
+    let private_text = "elden kings PRIVATE-CHAT-MARKER";
+    let first_validation;
+
+    {
+        let mut service = SemanticEngineService::open(&database).expect("open service");
+        service
+            .start_session(StartSession {
+                session_id: "durable-session".to_owned(),
+                round: round(),
+                context_package_sha256: Some("a".repeat(64)),
+            })
+            .expect("start session");
+        first_validation = service
+            .submit("durable-session", submission("durable-message", "viewer", 42, private_text))
+            .expect("submit before restart");
+        assert_eq!(service.session("durable-session").unwrap().latest_event_sequence, 2);
+    }
+
+    {
+        let mut service = SemanticEngineService::open(&database).expect("reopen service");
+        let snapshot = service.session("durable-session").expect("restored session");
+        assert_eq!(snapshot.state, SessionState::Active);
+        assert_eq!(snapshot.latest_event_sequence, 2);
+        let resumable = service.latest_active_session().expect("resumable session");
+        assert_eq!(resumable.snapshot, snapshot);
+        assert_eq!(resumable.round, round());
+        assert_eq!(resumable.next_source_sequence, 43);
+        let duplicate = service
+            .submit("durable-session", submission("durable-message", "viewer", 42, private_text))
+            .expect("idempotent retry after restart");
+        assert_eq!(duplicate, first_validation);
+        assert_eq!(service.session("durable-session").unwrap().latest_event_sequence, 2);
+        assert_eq!(
+            service.submit(
+                "durable-session",
+                submission("durable-message", "viewer", 42, "different content"),
+            ),
+            Err(ServiceError::IdentityConflict)
+        );
+        let resolution = service
+            .resolve_session(
+                "durable-session",
+                OperatorResolutionRequest {
+                    round_id: "round-1".to_owned(),
+                    message_id: "durable-message".to_owned(),
+                    verdict: ResolutionVerdict::Accepted,
+                    target_id: Some("elden-ring".to_owned()),
+                    note: "Revue après reprise".to_owned(),
+                },
+            )
+            .expect("resolve restored validation");
+        assert_eq!(resolution.final_decision, Decision::Accepted);
+        assert_eq!(service.session("durable-session").unwrap().latest_event_sequence, 3);
+    }
+
+    {
+        let mut service = SemanticEngineService::open(&database).expect("second reopen");
+        let events = service.session_events("durable-session", 0, 10).expect("restored events");
+        assert_eq!(events.events.len(), 3);
+        assert_eq!(events.latest_sequence, 3);
+        service
+            .resolve_session(
+                "durable-session",
+                OperatorResolutionRequest {
+                    round_id: "round-1".to_owned(),
+                    message_id: "durable-message".to_owned(),
+                    verdict: ResolutionVerdict::Accepted,
+                    target_id: Some("elden-ring".to_owned()),
+                    note: "Revue après reprise".to_owned(),
+                },
+            )
+            .expect("idempotent resolution after restart");
+        assert_eq!(service.session("durable-session").unwrap().latest_event_sequence, 3);
+        service.end_session("durable-session").expect("end restored session");
+    }
+
+    let service = SemanticEngineService::open(&database).expect("reopen ended session");
+    assert_eq!(service.session("durable-session").unwrap().state, SessionState::Ended);
+    let database_bytes = std::fs::read(database).expect("read database");
+    assert!(
+        !database_bytes.windows(private_text.len()).any(|window| window == private_text.as_bytes())
+    );
 }

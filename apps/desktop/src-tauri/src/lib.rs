@@ -6,7 +6,8 @@ use semantic_engine_core::{
 };
 use semantic_engine_package::{ImportedContext, SourceMetadata, export_package, import_package};
 use semantic_engine_service::{
-    AuditEntry, SemanticEngineService, SessionEventsPage, SessionSnapshot, StartSession,
+    AuditEntry, ResumableSession, SemanticEngineService, SessionEventsPage, SessionSnapshot,
+    StartSession,
 };
 use semver::Version;
 use serde::Serialize;
@@ -106,6 +107,16 @@ fn current_session_ipc(
         .map_err(|_| "semantic engine service lock is poisoned".to_string())?
         .session(&session_id)
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn latest_active_session_ipc(
+    service: State<'_, Mutex<SemanticEngineService>>,
+) -> Result<Option<ResumableSession>, String> {
+    Ok(service
+        .lock()
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .latest_active_session())
 }
 
 #[tauri::command]
@@ -308,6 +319,7 @@ pub fn run() {
             purge_audit_ipc,
             start_session_ipc,
             current_session_ipc,
+            latest_active_session_ipc,
             submit_session_ipc,
             resolve_session_ipc,
             end_session_ipc,

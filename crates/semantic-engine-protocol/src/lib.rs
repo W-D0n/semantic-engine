@@ -193,6 +193,7 @@ fn service_failure(request_id: String, error: ServiceError) -> ResponseEnvelope 
         ServiceError::InvalidSession => ("invalid_session", false),
         ServiceError::Resolution(_) => ("resolution_rejected", false),
         ServiceError::Audit(_) => ("audit_unavailable", true),
+        ServiceError::SessionStore(_) => ("session_store_unavailable", true),
         ServiceError::Internal(_) => ("internal_error", true),
     };
     failure(request_id, code, error.to_string(), retryable)

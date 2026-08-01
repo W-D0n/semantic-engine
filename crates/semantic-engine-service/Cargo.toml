@@ -7,8 +7,10 @@ rust-version.workspace = true
 [dependencies]
 semantic-engine-audit-store = { path = "../semantic-engine-audit-store" }
 semantic-engine-core = { path = "../semantic-engine-core" }
+semantic-engine-session-store = { path = "../semantic-engine-session-store" }
 serde.workspace = true
+serde_json.workspace = true
 sha2.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
+tempfile = "3"
