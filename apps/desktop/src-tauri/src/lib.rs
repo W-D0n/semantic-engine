@@ -1,67 +1,15 @@
-use std::{collections::VecDeque, fs, path::PathBuf, sync::Mutex};
+use std::{fs, path::PathBuf, sync::Mutex};
 
-use semantic_engine_audit_store::{AuditEntry, AuditStore, RetentionPolicy};
 use semantic_engine_context_store::{ContextStore, StoredContext, TargetRecord};
 use semantic_engine_core::{
-    AnswerTarget, OperatorResolution, OperatorResolutionRequest, ResolutionIssue, Round,
-    Submission, Validation, Validator, resolve_validation,
+    AnswerTarget, OperatorResolution, OperatorResolutionRequest, Round, Submission, Validation,
 };
 use semantic_engine_package::{ImportedContext, SourceMetadata, export_package, import_package};
+use semantic_engine_service::{AuditEntry, SemanticEngineService};
 use semver::Version;
 use serde::Serialize;
 use tauri::{Manager, State};
 
-const MAX_RECORDED_VALIDATIONS: usize = 256;
-
-#[derive(Clone)]
-struct RecordedValidation {
-    round: Round,
-    validation: Validation,
-}
-
-#[derive(Default)]
-struct ValidationLedger {
-    entries: VecDeque<RecordedValidation>,
-}
-
-impl ValidationLedger {
-    fn record(&mut self, round: Round, validation: Validation) {
-        self.entries.retain(|entry| {
-            entry.validation.round_id != validation.round_id
-                || entry.validation.message_id != validation.message_id
-        });
-        self.entries.push_back(RecordedValidation { round, validation });
-        while self.entries.len() > MAX_RECORDED_VALIDATIONS {
-            self.entries.pop_front();
-        }
-    }
-}
-
-#[cfg(test)]
-fn validate_and_record(
-    round: Round,
-    submission: Submission,
-    ledger: &mut ValidationLedger,
-) -> Validation {
-    let validation = Validator::default().validate(&round, &submission);
-    ledger.record(round, validation.clone());
-    validation
-}
-
-fn resolve_recorded(
-    request: OperatorResolutionRequest,
-    ledger: &ValidationLedger,
-) -> Result<OperatorResolution, ResolutionIssue> {
-    let recorded = ledger
-        .entries
-        .iter()
-        .find(|entry| {
-            entry.validation.round_id == request.round_id
-                && entry.validation.message_id == request.message_id
-        })
-        .ok_or(ResolutionIssue::ValidationMismatch)?;
-    resolve_validation(&recorded.round, &recorded.validation, request)
-}
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ContextPackagePreview {
     pub name: String,
@@ -117,58 +65,45 @@ impl From<&StoredContext> for ContextPackagePreview {
 fn validate(
     round: Round,
     submission: Submission,
-    ledger: State<'_, Mutex<ValidationLedger>>,
-    audit: State<'_, Mutex<AuditStore>>,
+    service: State<'_, Mutex<SemanticEngineService>>,
 ) -> Result<Validation, String> {
-    let validation = Validator::default().validate(&round, &submission);
-    audit
+    service
         .lock()
-        .map_err(|_| "audit store lock is poisoned".to_string())?
-        .record_validation(&validation, None)
-        .map_err(|error| error.to_string())?;
-    ledger
-        .lock()
-        .map_err(|_| "validation ledger lock is poisoned".to_string())?
-        .record(round, validation.clone());
-    Ok(validation)
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .validate(round, submission, None)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 fn resolve(
     request: OperatorResolutionRequest,
-    ledger: State<'_, Mutex<ValidationLedger>>,
-    audit: State<'_, Mutex<AuditStore>>,
+    service: State<'_, Mutex<SemanticEngineService>>,
 ) -> Result<OperatorResolution, String> {
-    let resolution = {
-        let ledger = ledger.lock().map_err(|_| "validation ledger lock is poisoned".to_string())?;
-        resolve_recorded(request, &ledger).map_err(|error| format!("{error:?}"))?
-    };
-    audit
+    service
         .lock()
-        .map_err(|_| "audit store lock is poisoned".to_string())?
-        .record_resolution(&resolution)
-        .map_err(|error| error.to_string())?;
-    Ok(resolution)
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .resolve(request)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
 fn recent_audit_ipc(
     limit: usize,
-    audit: State<'_, Mutex<AuditStore>>,
+    service: State<'_, Mutex<SemanticEngineService>>,
 ) -> Result<Vec<AuditEntry>, String> {
-    audit
+    service
         .lock()
-        .map_err(|_| "audit store lock is poisoned".to_string())?
-        .recent(limit)
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .recent_audit(limit)
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-fn purge_audit_ipc(audit: State<'_, Mutex<AuditStore>>) -> Result<usize, String> {
-    audit
+fn purge_audit_ipc(service: State<'_, Mutex<SemanticEngineService>>) -> Result<usize, String> {
+    service
         .lock()
-        .map_err(|_| "audit store lock is poisoned".to_string())?
-        .purge_all()
+        .map_err(|_| "semantic engine service lock is poisoned".to_string())?
+        .purge_audit()
         .map_err(|error| error.to_string())
 }
 pub fn inspect_context_package(path: String) -> Result<ContextPackagePreview, String> {
@@ -310,11 +245,9 @@ pub fn run() {
             let data_directory = app.path().app_local_data_dir()?;
             fs::create_dir_all(&data_directory)?;
             let store = ContextStore::open(data_directory.join("contexts.sqlite3"))?;
-            let audit =
-                AuditStore::open(data_directory.join("audit.sqlite3"), RetentionPolicy::default())?;
+            let service = SemanticEngineService::open(data_directory.join("audit.sqlite3"))?;
             app.manage(Mutex::new(store));
-            app.manage(Mutex::new(audit));
-            app.manage(Mutex::new(ValidationLedger::default()));
+            app.manage(Mutex::new(service));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -333,61 +266,4 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Semantic Engine");
-}
-
-#[cfg(test)]
-mod validation_ledger_tests {
-    use super::*;
-    use semantic_engine_core::{Decision, ResolutionVerdict, ValidationPolicy};
-
-    #[test]
-    fn operator_resolution_uses_the_backend_recorded_identity() {
-        let round = Round {
-            id: "live-round".to_owned(),
-            targets: vec![AnswerTarget {
-                id: "elden-ring".to_owned(),
-                canonical: "Elden Ring".to_owned(),
-                aliases: vec![],
-            }],
-            policy: ValidationPolicy::default(),
-        };
-        let mut ledger = ValidationLedger::default();
-        let validation = validate_and_record(
-            round,
-            Submission {
-                message_id: "chat-44".to_owned(),
-                participant_id: "viewer-authentic".to_owned(),
-                source_sequence: 44,
-                text: "elden ring".to_owned(),
-            },
-            &mut ledger,
-        );
-        assert_eq!(validation.decision, Decision::Accepted);
-
-        let resolution = resolve_recorded(
-            OperatorResolutionRequest {
-                round_id: "live-round".to_owned(),
-                message_id: "chat-44".to_owned(),
-                verdict: ResolutionVerdict::Accepted,
-                target_id: Some("elden-ring".to_owned()),
-                note: String::new(),
-            },
-            &ledger,
-        )
-        .expect("recorded validation must resolve");
-        assert_eq!(resolution.participant_id, "viewer-authentic");
-        assert_eq!(resolution.source_sequence, 44);
-
-        let fabricated_round = resolve_recorded(
-            OperatorResolutionRequest {
-                round_id: "other-round".to_owned(),
-                message_id: "chat-44".to_owned(),
-                verdict: ResolutionVerdict::Rejected,
-                target_id: None,
-                note: String::new(),
-            },
-            &ledger,
-        );
-        assert_eq!(fabricated_round, Err(ResolutionIssue::ValidationMismatch));
-    }
 }

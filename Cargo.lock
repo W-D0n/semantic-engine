@@ -2642,6 +2642,7 @@ version = "0.1.0"
 dependencies = [
  "semantic-engine-core",
  "semantic-engine-package",
+ "semantic-engine-service",
  "serde_json",
 ]
 
@@ -2672,10 +2673,10 @@ dependencies = [
 name = "semantic-engine-desktop"
 version = "0.1.0"
 dependencies = [
- "semantic-engine-audit-store",
  "semantic-engine-context-store",
  "semantic-engine-core",
  "semantic-engine-package",
+ "semantic-engine-service",
  "semver",
  "serde",
  "tauri",
@@ -2698,6 +2699,16 @@ dependencies = [
  "spdx",
  "tempfile",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "semantic-engine-service"
+version = "0.1.0"
+dependencies = [
+ "semantic-engine-audit-store",
+ "semantic-engine-core",
+ "serde",
+ "sha2",
 ]
 
 [[package]]

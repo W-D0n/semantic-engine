@@ -63,7 +63,7 @@ interface.
 | `semantic-engine-package` | vérifier et importer un paquet | sessions et transports |
 | `semantic-engine-context-store` | versions, activation, brouillons et rollback | plateformes externes |
 | `semantic-engine-audit-store` | validations minimisées, résolutions et rétention | chat brut, Tauri et score |
-| module d'application | sessions et orchestration du moteur, des contextes et de l’audit | règles métier des consommateurs |
+| `semantic-engine-service` | déduplication, cache borné et orchestration moteur/audit | Tauri et règles métier des consommateurs |
 | adaptateur de transport | traduire IPC, JSONL ou HTTP vers l'interface commune | algorithmes de reconnaissance |
 | adaptateur de source | traduire une plateforme vers `Submission` | score et victoire |
 
@@ -140,7 +140,7 @@ crates/
   semantic-engine-package/
   semantic-engine-context-store/
   semantic-engine-audit-store/
-  semantic-engine-service/       # futur module d'application
+  semantic-engine-service/
   semantic-engine-http/          # futur adaptateur HTTP/WebSocket
 apps/
   desktop/

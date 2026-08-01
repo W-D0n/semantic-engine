@@ -13,10 +13,10 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-semantic-engine-audit-store = { path = "../../../crates/semantic-engine-audit-store" }
 semantic-engine-context-store = { path = "../../../crates/semantic-engine-context-store" }
 semantic-engine-core = { path = "../../../crates/semantic-engine-core" }
 semantic-engine-package = { path = "../../../crates/semantic-engine-package" }
+semantic-engine-service = { path = "../../../crates/semantic-engine-service" }
 semver.workspace = true
 serde.workspace = true
 tauri = { version = "2", features = [] }

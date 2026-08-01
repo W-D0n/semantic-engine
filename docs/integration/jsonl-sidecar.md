@@ -67,3 +67,19 @@ Trois modes resteront possibles :
 
 Le mode JSONL demeure pertinent pour les prototypes : faible latence, aucun port
 réseau à sécuriser et diagnostic simple.
+
+## Benchmark reproductible
+
+La même CLI mesure le cœur lexical et le service complet, cache désactivé puis
+chaud. Elle accepte un round ou un paquet de contexte :
+
+```powershell
+cargo run --release -q -p semantic-engine-cli -- benchmark `
+  --package packages/starter-titles/datapackage.json `
+  --submissions examples/submissions.jsonl `
+  --iterations 1000
+```
+
+La sortie JSON contient p50, p95, p99 et maximum en nanosecondes, ainsi que les
+hits, misses, expirations et évictions. Utiliser `--release` et conserver la
+commande, le corpus et l’environnement avec tout résultat publié.

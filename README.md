@@ -6,7 +6,8 @@ formulations proches comprises.
 
 > État actuel : moteur Rust, CLI JSONL et client Tauri portable hors ligne avec
 > inspection/rollback des paquets, tuning local des titres, export de versions,
-> arbitrage opérateur et audit SQLite à rétention bornée.
+> arbitrage opérateur, audit SQLite à rétention bornée et service d’application
+> avec déduplication/cache TTL-LRU.
 > Le corpus contractuel couvre 84 titres et 28 cas de validation.
 
 ## Pourquoi ce projet
@@ -30,6 +31,7 @@ quand la réponse n’est pas assez sûre.
 - [Intégration locale JSONL et contrat de résolution](docs/integration/jsonl-sidecar.md)
 - [Application portable](docs/product/portable-desktop.md)
 - [Audit local et confidentialité](docs/product/audit.md)
+- [Performance et benchmark](docs/product/performance.md)
 - [Roadmap](docs/roadmap.md)
 - [Continuité entre sessions et outils IA](docs/contributing/session-continuity.md)
 - [Handoff courant](HANDOFF.md)

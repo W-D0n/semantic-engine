@@ -4,11 +4,13 @@ use std::{
     fs,
     io::{self, BufRead, Write},
     process::ExitCode,
+    time::Instant,
 };
 
-use semantic_engine_core::{Round, Submission, Validator};
+use semantic_engine_core::{Round, Submission, ValidationPolicy, Validator};
 
 use semantic_engine_package::import_package;
+use semantic_engine_service::{SemanticEngineService, ServiceConfig};
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
@@ -58,6 +60,10 @@ fn run() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
+    if command.as_deref() == Some("benchmark") {
+        return run_benchmark(args);
+    }
+
     if command.as_deref() != Some("validate") || args.next().as_deref() != Some("--round") {
         return Err("usage: semantic-engine-cli validate --round <round.json>".into());
     }
@@ -90,11 +96,163 @@ fn run() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn run_benchmark(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>> {
+    let source_flag = args.next().ok_or_else(benchmark_usage)?;
+    let source_path = args.next().ok_or("missing benchmark round or package path")?;
+    let (round, context_package_sha256) = match source_flag.as_str() {
+        "--round" => {
+            let round = serde_json::from_str(&fs::read_to_string(source_path)?)?;
+            (round, None)
+        }
+        "--package" => {
+            let imported = import_package(source_path)?;
+            let round = Round {
+                id: format!("benchmark-{}-{}", imported.id, imported.version),
+                targets: imported.targets,
+                policy: ValidationPolicy::default(),
+            };
+            (round, Some(imported.package_sha256))
+        }
+        _ => return Err(benchmark_usage().into()),
+    };
+    if args.next().as_deref() != Some("--submissions") {
+        return Err(benchmark_usage().into());
+    }
+    let submissions_path = args.next().ok_or("missing submissions JSONL path")?;
+    let iterations = match args.next() {
+        None => 100,
+        Some(flag) if flag == "--iterations" => args
+            .next()
+            .ok_or("missing benchmark iteration count")?
+            .parse::<usize>()
+            .map_err(|_| "benchmark iteration count must be an integer")?,
+        Some(_) => return Err(benchmark_usage().into()),
+    };
+    if args.next().is_some() || !(1..=1_000).contains(&iterations) {
+        return Err("benchmark iterations must be between 1 and 1000".into());
+    }
+
+    let submission_lines = fs::read_to_string(submissions_path)?;
+    let submissions = submission_lines
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(serde_json::from_str::<Submission>)
+        .collect::<Result<Vec<_>, _>>()?;
+    if submissions.is_empty() || submissions.len() > 10_000 {
+        return Err("benchmark submissions must contain between 1 and 10000 records".into());
+    }
+    let sample_count =
+        iterations.checked_mul(submissions.len()).ok_or("benchmark sample count overflowed")?;
+    if sample_count > 1_000_000 {
+        return Err("benchmark is limited to 1000000 samples per measured path".into());
+    }
+
+    let validator = Validator::default();
+    let mut engine_timings = Vec::with_capacity(sample_count);
+    for _ in 0..iterations {
+        for submission in &submissions {
+            let started = Instant::now();
+            let _ = validator.validate(&round, submission);
+            engine_timings.push(elapsed_ns(started));
+        }
+    }
+
+    let mut service = SemanticEngineService::in_memory()?;
+    for (index, submission) in submissions.iter().enumerate() {
+        let mut warmup = submission.clone();
+        warmup.message_id = format!("benchmark-warmup-{index}");
+        warmup.source_sequence = u64::try_from(index)?;
+        service.validate(round.clone(), warmup, context_package_sha256.as_deref())?;
+    }
+    let mut uncached_service = SemanticEngineService::in_memory_with_config(ServiceConfig {
+        cache_capacity: 0,
+        ..ServiceConfig::default()
+    })?;
+    let mut uncached_service_timings = Vec::with_capacity(sample_count);
+    for iteration in 0..iterations {
+        for (index, submission) in submissions.iter().enumerate() {
+            let mut request = submission.clone();
+            request.message_id = format!("benchmark-uncached-{iteration}-{index}");
+            request.source_sequence = u64::try_from(iteration * submissions.len() + index)?;
+            let started = Instant::now();
+            uncached_service.validate(round.clone(), request, context_package_sha256.as_deref())?;
+            uncached_service_timings.push(elapsed_ns(started));
+        }
+    }
+    let mut cached_timings = Vec::with_capacity(sample_count);
+    for iteration in 0..iterations {
+        for (index, submission) in submissions.iter().enumerate() {
+            let mut request = submission.clone();
+            request.message_id = format!("benchmark-{iteration}-{index}");
+            request.source_sequence = u64::try_from(iteration * submissions.len() + index)?;
+            let started = Instant::now();
+            service.validate(round.clone(), request, context_package_sha256.as_deref())?;
+            cached_timings.push(elapsed_ns(started));
+        }
+    }
+
+    println!(
+        "{}",
+        serde_json::json!({
+            "iterations": iterations,
+            "targets": round.targets.len(),
+            "submissions_per_iteration": submissions.len(),
+            "samples": engine_timings.len(),
+            "engine_lexical_only_ns": latency_summary(&mut engine_timings),
+            "service_cache_disabled_ns": latency_summary(&mut uncached_service_timings),
+            "service_warm_cache_ns": latency_summary(&mut cached_timings),
+            "service_stats": service.stats()
+        })
+    );
+    Ok(())
+}
+
+fn benchmark_usage() -> &'static str {
+    "usage: semantic-engine-cli benchmark (--round <round.json> | --package <datapackage.json>) --submissions <submissions.jsonl> [--iterations <1..1000>]"
+}
+
+fn elapsed_ns(started: Instant) -> u64 {
+    u64::try_from(started.elapsed().as_nanos()).unwrap_or(u64::MAX)
+}
+
+fn latency_summary(samples: &mut [u64]) -> serde_json::Value {
+    samples.sort_unstable();
+    serde_json::json!({
+        "p50": percentile(samples, 50),
+        "p95": percentile(samples, 95),
+        "p99": percentile(samples, 99),
+        "max": samples.last().copied().unwrap_or(0)
+    })
+}
+
+fn percentile(samples: &[u64], percentile: usize) -> u64 {
+    if samples.is_empty() {
+        return 0;
+    }
+    let rank = (percentile * samples.len()).div_ceil(100).saturating_sub(1);
+    samples[rank.min(samples.len() - 1)]
+}
+
 fn print_help() {
     println!(
         "Semantic Engine local tools\n\n\
          Usage:\n  semantic-engine-cli validate --round <round.json>\n  \
-         semantic-engine-cli context validate --package <datapackage.json>\n\n\
+         semantic-engine-cli context validate --package <datapackage.json>\n  \
+         semantic-engine-cli benchmark (--round <round.json> | --package <datapackage.json>) --submissions <submissions.jsonl> [--iterations <1..1000>]\n\n\
          Reads one Submission JSON object per stdin line and immediately writes one Validation JSON object."
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percentile;
+
+    #[test]
+    fn percentile_uses_nearest_rank_without_reading_past_the_samples() {
+        let samples = [1, 2, 3, 4, 5];
+        assert_eq!(percentile(&samples, 50), 3);
+        assert_eq!(percentile(&samples, 95), 5);
+        assert_eq!(percentile(&samples, 99), 5);
+        assert_eq!(percentile(&[], 99), 0);
+    }
 }

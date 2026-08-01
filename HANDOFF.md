@@ -16,8 +16,9 @@ Lire en priorité `docs/architecture/overview.md`,
 
 ## Objectif de la prochaine session
 
-Implémenter la déduplication et le cache LRU/TTL puis mesurer p50/p95/p99.
-L’audit persistant minimisé et l’export immuable des brouillons sont livrés.
+Définir le cycle de session public et sa suite de conformité JSONL, puis ajouter
+le contexte actif au module d’application. Déduplication, cache LRU/TTL, audit
+persistant minimisé et export immuable sont livrés.
 
 ## État au 1er août 2026
 
@@ -35,6 +36,10 @@ L’audit persistant minimisé et l’export immuable des brouillons sont livré
 - arbitrage manuel accepter/rejeter avec note, sans effacer la décision moteur ;
 - audit SQLite idempotent des validations/résolutions, ordonné par source,
   borné à 10 000 entrées et 30 jours, purgeable sans conserver le chat brut ;
+- module `semantic-engine-service` partagé par Tauri, avec identité idempotente,
+  conflits explicites et cache 1 024 entrées/10 minutes partitionné par contexte ;
+- benchmark CLI reproductible p50/p95/p99 ; sur 84 titres, le cache chaud réduit
+  le p50 du service de 583,1 µs à 399,8 µs sur la machine de référence ;
 - portable Tauri hors ligne avec WebView2 fixe, checksums et lanceur racine ;
 - variante légère `SemanticEngine.exe` toujours disponible ;
 - Twitch, YouTube, auth, cache et scoreboard non implémentés.
@@ -55,6 +60,8 @@ L’audit persistant minimisé et l’export immuable des brouillons sont livré
 12. `apps/desktop/src/lib/ArbitrationPanel.svelte`
 13. `docs/product/audit.md`
 14. `crates/semantic-engine-audit-store/src/lib.rs`
+15. `crates/semantic-engine-service/src/lib.rs`
+16. `docs/product/performance.md`
 
 ## Décisions à préserver
 
@@ -100,8 +107,7 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Écrire d’abord les tests de déduplication par identité de soumission et de cache
-borné par version de contexte. Mesurer ensuite p50/p95/p99 sur le corpus avant
-d’exposer ces mécanismes dans le futur module d’application. Le journal d’audit
-est un module Rust autonome : ne pas réintroduire de dépendance vers Tauri ni y
-copier le texte brut du chat.
+Écrire d’abord le contrat de cycle de session dans le module d’application, puis
+faire passer le sidecar JSONL et Tauri par la même suite de conformité. Le
+journal d’audit et le cache restent des détails internes : ne pas réintroduire de
+dépendance vers Tauri, de texte brut persistant ni de règle de scoreboard.

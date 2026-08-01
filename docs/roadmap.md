@@ -53,7 +53,7 @@ paquet de titres importable.
 - [x] portable Windows hors ligne avec WebView2 fixe et checksums ;
 - [x] exporter les brouillons comme nouvelle version immuable de paquet ;
 - [x] persister l'audit des validations et résolutions ;
-- [ ] ajouter déduplication et cache borné ;
+- [x] ajouter déduplication et cache borné ;
 - [ ] fournir les commandes d'évaluation et les paquets multi-OS ;
 - [ ] publier index, signatures et règles de révocation des contextes.
 
@@ -64,7 +64,8 @@ une session, tester et arbitrer sans compte, Internet, MyVault ou catalogue exte
 
 Ce jalon rend le produit pilotable sans donner de statut privilégié à un client.
 
-- extraire un module d'application pour sessions, contexte actif et audit ;
+- [x] extraire un module d'application pour validation, déduplication, cache et audit ;
+- [ ] ajouter le cycle de sessions et le contexte actif au module d’application ;
 - figer par tests les contrats de cycle de session et d'événements ;
 - conserver JSONL comme transport public sans réseau ;
 - ajouter l'adaptateur HTTP/WebSocket local opt-in ;
@@ -137,9 +138,9 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Ajouter déduplication et cache borné, puis mesurer p50/p95/p99.
-2. Écrire le contrat du module d'application et un test de conformité JSONL.
-3. Seulement ensuite, prototyper la passerelle loopback désactivée par défaut.
+1. Écrire le contrat de cycle de session et un test de conformité JSONL.
+2. Ajouter le contexte actif au module d’application sans coupler le moteur au store.
+3. Prototyper ensuite la passerelle loopback désactivée par défaut.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et
 consomment uniquement des contrats publics ; elles ne bloquent aucun de ces jalons.
