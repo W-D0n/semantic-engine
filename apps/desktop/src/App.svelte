@@ -1,10 +1,11 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core';
-  import { open } from '@tauri-apps/plugin-dialog';
+  import { confirm as confirmDialog, open } from '@tauri-apps/plugin-dialog';
   import { onMount } from 'svelte';
   import ArbitrationPanel from './lib/ArbitrationPanel.svelte';
   import ContextWorkshop from './lib/ContextWorkshop.svelte';
   import type {
+    AuditEntry,
     ContextPackagePreview,
     Decision,
     HistoryItem,
@@ -51,6 +52,8 @@
   let packagePreview = $state<ContextPackagePreview | null>(null);
   let selectedPackagePath = $state('');
   let activeContext = $state<ContextPackagePreview | null>(null);
+  let auditBusy = $state(false);
+  let sessionId = crypto.randomUUID();
 
   const inTauri = '__TAURI_INTERNALS__' in window;
   const contextBusy = $derived(contextOperation !== 'idle');
@@ -60,7 +63,7 @@
 
   function configuredRound(): Round {
     return {
-      id: 'desktop-round',
+      id: `desktop-${sessionId}`,
       targets: [
         {
           id: canonical.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-').replaceAll(/^-|-$/g, ''),
@@ -91,7 +94,7 @@
       const validation = await invoke<Validation>('validate', {
         round,
         submission: {
-          message_id: `desktop-${sequence}`,
+          message_id: `desktop-${sessionId}-${sequence}`,
           participant_id: participant.trim() || 'anonymous',
           source_sequence: sequence,
           text: message,
@@ -110,8 +113,73 @@
   }
 
   onMount(() => {
-    if (inTauri) void loadCurrentContext();
+    if (inTauri) {
+      void loadCurrentContext();
+      void loadAudit();
+    }
   });
+
+  function historyFromAudit(entry: AuditEntry): HistoryItem {
+    const validation = entry.validation;
+    return {
+      round_id: validation.round_id,
+      message_id: validation.message_id,
+      participant_id: validation.participant_id,
+      source_sequence: validation.source_sequence,
+      decision: validation.decision,
+      target_id: validation.target_id,
+      score: validation.score,
+      evidence: validation.evidence_kinds.map((kind) => ({ kind, matched_expression: '' })),
+      issue: validation.issue ?? undefined,
+      input: 'Entrée non conservée',
+      latency: 0,
+      persisted: true,
+      resolution: entry.resolution
+        ? {
+            round_id: validation.round_id,
+            message_id: validation.message_id,
+            participant_id: validation.participant_id,
+            source_sequence: validation.source_sequence,
+            original_decision: entry.resolution.original_decision,
+            final_decision: entry.resolution.final_decision,
+            target_id: entry.resolution.target_id,
+            note: entry.resolution.note,
+          }
+        : undefined,
+    };
+  }
+
+  async function loadAudit() {
+    if (!inTauri || auditBusy) return;
+    auditBusy = true;
+    try {
+      const entries = await invoke<AuditEntry[]>('recent_audit_ipc', { limit: 8 });
+      history = entries.map(historyFromAudit);
+    } catch (cause) {
+      error = `Impossible de relire le journal d’audit : ${cause instanceof Error ? cause.message : String(cause)}`;
+    } finally {
+      auditBusy = false;
+    }
+  }
+
+  async function purgeAudit() {
+    if (!inTauri || auditBusy || !history.length) return;
+    auditBusy = true;
+    error = '';
+    try {
+      const confirmed = await confirmDialog(
+        'Effacer définitivement toutes les validations et résolutions conservées sur cet appareil ?',
+        { title: 'Effacer le journal d’audit', kind: 'warning' },
+      );
+      if (!confirmed) return;
+      await invoke<number>('purge_audit_ipc');
+      resetSession();
+    } catch (cause) {
+      error = `Impossible d’effacer le journal d’audit : ${cause instanceof Error ? cause.message : String(cause)}`;
+    } finally {
+      auditBusy = false;
+    }
+  }
 
   async function loadCurrentContext() {
     if (!inTauri || contextBusy) return;
@@ -201,6 +269,7 @@
     history = [];
     error = '';
     sequence = 101;
+    sessionId = crypto.randomUUID();
   }
 
   function decisionLabel(decision: Decision) {
@@ -432,8 +501,8 @@
 
   <section class="history-panel">
     <div class="history-heading">
-      <div><h2>Journal de session</h2><p>Les huit dernières validations, en mémoire locale seulement.</p></div>
-      <button onclick={resetSession} disabled={!history.length}><RotateCcw size={15} /> Réinitialiser</button>
+      <div><h2>Journal d’audit local</h2><p>Les huit dernières validations · rétention maximale de 30 jours · texte du chat non conservé.</p></div>
+      <button onclick={purgeAudit} disabled={!history.length || auditBusy}><RotateCcw size={15} /> {auditBusy ? 'Traitement…' : 'Effacer'}</button>
     </div>
     {#if history.length}
       <div class="history-list">
@@ -447,12 +516,12 @@
               {#if item.resolution}<small>Opérateur : {decisionLabel(item.resolution.final_decision)}</small>{/if}
             </span>
             <strong>{Math.round(item.score * 100)}%</strong>
-            <time>{item.latency.toFixed(1)} ms</time>
+            <time>{item.persisted ? 'persistée' : `${item.latency.toFixed(1)} ms`}</time>
           </div>
         {/each}
       </div>
     {:else}
-      <p class="history-empty">Aucune validation dans cette session.</p>
+      <p class="history-empty">Aucune validation conservée sur cet appareil.</p>
     {/if}
   </section>
 </main>

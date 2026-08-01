@@ -24,6 +24,7 @@ nav:
       - Sécurité et cadre légal: product/security-and-legal.md
       - Marché: product/market.md
       - Application portable: product/portable-desktop.md
+      - Audit local: product/audit.md
   - Architecture:
       - Vue d’ensemble: architecture/overview.md
       - Pipeline: architecture/recognition-pipeline.md
@@ -43,3 +44,4 @@ nav:
       - Paquets Data Package: adr/0004-context-data-package.md
       - Brouillons locaux et décision opérateur: adr/0005-local-context-drafts.md
       - Produit autonome et interface publique: adr/0006-autonomous-public-interface.md
+      - Audit minimisé et persistant: adr/0007-privacy-minimized-audit.md

@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/audit-entry.schema.json",
+  "title": "Semantic Engine Audit Entry",
+  "description": "Persisted, privacy-minimized association between an engine validation and its optional operator resolution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "validation", "resolution"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "recorded_at_ms",
+        "round_id",
+        "message_id",
+        "participant_id",
+        "source_sequence",
+        "context_package_sha256",
+        "decision",
+        "target_id",
+        "score",
+        "evidence_kinds",
+        "issue"
+      ],
+      "properties": {
+        "sequence": { "type": "integer", "minimum": 1 },
+        "recorded_at_ms": { "type": "integer", "minimum": 0 },
+        "round_id": { "type": "string", "minLength": 1 },
+        "message_id": { "type": "string", "minLength": 1 },
+        "participant_id": { "type": "string", "minLength": 1 },
+        "source_sequence": { "type": "integer", "minimum": 0 },
+        "context_package_sha256": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Fa-f0-9]{64}$"
+        },
+        "decision": { "enum": ["accepted", "rejected", "abstained"] },
+        "target_id": { "type": ["string", "null"] },
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "evidence_kinds": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "configured_expression",
+              "normalized_expression",
+              "fuzzy_expression",
+              "ambiguous_expression"
+            ]
+          }
+        },
+        "issue": {
+          "enum": [null, "invalid_policy", "invalid_round", "invalid_submission"]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "decision": { "const": "accepted" } } },
+          "then": { "properties": { "target_id": { "type": "string", "minLength": 1 } } }
+        },
+        {
+          "if": { "properties": { "decision": { "const": "rejected" } } },
+          "then": { "properties": { "target_id": { "type": "null" } } }
+        }
+      ]
+    },
+    "resolution": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "recorded_at_ms",
+            "original_decision",
+            "final_decision",
+            "target_id",
+            "note"
+          ],
+          "properties": {
+            "recorded_at_ms": { "type": "integer", "minimum": 0 },
+            "original_decision": { "enum": ["accepted", "rejected", "abstained"] },
+            "final_decision": { "enum": ["accepted", "rejected"] },
+            "target_id": { "type": ["string", "null"] },
+            "note": { "type": "string", "maxLength": 512 }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "final_decision": { "const": "accepted" } } },
+              "then": { "properties": { "target_id": { "type": "string", "minLength": 1 } } }
+            },
+            {
+              "if": { "properties": { "final_decision": { "const": "rejected" } } },
+              "then": { "properties": { "target_id": { "type": "null" } } }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

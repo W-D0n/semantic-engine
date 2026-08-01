@@ -2626,6 +2626,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "semantic-engine-audit-store"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
+ "semantic-engine-core",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "semantic-engine-cli"
 version = "0.1.0"
 dependencies = [
@@ -2661,6 +2672,7 @@ dependencies = [
 name = "semantic-engine-desktop"
 version = "0.1.0"
 dependencies = [
+ "semantic-engine-audit-store",
  "semantic-engine-context-store",
  "semantic-engine-core",
  "semantic-engine-package",

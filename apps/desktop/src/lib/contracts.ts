@@ -49,7 +49,29 @@ export type OperatorResolution = {
 export type HistoryItem = Validation & {
   input: string;
   latency: number;
+  persisted?: boolean;
   resolution?: OperatorResolution;
+};
+
+export type AuditEntry = {
+  schema_version: 1;
+  validation: {
+    sequence: number;
+    recorded_at_ms: number;
+    round_id: string;
+    message_id: string;
+    participant_id: string;
+    source_sequence: number;
+    context_package_sha256: string | null;
+    decision: Decision;
+    target_id: string | null;
+    score: number;
+    evidence_kinds: Validation['evidence'][number]['kind'][];
+    issue: Validation['issue'] | null;
+  };
+  resolution: null | (Omit<OperatorResolution, 'round_id' | 'message_id' | 'participant_id' | 'source_sequence'> & {
+    recorded_at_ms: number;
+  });
 };
 
 export type ContextPackagePreview = {

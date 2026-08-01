@@ -3,6 +3,7 @@ members = [
   "crates/semantic-engine-core",
   "crates/semantic-engine-package",
   "crates/semantic-engine-context-store",
+  "crates/semantic-engine-audit-store",
   "apps/semantic-engine-cli",
   "apps/desktop/src-tauri",
 ]

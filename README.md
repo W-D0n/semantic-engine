@@ -5,7 +5,8 @@ imparfaits en interprétations configurées : fautes, abréviations, initiales e
 formulations proches comprises.
 
 > État actuel : moteur Rust, CLI JSONL et client Tauri portable hors ligne avec
-> inspection/rollback des paquets, tuning local des titres, export de versions et arbitrage opérateur.
+> inspection/rollback des paquets, tuning local des titres, export de versions,
+> arbitrage opérateur et audit SQLite à rétention bornée.
 > Le corpus contractuel couvre 84 titres et 28 cas de validation.
 
 ## Pourquoi ce projet
@@ -28,6 +29,7 @@ quand la réponse n’est pas assez sûre.
 - [Solutions et corpus existants](docs/research/existing-solutions-and-data.md)
 - [Intégration locale JSONL et contrat de résolution](docs/integration/jsonl-sidecar.md)
 - [Application portable](docs/product/portable-desktop.md)
+- [Audit local et confidentialité](docs/product/audit.md)
 - [Roadmap](docs/roadmap.md)
 - [Continuité entre sessions et outils IA](docs/contributing/session-continuity.md)
 - [Handoff courant](HANDOFF.md)
@@ -81,6 +83,9 @@ un titre, modifier canonique/alias et enregistrer le brouillon local. **Exporter
 paquet** crée ensuite une nouvelle version immuable dans le dossier choisi. Après
 une validation, **Arbitrage manuel** permet d’accepter ou rejeter sans effacer la
 décision du moteur. Voir le [guide portable](docs/product/portable-desktop.md).
+Les huit dernières validations sont relues au redémarrage depuis un audit local :
+le texte brut du chat n’y est jamais enregistré et l’opérateur peut purger le
+journal depuis l’application.
 
 Le catalogue public de titres vit dans
 [Answer Atlas](https://github.com/W-D0n/answer-atlas). Son paquet

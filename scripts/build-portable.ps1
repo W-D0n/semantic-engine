@@ -52,9 +52,12 @@ if (Test-Path -LiteralPath $sourceRuntimeLink) {
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('semantic-engine-portable-' + [guid]::NewGuid().ToString('N'))
 $runtimeExtract = Join-Path $temporaryRoot 'runtime'
 $packageStaging = Join-Path $temporaryRoot 'package'
+$frontendBuild = Join-Path $temporaryRoot 'frontend'
+$portableConfigPath = Join-Path $desktopRoot 'src-tauri\tauri.portable.conf.json'
+$previousTauriConfig = [Environment]::GetEnvironmentVariable('TAURI_CONFIG', 'Process')
 
 try {
-    New-Item -ItemType Directory -Force -Path $runtimeExtract, $packageStaging | Out-Null
+    New-Item -ItemType Directory -Force -Path $runtimeExtract, $packageStaging, $frontendBuild | Out-Null
 
     & expand.exe $cabPath '-F:*' $runtimeExtract | Out-Null
     if ($LASTEXITCODE -ne 0) {
@@ -68,9 +71,40 @@ try {
     $runtimeRoot = $runtimeExecutables[0].Directory.FullName
     New-Item -ItemType Junction -Path $sourceRuntimeLink -Target $runtimeRoot | Out-Null
 
-    Push-Location $desktopRoot
+    $nodeExecutable = (Get-Command node.exe -ErrorAction Stop).Source
+    $npmCli = Join-Path (Split-Path -Parent $nodeExecutable) 'node_modules\npm\bin\npm-cli.js'
+    if (-not (Test-Path -LiteralPath $npmCli -PathType Leaf)) {
+        throw "npm CLI was not found next to Node.js: $npmCli"
+    }
+    Copy-Item -LiteralPath @(
+        (Join-Path $desktopRoot 'package.json'),
+        (Join-Path $desktopRoot 'package-lock.json'),
+        (Join-Path $desktopRoot 'svelte.config.js'),
+        (Join-Path $desktopRoot 'tsconfig.json'),
+        (Join-Path $desktopRoot 'vite.config.ts'),
+        (Join-Path $desktopRoot 'index.html')
+    ) -Destination $frontendBuild
+    Copy-Item -LiteralPath (Join-Path $desktopRoot 'src') -Destination $frontendBuild -Recurse
+
+    & $nodeExecutable $npmCli ci --prefix $frontendBuild
+    if ($LASTEXITCODE -ne 0) {
+        throw "Isolated npm install failed with exit code $LASTEXITCODE."
+    }
+    & $nodeExecutable $npmCli run build --prefix $frontendBuild
+    if ($LASTEXITCODE -ne 0) {
+        throw "Isolated frontend build failed with exit code $LASTEXITCODE."
+    }
+
+    $portableConfig = Get-Content -LiteralPath $portableConfigPath -Raw -Encoding UTF8 |
+        ConvertFrom-Json
+    $portableConfig | Add-Member -NotePropertyName build -NotePropertyValue @{
+        frontendDist = (Join-Path $frontendBuild 'dist')
+    } -Force
+    $env:TAURI_CONFIG = $portableConfig | ConvertTo-Json -Depth 20 -Compress
+
+    Push-Location $repoRoot
     try {
-        & npm.cmd run tauri -- build --no-bundle --config src-tauri/tauri.portable.conf.json
+        & cargo.exe build --locked --release -p semantic-engine-desktop
         if ($LASTEXITCODE -ne 0) {
             throw "Tauri portable build failed with exit code $LASTEXITCODE."
         }
@@ -140,15 +174,36 @@ WebView2. Source officielle : $($runtimeLock.source)
     New-Item -ItemType Directory -Force -Path (Split-Path $outputPath) | Out-Null
     Move-Item -LiteralPath $packageStaging -Destination $outputPath
 
-    $rootLauncher = @'
+    if ($null -eq $previousTauriConfig) {
+        Remove-Item Env:\TAURI_CONFIG -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:TAURI_CONFIG = $previousTauriConfig
+    }
+    Push-Location $repoRoot
+    try {
+        & cargo.exe build --locked --release -p semantic-engine-desktop
+        if ($LASTEXITCODE -ne 0) {
+            throw "Tauri lightweight build failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+    Copy-Item -LiteralPath $releaseExecutable -Destination (Join-Path $repoRoot 'SemanticEngine.exe') -Force
+
+    $defaultOutputPath = [IO.Path]::GetFullPath((Join-Path $repoRoot 'portable\SemanticEngine'))
+    if ($outputPath -eq $defaultOutputPath) {
+        $rootLauncher = @'
 @echo off
 call "%~dp0portable\SemanticEngine\Start-SemanticEngine.cmd"
 '@
-    [IO.File]::WriteAllText(
-        (Join-Path $repoRoot 'SemanticEngine Portable.cmd'),
-        ($rootLauncher -replace "`n", "`r`n"),
-        [Text.Encoding]::ASCII
-    )
+        [IO.File]::WriteAllText(
+            (Join-Path $repoRoot 'SemanticEngine Portable.cmd'),
+            ($rootLauncher -replace "`n", "`r`n"),
+            [Text.Encoding]::ASCII
+        )
+    }
 
     if ($Archive) {
         $archivePath = "$outputPath.zip"
@@ -160,6 +215,12 @@ call "%~dp0portable\SemanticEngine\Start-SemanticEngine.cmd"
     Write-Output "WebView2 CAB SHA256: $cabHash"
 }
 finally {
+    if ($null -eq $previousTauriConfig) {
+        Remove-Item Env:\TAURI_CONFIG -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:TAURI_CONFIG = $previousTauriConfig
+    }
     if (Test-Path -LiteralPath $sourceRuntimeLink) {
         [IO.Directory]::Delete($sourceRuntimeLink)
     }

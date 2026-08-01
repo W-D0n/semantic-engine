@@ -16,9 +16,8 @@ Lire en priorité `docs/architecture/overview.md`,
 
 ## Objectif de la prochaine session
 
-Définir et persister un journal d’arbitrage minimal avant d’implémenter
-déduplication, cache LRU/TTL et benchmark p50/p95/p99. L’export immuable des
-brouillons est maintenant livré et testé par réimport public.
+Implémenter la déduplication et le cache LRU/TTL puis mesurer p50/p95/p99.
+L’audit persistant minimisé et l’export immuable des brouillons sont livrés.
 
 ## État au 1er août 2026
 
@@ -34,9 +33,11 @@ brouillons est maintenant livré et testé par réimport public.
   avec profils hors ligne, README, notice de licence et checksums ;
 - atelier Svelte pour modifier canonique/alias, restaurer le publié et choisir la cible du round ;
 - arbitrage manuel accepter/rejeter avec note, sans effacer la décision moteur ;
+- audit SQLite idempotent des validations/résolutions, ordonné par source,
+  borné à 10 000 entrées et 30 jours, purgeable sans conserver le chat brut ;
 - portable Tauri hors ligne avec WebView2 fixe, checksums et lanceur racine ;
 - variante légère `SemanticEngine.exe` toujours disponible ;
-- Twitch, YouTube, auth, cache, scoreboard et audit persistant non implémentés.
+- Twitch, YouTube, auth, cache et scoreboard non implémentés.
 
 ## Lire d’abord
 
@@ -52,6 +53,8 @@ brouillons est maintenant livré et testé par réimport public.
 10. `crates/semantic-engine-core/src/lib.rs`
 11. `apps/desktop/src/lib/ContextWorkshop.svelte`
 12. `apps/desktop/src/lib/ArbitrationPanel.svelte`
+13. `docs/product/audit.md`
+14. `crates/semantic-engine-audit-store/src/lib.rs`
 
 ## Décisions à préserver
 
@@ -60,7 +63,8 @@ brouillons est maintenant livré et testé par réimport public.
 - aucun paquet ne contient ni n’exécute du code ;
 - import, aperçu, activation, brouillon et export sont des opérations distinctes ;
 - une acceptation opérateur référence une cible du round et conserve la décision moteur ;
-- la résolution opérateur est encore éphémère : ne pas la présenter comme un audit persistant ;
+- l’audit conserve les identifiants, décisions, scores et catégories de preuve,
+  jamais le texte brut ni l’expression correspondante ;
 - les versions et brouillons sont stockés dans l’AppData, pas avec l’exécutable ;
 - le moteur ne désigne pas le gagnant et ne compte pas les points ;
 - vecteurs, microservices et réécriture Rust restent ouverts après benchmark ;
@@ -96,9 +100,8 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Écrire d’abord le schéma et les tests publics du journal d’audit : association
-validation/résolution, idempotence, ordre source, rétention et suppression. Le
-stockage ne doit pas conserver le chat brut par défaut ni rendre l’audit dépendant
-de Tauri. Le test d’export livré dans
-`crates/semantic-engine-context-store/tests/export_contract.rs` reste le contrat
-de non-régression `brouillon → nouvelle version → réimport`.
+Écrire d’abord les tests de déduplication par identité de soumission et de cache
+borné par version de contexte. Mesurer ensuite p50/p95/p99 sur le corpus avant
+d’exposer ces mécanismes dans le futur module d’application. Le journal d’audit
+est un module Rust autonome : ne pas réintroduire de dépendance vers Tauri ni y
+copier le texte brut du chat.

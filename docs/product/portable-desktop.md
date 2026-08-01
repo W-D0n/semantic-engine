@@ -51,9 +51,12 @@ Le script :
 
 1. vérifie le nom et le SHA-256 du CAB ;
 2. extrait le runtime dans un dossier temporaire ;
-3. compile Tauri avec `tauri.portable.conf.json` ;
-4. génère le dossier portable, le lanceur racine et les checksums ;
-5. retire systématiquement le lien de build et le dossier temporaire.
+3. exécute `npm ci` et le build Svelte dans une copie temporaire gouvernée par
+   `package-lock.json`, sans dépendre du `node_modules` de travail ;
+4. compile la variante Tauri fixe avec `tauri.portable.conf.json`, puis la
+   variante légère utilisant WebView2 système ;
+5. génère le dossier portable, la variante légère racine, le lanceur et les checksums ;
+6. retire systématiquement le lien de build et le dossier temporaire.
 
 Il refuse d’écraser un package existant. Déplacer ou supprimer explicitement
 `portable/SemanticEngine` avant une nouvelle génération.
@@ -106,8 +109,10 @@ preuve produits par le moteur. Le bloc **Arbitrage manuel** permet ensuite :
 La décision moteur originale n’est jamais écrasée. La résolution opérateur
 contient aussi `round_id`, `message_id`, `participant_id` et `source_sequence`,
 ce qui permet à un workflow externe de compter les points ou de désigner un
-gagnant de façon idempotente. Dans cet incrément, la résolution reste dans la
-session UI ; sa persistance d’audit appartient au prochain jalon.
+gagnant de façon idempotente. Validation et résolution sont persistées dans un
+journal SQLite séparé, relu au redémarrage. Le texte brut et l’expression exacte
+ayant servi de preuve ne sont pas conservés. L’écran permet de supprimer tout le
+journal après confirmation ; voir [Audit local et confidentialité](audit.md).
 
 ## Sécurité par défaut
 
@@ -116,6 +121,7 @@ session UI ; sa persistance d’audit appartient au prochain jalon.
 - limites appliquées côté moteur aux messages, titres, alias, recherches et notes ;
 - cible d’une acceptation opérateur obligatoirement présente dans le round ;
 - identité participant/ordre recopiée depuis la validation conservée côté backend ;
+- audit borné à 10 000 validations et 30 jours, sans texte brut du chat ;
 - paquet publié immuable, activation transactionnelle et rollback SQLite ;
 - recherche bornée et brouillons chargés en une requête groupée ;
 - checksums de tous les fichiers de la distribution portable.

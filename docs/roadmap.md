@@ -52,7 +52,7 @@ paquet de titres importable.
 - [x] résolution opérateur accepter/rejeter sans effacer la décision moteur ;
 - [x] portable Windows hors ligne avec WebView2 fixe et checksums ;
 - [x] exporter les brouillons comme nouvelle version immuable de paquet ;
-- [ ] persister l'audit des validations et résolutions ;
+- [x] persister l'audit des validations et résolutions ;
 - [ ] ajouter déduplication et cache borné ;
 - [ ] fournir les commandes d'évaluation et les paquets multi-OS ;
 - [ ] publier index, signatures et règles de révocation des contextes.
@@ -137,11 +137,9 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Définir puis tester le schéma du journal d'audit et sa politique de rétention.
-2. Persister validations et résolutions opérateur sans stocker le chat brut par défaut.
-3. Ajouter déduplication et cache borné, puis mesurer p50/p95/p99.
-4. Écrire le contrat du module d'application et un test de conformité JSONL.
-5. Seulement ensuite, prototyper la passerelle loopback désactivée par défaut.
+1. Ajouter déduplication et cache borné, puis mesurer p50/p95/p99.
+2. Écrire le contrat du module d'application et un test de conformité JSONL.
+3. Seulement ensuite, prototyper la passerelle loopback désactivée par défaut.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et
 consomment uniquement des contrats publics ; elles ne bloquent aucun de ces jalons.

@@ -1,5 +1,6 @@
 use std::{collections::VecDeque, fs, path::PathBuf, sync::Mutex};
 
+use semantic_engine_audit_store::{AuditEntry, AuditStore, RetentionPolicy};
 use semantic_engine_context_store::{ContextStore, StoredContext, TargetRecord};
 use semantic_engine_core::{
     AnswerTarget, OperatorResolution, OperatorResolutionRequest, ResolutionIssue, Round,
@@ -36,6 +37,7 @@ impl ValidationLedger {
     }
 }
 
+#[cfg(test)]
 fn validate_and_record(
     round: Round,
     submission: Submission,
@@ -116,18 +118,58 @@ fn validate(
     round: Round,
     submission: Submission,
     ledger: State<'_, Mutex<ValidationLedger>>,
+    audit: State<'_, Mutex<AuditStore>>,
 ) -> Result<Validation, String> {
-    let mut ledger = ledger.lock().map_err(|_| "validation ledger lock is poisoned".to_string())?;
-    Ok(validate_and_record(round, submission, &mut ledger))
+    let validation = Validator::default().validate(&round, &submission);
+    audit
+        .lock()
+        .map_err(|_| "audit store lock is poisoned".to_string())?
+        .record_validation(&validation, None)
+        .map_err(|error| error.to_string())?;
+    ledger
+        .lock()
+        .map_err(|_| "validation ledger lock is poisoned".to_string())?
+        .record(round, validation.clone());
+    Ok(validation)
 }
 
 #[tauri::command]
 fn resolve(
     request: OperatorResolutionRequest,
     ledger: State<'_, Mutex<ValidationLedger>>,
+    audit: State<'_, Mutex<AuditStore>>,
 ) -> Result<OperatorResolution, String> {
-    let ledger = ledger.lock().map_err(|_| "validation ledger lock is poisoned".to_string())?;
-    resolve_recorded(request, &ledger).map_err(|error| format!("{error:?}"))
+    let resolution = {
+        let ledger = ledger.lock().map_err(|_| "validation ledger lock is poisoned".to_string())?;
+        resolve_recorded(request, &ledger).map_err(|error| format!("{error:?}"))?
+    };
+    audit
+        .lock()
+        .map_err(|_| "audit store lock is poisoned".to_string())?
+        .record_resolution(&resolution)
+        .map_err(|error| error.to_string())?;
+    Ok(resolution)
+}
+
+#[tauri::command]
+fn recent_audit_ipc(
+    limit: usize,
+    audit: State<'_, Mutex<AuditStore>>,
+) -> Result<Vec<AuditEntry>, String> {
+    audit
+        .lock()
+        .map_err(|_| "audit store lock is poisoned".to_string())?
+        .recent(limit)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn purge_audit_ipc(audit: State<'_, Mutex<AuditStore>>) -> Result<usize, String> {
+    audit
+        .lock()
+        .map_err(|_| "audit store lock is poisoned".to_string())?
+        .purge_all()
+        .map_err(|error| error.to_string())
 }
 pub fn inspect_context_package(path: String) -> Result<ContextPackagePreview, String> {
     let imported = import_package(path).map_err(|error| error.to_string())?;
@@ -268,13 +310,18 @@ pub fn run() {
             let data_directory = app.path().app_local_data_dir()?;
             fs::create_dir_all(&data_directory)?;
             let store = ContextStore::open(data_directory.join("contexts.sqlite3"))?;
+            let audit =
+                AuditStore::open(data_directory.join("audit.sqlite3"), RetentionPolicy::default())?;
             app.manage(Mutex::new(store));
+            app.manage(Mutex::new(audit));
             app.manage(Mutex::new(ValidationLedger::default()));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             validate,
             resolve,
+            recent_audit_ipc,
+            purge_audit_ipc,
             inspect_context_package_ipc,
             activate_context_package_ipc,
             current_context_ipc,

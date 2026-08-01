@@ -51,6 +51,13 @@ Messages, pseudonymes et identifiants peuvent être personnels. Le [RGPD article
 minimisation, durée limitée, sécurité et responsabilité démontrable. Documenter
 base légale, notice, durées, export/effacement, transferts et besoin d’AIPD.
 
+Le produit applique déjà une première minimisation : l’audit local exclut le
+texte du chat et l’expression correspondante, conserve les identifiants, scores
+et verdicts pendant au plus 30 jours ou 10 000 validations, et offre une purge
+totale confirmée. Cette valeur technique par défaut ne remplace pas le choix
+d’une durée adaptée à la finalité ni les obligations de la plateforme. Voir
+[Audit local et confidentialité](audit.md).
+
 Twitch recommande [EventSub et Twitch API](https://dev.twitch.tv/docs/chat/) ;
 les WebSockets conviennent au local et les scopes sont détaillés dans
 [l’authentification chat](https://dev.twitch.tv/docs/chat/authenticating/).
