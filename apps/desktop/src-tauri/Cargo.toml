@@ -13,6 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+semantic-engine-context-index = { path = "../../../crates/semantic-engine-context-index" }
 semantic-engine-context-store = { path = "../../../crates/semantic-engine-context-store" }
 semantic-engine-core = { path = "../../../crates/semantic-engine-core" }
 semantic-engine-loopback = { path = "../../../crates/semantic-engine-loopback" }
@@ -21,12 +22,13 @@ semantic-engine-package = { path = "../../../crates/semantic-engine-package" }
 semantic-engine-service = { path = "../../../crates/semantic-engine-service" }
 semver.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
+tempfile = "3"
 tokio.workspace = true
 
 [dev-dependencies]
-tempfile = "3"
 
 [features]
 default = ["custom-protocol"]

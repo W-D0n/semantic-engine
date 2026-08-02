@@ -8,6 +8,7 @@ formulations proches comprises.
 > inspection/rollback des paquets, tuning local des titres, export de versions,
 > arbitrage opérateur, mémoire révocable issue des corrections, audit SQLite à
 > rétention bornée et service d’application avec déduplication/cache TTL-LRU,
+> découverte hors ligne de canaux TUF avec approbation de racine et révocations,
 > API locale opt-in, Twitch EventSub et YouTube Live expérimental
 > protégée par le coffre natif du système. L'API et la CLI headless pilotent
 > aussi les sources, avec un ordre global durable pour plusieurs chats.
@@ -27,6 +28,7 @@ quand la réponse n’est pas assez sûre.
 - [Architecture modulaire](docs/architecture/overview.md)
 - [Pipeline de reconnaissance](docs/architecture/recognition-pipeline.md)
 - [Importer et diffuser un paquet de contexte](docs/integration/context-packages.md)
+- [Découvrir des contextes signés](docs/integration/context-channels.md)
 - [Conventions techniques retenues](docs/research/context-package-conventions.md)
 - [Sécurité, safety et cadre légal](docs/product/security-and-legal.md)
 - [Threat model](docs/product/threat-model.md)
@@ -80,6 +82,10 @@ Get-Content examples/submissions.jsonl |
 # Vérifier un paquet de titres avant de l’activer
 cargo run -q -p semantic-engine-cli -- context validate `
   --package packages/starter-titles/datapackage.json
+
+# Examiner puis vérifier un canal signé hors ligne
+cargo run -q -p semantic-engine-cli -- context channel inspect-root --root C:\canal\metadata\root.json
+cargo run -q -p semantic-engine-cli -- context channel verify --channel C:\canal --root C:\trust\root.json --state C:\trust\state
 
 # Vérifier le protocole avec un client Node indépendant
 cargo build -p semantic-engine-cli

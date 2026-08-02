@@ -157,6 +157,76 @@ export type ContextPackagePreview = {
   targets_sha256: string;
 };
 
+export type ChannelRootPreview = {
+  sha256: string;
+  version: number;
+  expires: string;
+  consistent_snapshot: boolean;
+  root_threshold: number;
+  root_key_ids: string[];
+};
+
+export type ContextChannelEnrollmentPreview = {
+  root: ChannelRootPreview;
+  already_trusted: boolean;
+};
+
+export type ContextTargetMetadata = {
+  profile: string;
+  package_id: string;
+  package_name: string;
+  package_version: string;
+  format_version: string;
+  kind: string;
+  locales: string[];
+  kinds: string[];
+  target_count: number;
+  spdx_license_expression: string;
+};
+
+export type ContextRevocation = {
+  archive_sha256: string;
+  package_id: string;
+  package_version: string;
+  effective_at: string;
+  reason: 'compromised' | 'invalid-data' | 'legal' | 'withdrawn' | 'other';
+  replacement?: string;
+};
+
+export type ContextChannelPackage = {
+  target_path: string;
+  archive_length: number;
+  archive_sha256: string;
+  metadata: ContextTargetMetadata;
+  revocation: ContextRevocation | null;
+};
+
+export type VerifiedContextChannel = {
+  channel: {
+    $schema: string;
+    formatVersion: number;
+    id: string;
+    name: string;
+    homepage: string;
+    packages: Array<{ path: string; metadata: ContextTargetMetadata }>;
+  };
+  root_sha256: string;
+  root_version: number;
+  timestamp_version: number;
+  snapshot_version: number;
+  targets_version: number;
+  timestamp_expires: string;
+  verified_at: string;
+  revocation_sequence: number;
+  revocations_updated_at: string;
+  packages: ContextChannelPackage[];
+};
+
+export type ContextChannelVerificationOutcome = {
+  verified: VerifiedContextChannel;
+  quarantined_context: ContextPackagePreview | null;
+};
+
 export type ExportedContextPackage = {
   preview: ContextPackagePreview;
   descriptor_path: string;

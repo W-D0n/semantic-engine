@@ -5,10 +5,10 @@ d'ajouter un nouveau transport ou une nouvelle plateforme. L'autonomie du produi
 est un critère de sortie à chaque étape : une intégration externe ne doit jamais
 devenir nécessaire au fonctionnement de l'application portable.
 
-| Jalon | État au 1er août 2026 |
+| Jalon | État au 2 août 2026 |
 |---|---|
 | M0 | en cours — corpus de 328 annotations et contrats présents, licence à finaliser |
-| M1 | en cours — produit portable autonome et atelier opérateur |
+| M1 | en cours — portable, atelier et client TUF présents ; publication Answer Atlas à signer |
 | M2 | terminé — cycle v1 durable, JSONL, HTTP/WebSocket et conformité indépendante |
 | M3 | en cours — source générique, coffre, OAuth et EventSub intégrés |
 | M4 | en cours — YouTube Live vertical et gRPC intégrés, conformité/qualité à finaliser |
@@ -59,6 +59,9 @@ paquet de titres importable.
 - [x] persister l'audit des validations et résolutions ;
 - [x] ajouter déduplication et cache borné ;
 - [x] fournir les commandes d'évaluation et les paquets multi-OS attestés ;
+- [x] vérifier les canaux TUF, épingler leur racine et persister les révocations ;
+- [x] arbitrer la confiance et consulter les paquets depuis l’application portable ;
+- [x] bloquer l’activation et mettre en quarantaine un contexte révoqué ;
 - [ ] publier index, signatures et règles de révocation des contextes.
 
 **Critère de sortie** : une personne peut créer ou importer un contexte, lancer
@@ -160,9 +163,10 @@ gratuite/commerciale et décision go/no-go pour `v0.2`.
 
 ## Prochaine session
 
-1. Arbitrer la licence du code, signer nativement Windows puis publier le brouillon `v0.1.0`.
-2. Préparer un Client ID de distribution puis réaliser un pilote réel consenti.
-3. Constituer un corpus aveugle de paraphrases réelles avant de reconsidérer les
+1. Autoriser les workflows TUF-on-CI, réaliser la cérémonie racine Answer Atlas et publier son empreinte.
+2. Arbitrer la licence du code, signer nativement Windows puis publier le brouillon `v0.1.0`.
+3. Préparer un Client ID de distribution puis réaliser un pilote réel consenti.
+4. Constituer un corpus aveugle de paraphrases réelles avant de reconsidérer les
    embeddings, actuellement inférieurs au lexical et désactivés par défaut.
 
 Les intégrations MyVault ou Media Catalog avancent dans leurs propres dépôts et

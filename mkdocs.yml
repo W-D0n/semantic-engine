@@ -38,9 +38,11 @@ nav:
       - Chat Twitch: integration/twitch.md
       - Chat YouTube Live: integration/youtube.md
       - Paquets de contexte: integration/context-packages.md
+      - Canaux de contextes signés: integration/context-channels.md
   - Recherche:
       - Solutions et données existantes: research/existing-solutions-and-data.md
       - Conventions des paquets: research/context-package-conventions.md
+      - Signatures et index de contextes: research/context-index-signing.md
       - Intégration YouTube Live: research/youtube-live-integration.md
   - Exécution:
       - Roadmap: roadmap.md
@@ -56,3 +58,4 @@ nav:
       - Service d’application et cache borné: adr/0008-application-service-cache.md
       - Cycle de session et événements: adr/0009-session-cycle-and-events.md
       - Coffre natif et OAuth Twitch: adr/0010-native-vault-and-twitch-device-flow.md
+      - Canaux de contextes TUF: adr/0011-tuf-context-channels.md

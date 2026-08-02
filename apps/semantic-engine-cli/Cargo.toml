@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 semantic-engine-core = { path = "../../crates/semantic-engine-core" }
+semantic-engine-context-index = { path = "../../crates/semantic-engine-context-index" }
 serde.workspace = true
 serde_json.workspace = true
 semantic-engine-package = { path = "../../crates/semantic-engine-package" }
@@ -13,3 +14,9 @@ semantic-engine-protocol = { path = "../../crates/semantic-engine-protocol" }
 semantic-engine-service = { path = "../../crates/semantic-engine-service" }
 semantic-engine-source-runtime = { path = "../../crates/semantic-engine-source-runtime" }
 tokio.workspace = true
+
+[dev-dependencies]
+hex = "0.4"
+sigstore-crypto = "0.11.0"
+sigstore-tuf = { version = "0.11.0", default-features = false }
+tempfile = "3"

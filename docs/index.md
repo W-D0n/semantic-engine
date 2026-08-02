@@ -29,11 +29,12 @@ ni un entrepôt permanent de conversations.
 2. [Architecture](architecture/overview.md)
 3. [Dictionnaire, vecteurs et mémoire](architecture/recognition-pipeline.md)
 4. [Importer et diffuser un paquet de contexte](integration/context-packages.md)
-5. [Sécurité et cadre légal](product/security-and-legal.md)
-6. [Connecter Twitch](integration/twitch.md)
-7. [Connecter YouTube Live](integration/youtube.md)
-8. [Distribuer et vérifier une release](product/releases.md)
-9. [Roadmap](roadmap.md)
+5. [Découvrir des contextes signés](integration/context-channels.md)
+6. [Sécurité et cadre légal](product/security-and-legal.md)
+7. [Connecter Twitch](integration/twitch.md)
+8. [Connecter YouTube Live](integration/youtube.md)
+9. [Distribuer et vérifier une release](product/releases.md)
+10. [Roadmap](roadmap.md)
 
 Le projet possède un moteur Rust testé, une application portable, des contextes
 Data Package vérifiés, des sessions/audits durables et une API locale/headless.

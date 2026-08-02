@@ -13,6 +13,8 @@ passerelle loopback en service LAN/Internet.
 | session, ordre, verdict | SQLite local | intégrité, idempotence, reprise |
 | formulation apprise | SQLite local opt-in | consentement, isolation, expiration, révocation |
 | paquet de contexte | fichiers importés | provenance, licence, taille, hash |
+| racine de canal | AppData local | identité éditeur, intégrité, rotation |
+| état TUF/révocations | AppData local | anti-rollback, fraîcheur, tombstones |
 
 Les frontières sont : utilisateur/chat non fiable → adaptateur ; Twitch → OAuth
 et WebSocket ; navigateur local → loopback ; paquet externe → importeur ; UI →
@@ -43,6 +45,9 @@ flowchart LR
 | CSRF ou client web non autorisé | Bearer aléatoire, origine exacte, CORS fermé, loopback uniquement | extension/navigateur compromis avec accès au Bearer |
 | serveur exposé sur LAN | validation stricte de l'adresse loopback | tunnel/proxy explicitement installé par l'utilisateur |
 | paquet malveillant | chemins canoniques, tailles, nombre de fichiers, SHA-256, schéma, transaction | données légalement douteuses mais techniquement valides |
+| faux catalogue ou miroir compromis | racine approuvée hors bande, chaîne TUF complète, seuils et cache durable | opérateur trompé lors de la première comparaison d’empreinte |
+| rollback, freeze ou suppression d’une révocation | versions/expirations TUF persistées, registre séquencé et tombstones locaux | indisponibilité si l’éditeur laisse expirer timestamp |
+| utilisation d’un contexte révoqué | statut signé recopié en SQLite, activation bloquée, contexte actif mis en quarantaine et session clôturée | contenu déjà exporté ou copié hors de l’application |
 | relecture/doublon Twitch | ID de notification bornés, message ID namespacé, idempotence | Twitch ne rejoue pas les messages perdus hors connexion |
 | ordre concurrent incorrect | séquence globale sous verrou, valeur suivante reconstruite du journal | ordre reflète l’arrivée locale, pas l’horodatage absolu réseau |
 | empoisonnement de la mémoire | apprentissage séparé réservé à une résolution acceptée, cible backend, contexte hashé, conflit exact abstenu, TTL/LRU/quota et révocation | opérateur local malveillant ou trompé |

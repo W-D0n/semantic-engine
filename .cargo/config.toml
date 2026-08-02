@@ -1,0 +1,4 @@
+[env]
+# aws-lc-sys documents these reproducible prebuilt objects for Windows x86-64.
+# This keeps TUF verification buildable without adding NASM as a workstation prerequisite.
+AWS_LC_SYS_PREBUILT_NASM = "1"

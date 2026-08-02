@@ -1,6 +1,17 @@
-use std::{fs, path::PathBuf, sync::Mutex};
+use std::{
+    fs,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 
-use semantic_engine_context_store::{ContextStore, StoredContext, TargetRecord};
+use semantic_engine_context_index::{
+    ChannelRootPreview, VerifiedContextChannel, inspect_channel_root_now,
+    inspect_offline_channel_now,
+};
+use semantic_engine_context_store::{
+    ChannelPackageStatus, ContextStore, StoredContext, TargetRecord,
+};
 use semantic_engine_core::{
     AnswerTarget, OperatorResolution, OperatorResolutionRequest, Submission, Validation,
 };
@@ -14,7 +25,7 @@ use semantic_engine_service::{
 };
 use semantic_engine_source_runtime::SourceRuntime;
 use semver::Version;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
 
 mod sources;
@@ -44,6 +55,29 @@ struct ActiveLoopback {
 }
 
 struct LoopbackRuntime(tokio::sync::Mutex<Option<ActiveLoopback>>);
+
+struct ContextChannelRuntime {
+    directory: PathBuf,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ContextChannelEnrollmentPreview {
+    pub root: ChannelRootPreview,
+    pub already_trusted: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ContextChannelVerificationOutcome {
+    pub verified: VerifiedContextChannel,
+    pub quarantined_context: Option<ContextPackagePreview>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct ContextChannelTrustRecord {
+    format_version: u32,
+    source_directory: String,
+}
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct LoopbackStatus {
@@ -399,6 +433,161 @@ fn export_context_draft_ipc(
     export_context_draft(parent_directory, package_sha256, new_version, &store)
 }
 
+#[tauri::command]
+fn preview_context_channel_root_ipc(
+    channel_directory: String,
+    runtime: State<'_, ContextChannelRuntime>,
+) -> Result<ContextChannelEnrollmentPreview, String> {
+    preview_context_channel_root(&channel_directory, &runtime.directory)
+}
+
+#[tauri::command]
+async fn verify_context_channel_ipc(
+    channel_directory: String,
+    expected_root_sha256: String,
+    runtime: State<'_, ContextChannelRuntime>,
+    store: State<'_, Mutex<ContextStore>>,
+) -> Result<ContextChannelVerificationOutcome, String> {
+    let source = canonical_channel_directory(&channel_directory)?;
+    let preview = preview_context_channel_root(&channel_directory, &runtime.directory)?;
+    if preview.root.sha256 != expected_root_sha256 {
+        return Err(
+            "channel root changed after inspection; inspect it again before approval".into()
+        );
+    }
+    let trusted_directory = runtime.directory.join(&expected_root_sha256);
+    fs::create_dir_all(&trusted_directory).map_err(|error| error.to_string())?;
+    let trusted_root = trusted_directory.join("trusted-root.json");
+    if trusted_root.exists() {
+        let stored = inspect_channel_root_now(&trusted_root).map_err(|error| error.to_string())?;
+        if stored.sha256 != expected_root_sha256 {
+            return Err("stored channel trust root no longer matches its identity".into());
+        }
+    } else {
+        let source_root = source.join("metadata/root.json");
+        let candidate_bytes = fs::read(source_root).map_err(|error| error.to_string())?;
+        write_verified_new_file(&trusted_root, &candidate_bytes, |candidate| {
+            let inspected =
+                inspect_channel_root_now(candidate).map_err(|error| error.to_string())?;
+            if inspected.sha256 != expected_root_sha256 {
+                return Err(
+                    "channel root changed after inspection; inspect it again before approval"
+                        .into(),
+                );
+            }
+            Ok(())
+        })?;
+    }
+    let record = ContextChannelTrustRecord {
+        format_version: 1,
+        source_directory: source.to_string_lossy().into_owned(),
+    };
+    write_json_atomic(&trusted_directory.join("source.json"), &record)?;
+    let verified =
+        inspect_offline_channel_now(source, trusted_root, trusted_directory.join("state"))
+            .await
+            .map_err(|error| error.to_string())?;
+    let statuses = verified
+        .packages
+        .iter()
+        .map(|package| ChannelPackageStatus {
+            channel_root_sha256: verified.root_sha256.clone(),
+            archive_sha256: package.archive_sha256.clone(),
+            package_id: package.metadata.package_id.clone(),
+            package_version: package.metadata.package_version.clone(),
+            revocation_reason: package
+                .revocation
+                .as_ref()
+                .map(|revocation| format!("{:?}", revocation.reason).to_ascii_lowercase()),
+        })
+        .collect::<Vec<_>>();
+    let quarantined = store
+        .lock()
+        .map_err(|_| "context store lock is poisoned".to_string())?
+        .apply_channel_statuses(&statuses)
+        .map_err(|error| error.to_string())?;
+    Ok(ContextChannelVerificationOutcome {
+        verified,
+        quarantined_context: quarantined.as_ref().map(ContextPackagePreview::from),
+    })
+}
+
+fn preview_context_channel_root(
+    channel_directory: &str,
+    trust_directory: &Path,
+) -> Result<ContextChannelEnrollmentPreview, String> {
+    let source = canonical_channel_directory(channel_directory)?;
+    fs::create_dir_all(trust_directory).map_err(|error| error.to_string())?;
+    let mut entries = fs::read_dir(trust_directory)
+        .map_err(|error| error.to_string())?
+        .take(65)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    if entries.len() > 64 {
+        return Err("too many trusted context channels".into());
+    }
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.len() != 64 || !name.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            continue;
+        }
+        let record_path = entry.path().join("source.json");
+        let Ok(metadata) = fs::metadata(&record_path) else { continue };
+        if !metadata.is_file() || metadata.len() > 8 * 1024 {
+            continue;
+        }
+        let record: ContextChannelTrustRecord =
+            serde_json::from_slice(&fs::read(record_path).map_err(|error| error.to_string())?)
+                .map_err(|error| error.to_string())?;
+        if record.format_version != 1 || Path::new(&record.source_directory) != source {
+            continue;
+        }
+        let root = inspect_channel_root_now(entry.path().join("trusted-root.json"))
+            .map_err(|error| error.to_string())?;
+        return Ok(ContextChannelEnrollmentPreview { root, already_trusted: true });
+    }
+    let root = inspect_channel_root_now(source.join("metadata/root.json"))
+        .map_err(|error| error.to_string())?;
+    Ok(ContextChannelEnrollmentPreview { root, already_trusted: false })
+}
+
+fn canonical_channel_directory(value: &str) -> Result<PathBuf, String> {
+    if value.chars().any(char::is_control) {
+        return Err("channel path contains a control character".into());
+    }
+    let path = PathBuf::from(value).canonicalize().map_err(|error| error.to_string())?;
+    if !path.is_dir() {
+        return Err("channel path is not a directory".into());
+    }
+    Ok(path)
+}
+
+fn write_verified_new_file(
+    path: &Path,
+    bytes: &[u8],
+    verify: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<(), String> {
+    let parent = path.parent().ok_or("channel trust path has no parent")?;
+    let mut candidate =
+        tempfile::NamedTempFile::new_in(parent).map_err(|error| error.to_string())?;
+    candidate.write_all(bytes).map_err(|error| error.to_string())?;
+    candidate.as_file().sync_all().map_err(|error| error.to_string())?;
+    verify(candidate.path())?;
+    candidate.persist_noclobber(path).map_err(|error| error.error.to_string())?;
+    Ok(())
+}
+
+fn write_json_atomic<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
+    let bytes = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
+    let parent = path.parent().ok_or("channel state path has no parent")?;
+    let mut temporary =
+        tempfile::NamedTempFile::new_in(parent).map_err(|error| error.to_string())?;
+    temporary.write_all(&bytes).map_err(|error| error.to_string())?;
+    temporary.persist(path).map_err(|error| error.error.to_string())?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -418,6 +607,9 @@ pub fn run() {
                 service,
             )?));
             app.manage(LoopbackRuntime(tokio::sync::Mutex::new(None)));
+            app.manage(ContextChannelRuntime {
+                directory: data_directory.join("context-channels"),
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -459,8 +651,55 @@ pub fn run() {
             find_targets_ipc,
             save_target_draft_ipc,
             discard_target_draft_ipc,
-            export_context_draft_ipc
+            export_context_draft_ipc,
+            preview_context_channel_root_ipc,
+            verify_context_channel_ipc
         ])
         .run(tauri::generate_context!())
         .expect("error while running Semantic Engine");
+}
+
+#[cfg(test)]
+mod channel_trust_tests {
+    use super::{preview_context_channel_root, write_verified_new_file};
+    use std::fs;
+
+    #[test]
+    fn candidate_bytes_are_verified_before_they_become_the_trust_anchor() {
+        let directory = tempfile::tempdir().unwrap();
+        let destination = directory.path().join("trusted-root.json");
+
+        let error = write_verified_new_file(&destination, b"replaced", |candidate| {
+            if fs::read(candidate).unwrap() == b"previewed" {
+                Ok(())
+            } else {
+                Err("candidate changed after preview".into())
+            }
+        })
+        .unwrap_err();
+
+        assert!(error.contains("changed"));
+        assert!(!destination.exists());
+        write_verified_new_file(&destination, b"previewed", |candidate| {
+            assert_eq!(fs::read(candidate).unwrap(), b"previewed");
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(fs::read(destination).unwrap(), b"previewed");
+    }
+
+    #[test]
+    fn preview_command_contract_returns_a_serializable_error() {
+        let workspace = tempfile::tempdir().unwrap();
+        let channel = workspace.path().join("channel");
+        fs::create_dir_all(channel.join("metadata")).unwrap();
+        let error = preview_context_channel_root(
+            &channel.to_string_lossy(),
+            &workspace.path().join("trust"),
+        )
+        .expect_err("missing root metadata must be rejected");
+
+        assert!(error.contains("channel"));
+        assert_eq!(serde_json::to_string(&error).unwrap(), format!("{error:?}"));
+    }
 }

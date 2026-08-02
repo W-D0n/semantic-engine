@@ -130,9 +130,10 @@ Pour la première version, publier un ZIP dans une release Git et joindre :
 - une URL immuable par version ;
 - les notes de changement et les versions du format compatibles.
 
-Un site statique ou un stockage objet fonctionne de la même façon. Le futur
-catalogue public sera un index, pas un entrepôt imposé : les éditeurs gardent
-leur hébergement, Semantic Engine découvre et vérifie leurs paquets.
+Un site statique ou un stockage objet fonctionne de la même façon. Les catalogues
+signés utilisent désormais un [canal TUF](context-channels.md) : les éditeurs
+gardent leur hébergement et Semantic Engine vérifie racine, fraîcheur, délégations,
+archives et révocations avant d’afficher l’index.
 
 Le dépôt public de référence est
 [Answer Atlas](https://github.com/W-D0n/answer-atlas). Il publie un catalogue

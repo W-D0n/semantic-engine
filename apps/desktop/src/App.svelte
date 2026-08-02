@@ -4,6 +4,7 @@
   import { onMount } from 'svelte';
   import ArbitrationPanel from './lib/ArbitrationPanel.svelte';
   import ContextWorkshop from './lib/ContextWorkshop.svelte';
+  import ContextChannels from './lib/ContextChannels.svelte';
   import LoopbackPanel from './lib/LoopbackPanel.svelte';
   import MemoryPanel from './lib/MemoryPanel.svelte';
   import SourcePanel from './lib/SourcePanel.svelte';
@@ -359,6 +360,23 @@
     }
   }
 
+  async function handleContextQuarantined(context: ContextPackagePreview) {
+    if (activeContext?.package_sha256 === context.package_sha256) activeContext = null;
+    if (packagePreview?.package_sha256 === context.package_sha256) packagePreview = null;
+    packageError = `${context.name} v${context.version} a été désactivé : le canal de confiance l'a révoqué.`;
+    if (
+      sessionSnapshot?.state === 'active'
+      && sessionSnapshot.context_package_sha256 === context.package_sha256
+    ) {
+      try {
+        await pauseSourcesForSession(sessionId);
+        sessionSnapshot = await invoke<SessionSnapshot>('end_session_ipc', { sessionId });
+      } catch (cause) {
+        error = `Le contexte a été mis en quarantaine, mais la session n'a pas pu être clôturée : ${cause instanceof Error ? cause.message : String(cause)}`;
+      }
+    }
+  }
+
   async function chooseContextPackage() {
     if (!inTauri || contextBusy) return;
 
@@ -558,6 +576,8 @@
       </p>
     {/if}
   </section>
+
+  <ContextChannels {inTauri} onContextQuarantined={handleContextQuarantined} />
 
   <ContextWorkshop {activeContext} onUseTarget={useTargetForRound} />
 

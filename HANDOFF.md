@@ -16,8 +16,10 @@ Lire en priorité `docs/architecture/overview.md`,
 
 ## Objectif de la prochaine session
 
-Conduire un pilote YouTube réel consenti, mesurer p50/p95/p99 réseau et préparer
-le dossier de conformité avant d’ouvrir les verdicts/points dans la distribution.
+Obtenir l’autorisation explicite des workflows TUF-on-CI, conduire la cérémonie
+de racine Answer Atlas, publier son empreinte hors bande, puis vérifier le canal
+déployé depuis l’application portable. Ensuite, conduire un pilote YouTube réel
+consenti, mesurer p50/p95/p99 réseau et préparer le dossier de conformité.
 La gestion de sources est disponible par Tauri et par l’API loopback/headless
 sans exposer les jetons ; plusieurs sources partagent un ordre de session global
 et durable.
@@ -88,6 +90,15 @@ et durable.
   borné, révocation, API JSONL/loopback et panneau de tuning Tauri ;
 - protocole public v2, sessions v2 et audit v2 pour distinguer la preuve
   `memory_expression` ; migration v1 documentée sans réautorisation OAuth ;
+- crate `semantic-engine-context-index` : client TUF v1 complet avec racine
+  approuvée, cache anti-rollback, délégations, profils signés et tombstones de révocation ;
+- CLI `context channel inspect-root/verify` et panneau Tauri **Canaux de contextes**
+  pour comparer l’empreinte, approuver et arbitrer les paquets révoqués sans activation ;
+- le statut signé est recopié dans `ContextStore` : une identité révoquée est
+  bloquée avant activation, et un contexte déjà actif est mis en quarantaine avec
+  clôture de la session et arrêt de ses sources via l’UI ;
+- Answer Atlas génère déterministement archive, profil et registre de révocations
+  dans `targets/`; la cérémonie et le déploiement TUF restent à autoriser ;
 - le pilote YouTube réel, l’audit de conformité, la licence, la signature Windows native et le
   scoreboard consommateur restent à faire.
 
@@ -122,10 +133,16 @@ et durable.
 27. `apps/desktop/src/lib/SourcePanel.svelte`
 28. `docs/integration/youtube.md`
 29. `crates/semantic-engine-youtube/src/lib.rs`
+30. `docs/integration/context-channels.md`
+31. `crates/semantic-engine-context-index/src/lib.rs`
+32. `apps/desktop/src/lib/ContextChannels.svelte`
 
 ## Décisions à préserver
 
 - les données s’appellent **paquet de contexte**, pas dictionnaire global ;
+- un canal signé ne prouve l’éditeur qu’après comparaison hors bande de sa racine ;
+- vérifier un canal n’active jamais un paquet ; les révocations restent des
+  tombstones et peuvent mettre en quarantaine un contexte déjà actif ;
 - une version publiée est immuable ; un réglage local est un calque séparé ;
 - aucun paquet ne contient ni n’exécute du code ;
 - import, aperçu, activation, brouillon et export sont des opérations distinctes ;
@@ -178,7 +195,8 @@ confirmer que le processus `msedgewebview2.exe` provient de
 
 ## Première action recommandée
 
-Réaliser un pilote YouTube réel consenti, mesurer sa latence et préparer l’audit
-de conformité ; faire ensuite arbitrer la licence du code et publier une release
-signée. Ne pas faire transiter les jetons dans JSONL/HTTP et ne pas réintroduire
-de dépendance vers MyVault, de chat brut persistant ni de scoreboard dans le moteur.
+Après autorisation du propriétaire, installer les workflows officiels TUF-on-CI
+épinglés, inscrire les signers hors ligne/en ligne et ne publier la racine qu’après
+revue locale. Réaliser ensuite le pilote YouTube, arbitrer la licence et publier
+une release signée. Ne pas faire transiter les jetons dans JSONL/HTTP et ne pas
+réintroduire de dépendance vers MyVault, de chat brut persistant ni de scoreboard.

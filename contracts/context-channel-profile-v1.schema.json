@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:semantic-engine:context-channel-profile:1",
+  "title": "Semantic Engine context channel profile v1",
+  "$defs": {
+    "targetMetadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "packageId", "packageName", "packageVersion", "formatVersion", "kind", "locales", "kinds", "targetCount", "spdxLicenseExpression"],
+      "properties": {
+        "profile": { "const": "context-target-v1" },
+        "packageId": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "packageName": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9._-]+$" },
+        "packageVersion": { "type": "string", "minLength": 5, "maxLength": 128 },
+        "formatVersion": { "const": "0.1.0" },
+        "kind": { "const": "recognition-context" },
+        "locales": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z]{2,3}(?:-[A-Z]{2})?$" }
+        },
+        "kinds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": { "enum": ["game", "movie", "other"] }
+        },
+        "targetCount": { "type": "integer", "minimum": 1, "maximum": 50000 },
+        "spdxLicenseExpression": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "formatVersion", "id", "name", "homepage", "packages"],
+  "properties": {
+    "$schema": { "const": "urn:semantic-engine:context-channel-profile:1" },
+    "formatVersion": { "const": 1 },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-z0-9._-]+$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 512 },
+    "homepage": { "type": "string", "minLength": 9, "maxLength": 2048, "pattern": "^https://" },
+    "packages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "metadata"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 1024,
+            "pattern": "^(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\\.zip$"
+          },
+          "metadata": { "$ref": "#/$defs/targetMetadata" }
+        }
+      }
+    }
+  }
+}

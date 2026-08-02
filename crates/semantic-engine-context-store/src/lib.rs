@@ -77,6 +77,15 @@ pub struct TargetRecord {
     pub package_sha256: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ChannelPackageStatus {
+    pub channel_root_sha256: String,
+    pub archive_sha256: String,
+    pub package_id: String,
+    pub package_version: String,
+    pub revocation_reason: Option<String>,
+}
+
 #[derive(Debug)]
 pub enum StoreError {
     Sqlite(rusqlite::Error),
@@ -88,6 +97,9 @@ pub enum StoreError {
     InvalidSearch,
     ActiveContextChanged,
     ContextMetadataUpgradeRequired,
+    RevokedByTrustedChannel { package_id: String, version: String },
+    InvalidChannelStatus,
+    ChannelArchiveIdentityConflict,
 }
 
 impl fmt::Display for StoreError {
@@ -112,6 +124,14 @@ impl fmt::Display for StoreError {
                 formatter,
                 "active context metadata is outdated; reactivate its original package before export"
             ),
+            Self::RevokedByTrustedChannel { package_id, version } => write!(
+                formatter,
+                "context {package_id} version {version} was revoked by a trusted channel"
+            ),
+            Self::InvalidChannelStatus => write!(formatter, "invalid trusted channel status"),
+            Self::ChannelArchiveIdentityConflict => {
+                write!(formatter, "trusted channel archive identity changed for immutable bytes")
+            }
         }
     }
 }
@@ -127,7 +147,10 @@ impl Error for StoreError {
             | Self::InvalidTargetDraft(_)
             | Self::InvalidSearch
             | Self::ActiveContextChanged
-            | Self::ContextMetadataUpgradeRequired => None,
+            | Self::ContextMetadataUpgradeRequired
+            | Self::RevokedByTrustedChannel { .. }
+            | Self::InvalidChannelStatus
+            | Self::ChannelArchiveIdentityConflict => None,
         }
     }
 }
@@ -178,6 +201,17 @@ impl ContextStore {
                 payload_json TEXT NOT NULL,
                 PRIMARY KEY(package_sha256, target_id)
             );
+            CREATE TABLE IF NOT EXISTS context_channel_status (
+                channel_root_sha256 TEXT NOT NULL,
+                archive_sha256 TEXT NOT NULL,
+                package_id TEXT NOT NULL,
+                version TEXT NOT NULL,
+                revocation_reason TEXT,
+                PRIMARY KEY(channel_root_sha256, archive_sha256)
+            );
+            CREATE INDEX IF NOT EXISTS context_channel_revoked_identity
+                ON context_channel_status(package_id, version)
+                WHERE revocation_reason IS NOT NULL;
             INSERT OR IGNORE INTO context_state(singleton, active_sequence) VALUES (1, NULL);
             ",
         )?;
@@ -186,6 +220,12 @@ impl ContextStore {
 
     pub fn activate(&mut self, imported: &ImportedContext) -> Result<StoredContext, StoreError> {
         let context = StoredContext::from_imported(imported);
+        if identity_is_revoked(&self.connection, &context.package_id, &context.version)? {
+            return Err(StoreError::RevokedByTrustedChannel {
+                package_id: context.package_id,
+                version: context.version,
+            });
+        }
         let payload = serde_json::to_string(&context)?;
         let transaction =
             self.connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -246,6 +286,62 @@ impl ContextStore {
 
     pub fn current(&self) -> Result<Option<StoredContext>, StoreError> {
         active_context(&self.connection)
+    }
+
+    pub fn apply_channel_statuses(
+        &mut self,
+        statuses: &[ChannelPackageStatus],
+    ) -> Result<Option<StoredContext>, StoreError> {
+        let transaction =
+            self.connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        for status in statuses {
+            validate_channel_status(status)?;
+            let existing = transaction
+                .query_row(
+                    "SELECT package_id, version FROM context_channel_status
+                     WHERE channel_root_sha256 = ?1 AND archive_sha256 = ?2",
+                    params![status.channel_root_sha256, status.archive_sha256],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                )
+                .optional()?;
+            if existing.as_ref().is_some_and(|(package_id, version)| {
+                package_id != &status.package_id || version != &status.package_version
+            }) {
+                return Err(StoreError::ChannelArchiveIdentityConflict);
+            }
+            transaction.execute(
+                "INSERT INTO context_channel_status
+                 (channel_root_sha256, archive_sha256, package_id, version, revocation_reason)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
+                 ON CONFLICT(channel_root_sha256, archive_sha256) DO UPDATE SET
+                   revocation_reason = COALESCE(
+                     context_channel_status.revocation_reason,
+                     excluded.revocation_reason
+                   )",
+                params![
+                    status.channel_root_sha256,
+                    status.archive_sha256,
+                    status.package_id,
+                    status.package_version,
+                    status.revocation_reason,
+                ],
+            )?;
+        }
+
+        let active = active_context(&transaction)?;
+        let quarantined = if let Some(context) = active
+            && identity_is_revoked(&transaction, &context.package_id, &context.version)?
+        {
+            transaction.execute(
+                "UPDATE context_state SET active_sequence = NULL WHERE singleton = 1",
+                [],
+            )?;
+            Some(context)
+        } else {
+            None
+        };
+        transaction.commit()?;
+        Ok(quarantined)
     }
 
     pub fn rollback(&mut self) -> Result<Option<StoredContext>, StoreError> {
@@ -429,6 +525,41 @@ fn active_context(connection: &Connection) -> Result<Option<StoredContext>, Stor
         )
         .optional()?;
     payload.map(|payload| serde_json::from_str(&payload).map_err(StoreError::from)).transpose()
+}
+
+fn identity_is_revoked(
+    connection: &Connection,
+    package_id: &str,
+    version: &str,
+) -> Result<bool, rusqlite::Error> {
+    connection.query_row(
+        "SELECT EXISTS(
+           SELECT 1 FROM context_channel_status
+           WHERE package_id = ?1 AND version = ?2 AND revocation_reason IS NOT NULL
+         )",
+        params![package_id, version],
+        |row| row.get(0),
+    )
+}
+
+fn validate_channel_status(status: &ChannelPackageStatus) -> Result<(), StoreError> {
+    let valid_hash =
+        |value: &str| value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit());
+    let valid_text = |value: &str, maximum: usize| {
+        !value.is_empty()
+            && value.trim() == value
+            && value.chars().count() <= maximum
+            && !value.chars().any(char::is_control)
+    };
+    if !valid_hash(&status.channel_root_sha256)
+        || !valid_hash(&status.archive_sha256)
+        || !valid_text(&status.package_id, 512)
+        || !valid_text(&status.package_version, 128)
+        || status.revocation_reason.as_ref().is_some_and(|reason| !valid_text(reason, 64))
+    {
+        return Err(StoreError::InvalidChannelStatus);
+    }
+    Ok(())
 }
 
 fn ensure_active_package(

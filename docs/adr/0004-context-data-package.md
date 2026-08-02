@@ -29,9 +29,9 @@ L’activation persistante restera une opération séparée et transactionnelle.
 - les versions sont immuables et permettent cache et rollback ;
 - hash et schéma n’établissent pas la confiance dans l’éditeur.
 
-La signature authentifiée et le catalogue public sont différés. Une future
-signature canonisera le JSON selon RFC 8785 avant signature afin d’éviter les
-variations d’ordre et d’espacement.
+La signature authentifiée et le catalogue public sont traités séparément par
+[ADR-0011](0011-tuf-context-channels.md). TUF signe ses propres métadonnées selon
+sa sérialisation canonique ; RFC 8785 n’est pas utilisé pour ces enveloppes.
 
 ## Alternatives
 

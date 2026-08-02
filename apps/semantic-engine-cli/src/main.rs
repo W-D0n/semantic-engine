@@ -10,6 +10,7 @@ use std::{
     time::Instant,
 };
 
+use semantic_engine_context_index::{inspect_channel_root_now, inspect_offline_channel_now};
 use semantic_engine_core::{
     AnswerTarget, Decision, Round, Submission, ValidationPolicy, Validator,
 };
@@ -44,33 +45,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
 
     if command.as_deref() == Some("context") {
-        if args.next().as_deref() != Some("validate") || args.next().as_deref() != Some("--package")
-        {
-            return Err(
-                "usage: semantic-engine-cli context validate --package <datapackage.json>".into()
-            );
-        }
-        let package_path = args.next().ok_or("missing datapackage.json path")?;
-        if args.next().is_some() {
-            return Err("unexpected arguments after package path".into());
-        }
-        let imported = import_package(package_path)?;
-        println!(
-            "{}",
-            serde_json::json!({
-                "status": "valid",
-                "name": imported.name,
-                "id": imported.id,
-                "version": imported.version.to_string(),
-                "package_sha256": imported.package_sha256,
-                "targets_sha256": imported.targets_sha256,
-                "sources": imported.sources,
-                "locales": imported.locales,
-                "license": imported.spdx_license_expression,
-                "targets": imported.targets.len()
-            })
-        );
-        return Ok(());
+        return run_context(args);
     }
 
     if command.as_deref() == Some("benchmark") {
@@ -119,6 +94,81 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+fn run_context(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>> {
+    match args.next().as_deref() {
+        Some("validate") => {
+            if args.next().as_deref() != Some("--package") {
+                return Err(
+                    "usage: semantic-engine-cli context validate --package <datapackage.json>"
+                        .into(),
+                );
+            }
+            let package_path = args.next().ok_or("missing datapackage.json path")?;
+            if args.next().is_some() {
+                return Err("unexpected arguments after package path".into());
+            }
+            let imported = import_package(package_path)?;
+            println!(
+                "{}",
+                serde_json::json!({
+                    "status": "valid",
+                    "name": imported.name,
+                    "id": imported.id,
+                    "version": imported.version.to_string(),
+                    "package_sha256": imported.package_sha256,
+                    "targets_sha256": imported.targets_sha256,
+                    "sources": imported.sources,
+                    "locales": imported.locales,
+                    "license": imported.spdx_license_expression,
+                    "targets": imported.targets.len()
+                })
+            );
+        }
+        Some("channel") => match args.next().as_deref() {
+            Some("inspect-root") => {
+                if args.next().as_deref() != Some("--root") {
+                    return Err("usage: semantic-engine-cli context channel inspect-root --root <root.json>".into());
+                }
+                let root = args.next().ok_or("missing trusted root path")?;
+                if args.next().is_some() {
+                    return Err("unexpected arguments after trusted root path".into());
+                }
+                println!("{}", serde_json::to_string(&inspect_channel_root_now(root)?)?);
+            }
+            Some("verify") => {
+                let channel = required_flag(&mut args, "--channel", "missing channel directory")?;
+                let root = required_flag(&mut args, "--root", "missing trusted root path")?;
+                let state = required_flag(&mut args, "--state", "missing channel state directory")?;
+                if args.next().is_some() {
+                    return Err("unexpected arguments after channel state directory".into());
+                }
+                let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+                let verified =
+                    runtime.block_on(inspect_offline_channel_now(channel, root, state))?;
+                println!("{}", serde_json::to_string(&verified)?);
+            }
+            _ => {
+                return Err("usage: semantic-engine-cli context channel (inspect-root --root <root.json> | verify --channel <directory> --root <root.json> --state <directory>)".into());
+            }
+        },
+        _ => {
+            return Err("usage: semantic-engine-cli context (validate --package <datapackage.json> | channel ...)".into());
+        }
+    }
+    Ok(())
+}
+
+fn required_flag(
+    args: &mut impl Iterator<Item = String>,
+    expected: &str,
+    missing: &'static str,
+) -> Result<String, Box<dyn Error>> {
+    if args.next().as_deref() != Some(expected) {
+        return Err(format!("expected {expected}").into());
+    }
+    args.next().ok_or_else(|| missing.into())
 }
 
 fn run_server(mut args: impl Iterator<Item = String>) -> Result<(), Box<dyn Error>> {
@@ -597,6 +647,8 @@ fn print_help() {
         "Semantic Engine local tools\n\n\
          Usage:\n  semantic-engine-cli validate --round <round.json>\n  \
          semantic-engine-cli context validate --package <datapackage.json>\n  \
+         semantic-engine-cli context channel inspect-root --root <root.json>\n  \
+         semantic-engine-cli context channel verify --channel <directory> --root <root.json> --state <directory>\n  \
          semantic-engine-cli benchmark (--round <round.json> | --package <datapackage.json>) --submissions <submissions.jsonl> [--iterations <1..1000>]\n  \
          semantic-engine-cli evaluate --titles <titles.json> --cases <cases.json> [--minimum-precision <0..1>] [--minimum-recall <0..1>]\n  \
          semantic-engine-cli serve [--audit <audit.sqlite3>]\n  \

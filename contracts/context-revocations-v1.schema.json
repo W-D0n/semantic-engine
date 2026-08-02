@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:semantic-engine:context-revocations:1",
+  "title": "Semantic Engine context archive revocations v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "formatVersion", "sequence", "updatedAt", "entries"],
+  "properties": {
+    "$schema": { "const": "urn:semantic-engine:context-revocations:1" },
+    "formatVersion": { "const": 1 },
+    "sequence": { "type": "integer", "minimum": 1 },
+    "updatedAt": { "type": "string", "format": "date-time" },
+    "entries": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["archiveSha256", "packageId", "packageVersion", "effectiveAt", "reason"],
+        "properties": {
+          "archiveSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "packageId": { "type": "string", "minLength": 1, "maxLength": 512 },
+          "packageVersion": { "type": "string", "minLength": 5, "maxLength": 128 },
+          "effectiveAt": { "type": "string", "format": "date-time" },
+          "reason": { "enum": ["compromised", "invalid-data", "legal", "withdrawn", "other"] },
+          "replacement": { "type": "string", "minLength": 5, "maxLength": 128 }
+        }
+      }
+    }
+  }
+}
