@@ -7,7 +7,7 @@
   "unevaluatedProperties": false,
   "required": ["contract_version", "session_id", "sequence", "occurred_at_ms", "type"],
   "properties": {
-    "contract_version": { "const": 1 },
+    "contract_version": { "const": 2 },
     "session_id": { "type": "string", "minLength": 1, "maxLength": 256 },
     "sequence": { "type": "integer", "minimum": 1 },
     "occurred_at_ms": { "type": "integer", "minimum": 0 },
@@ -76,7 +76,7 @@
         "score": { "type": "number", "minimum": 0, "maximum": 1 },
         "evidence_kinds": {
           "type": "array",
-          "items": { "enum": ["configured_expression", "normalized_expression", "fuzzy_expression", "ambiguous_expression"] }
+          "items": { "enum": ["configured_expression", "normalized_expression", "memory_expression", "fuzzy_expression", "ambiguous_expression"] }
         },
         "issue": { "enum": [null, "invalid_policy", "invalid_round", "invalid_submission"] }
       }

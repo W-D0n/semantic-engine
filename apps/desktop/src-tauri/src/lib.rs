@@ -9,8 +9,8 @@ use semantic_engine_loopback::{
 };
 use semantic_engine_package::{ImportedContext, SourceMetadata, export_package, import_package};
 use semantic_engine_service::{
-    AuditEntry, ResumableSession, SemanticEngineService, ServiceError, SessionEventsPage,
-    SessionSnapshot, StartSession,
+    AuditEntry, MemoryEntry, ResumableSession, SemanticEngineService, ServiceError,
+    SessionEventsPage, SessionSnapshot, StartSession,
 };
 use semantic_engine_source_runtime::SourceRuntime;
 use semver::Version;
@@ -95,8 +95,8 @@ async fn recent_audit_ipc(
 }
 
 #[tauri::command]
-async fn purge_audit_ipc(service: State<'_, SharedService>) -> Result<usize, String> {
-    execute_service(service.inner(), SemanticEngineService::purge_audit).await
+async fn purge_local_data_ipc(service: State<'_, SharedService>) -> Result<usize, String> {
+    execute_service(service.inner(), SemanticEngineService::purge_local_data).await
 }
 
 #[tauri::command]
@@ -139,6 +139,43 @@ async fn resolve_session_ipc(
 ) -> Result<OperatorResolution, String> {
     execute_service(service.inner(), move |service| service.resolve_session(&session_id, request))
         .await
+}
+
+#[tauri::command]
+async fn remember_resolution_ipc(
+    session_id: String,
+    message_id: String,
+    service: State<'_, SharedService>,
+) -> Result<MemoryEntry, String> {
+    execute_service(service.inner(), move |service| {
+        service.remember_session_resolution(&session_id, &message_id)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn list_memory_ipc(
+    context_package_sha256: String,
+    limit: usize,
+    active_only: bool,
+    service: State<'_, SharedService>,
+) -> Result<Vec<MemoryEntry>, String> {
+    execute_service(service.inner(), move |service| {
+        service.recognition_memory(&context_package_sha256, limit, active_only)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn revoke_memory_ipc(
+    context_package_sha256: String,
+    id: String,
+    service: State<'_, SharedService>,
+) -> Result<MemoryEntry, String> {
+    execute_service(service.inner(), move |service| {
+        service.revoke_memory(&context_package_sha256, &id)
+    })
+    .await
 }
 
 #[tauri::command]
@@ -385,12 +422,15 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             recent_audit_ipc,
-            purge_audit_ipc,
+            purge_local_data_ipc,
             start_session_ipc,
             current_session_ipc,
             latest_active_session_ipc,
             submit_session_ipc,
             resolve_session_ipc,
+            remember_resolution_ipc,
+            list_memory_ipc,
+            revoke_memory_ipc,
             end_session_ipc,
             session_events_ipc,
             loopback_status_ipc,

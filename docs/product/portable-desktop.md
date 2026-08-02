@@ -66,8 +66,10 @@ Le script :
 2. extrait le runtime dans un dossier temporaire ;
 3. exécute `npm ci` et le build Svelte dans une copie temporaire gouvernée par
    `package-lock.json`, sans dépendre du `node_modules` de travail ;
-4. compile la variante Tauri fixe avec `tauri.portable.conf.json`, puis la
-   variante légère utilisant WebView2 système ;
+4. compile la variante Tauri fixe avec `tauri.portable.conf.json` contre un
+   stub vide (le runtime vérifié est copié séparément dans le package, sans
+   duplication dans `target`), puis la variante légère utilisant WebView2
+   système ;
 5. génère le dossier portable, la variante légère racine, le lanceur et les checksums ;
 6. retire systématiquement le lien de build et le dossier temporaire.
 
@@ -156,14 +158,19 @@ preuve produits par le moteur. Le bloc **Arbitrage manuel** permet ensuite :
 - d’accepter la soumission en choisissant une cible appartenant au round ;
 - de la rejeter ;
 - d’ajouter une note facultative limitée à 512 caractères.
+- de cocher **Apprendre cette formulation** lors d'une acceptation explicite.
 
 La décision moteur originale n’est jamais écrasée. La résolution opérateur
 contient aussi `round_id`, `message_id`, `participant_id` et `source_sequence`,
 ce qui permet à un workflow externe de compter les points ou de désigner un
 gagnant de façon idempotente. Validation et résolution sont persistées dans un
 journal SQLite séparé, relu au redémarrage. Le texte brut et l’expression exacte
-ayant servi de preuve ne sont pas conservés. L’écran permet de supprimer tout le
-journal après confirmation ; voir [Audit local et confidentialité](audit.md).
+ayant servi de preuve ne sont pas conservés dans l'audit. Une formulation n'est
+stockée dans la mémoire que si l'opérateur coche explicitement l'apprentissage ;
+la section **Mémoire de reconnaissance** affiche cible, usages, expiration et
+état, puis permet une révocation individuelle. L’écran permet aussi de supprimer
+ensemble journal, sessions et mémoire après confirmation ; voir
+[Audit local et confidentialité](audit.md).
 
 ## Sécurité par défaut
 
@@ -173,6 +180,7 @@ journal après confirmation ; voir [Audit local et confidentialité](audit.md).
 - cible d’une acceptation opérateur obligatoirement présente dans le round ;
 - identité participant/ordre recopiée depuis la validation conservée côté backend ;
 - audit borné à 10 000 validations et 30 jours, sans texte brut du chat ;
+- mémoire opt-in bornée à 1 000 entrées actives et 30 jours, avec LRU et révocation ;
 - paramètres de source sans secret, jetons Twitch dans le coffre OS et validation horaire ;
 - paquet publié immuable, activation transactionnelle et rollback SQLite ;
 - recherche bornée et brouillons chargés en une requête groupée ;

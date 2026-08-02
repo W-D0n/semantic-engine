@@ -47,7 +47,7 @@ fn audit_is_idempotent_and_never_persists_raw_chat_text() {
     let first = store.record_validation(&result, Some(&context_sha)).expect("first record");
     let duplicate = store.record_validation(&result, Some(&context_sha)).expect("idempotent retry");
     assert_eq!(first, duplicate);
-    assert_eq!(first.schema_version, 1);
+    assert_eq!(first.schema_version, 2);
     assert_eq!(first.validation.evidence_kinds.len(), result.evidence.len());
     drop(store);
 

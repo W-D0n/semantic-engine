@@ -14,14 +14,15 @@ cargo run -q -p semantic-engine-cli -- serve
 Envoyer ensuite une requête par ligne, en gardant le processus ouvert :
 
 ```json
-{"protocol_version":1,"request_id":"req-1","command":"start_session","params":{"session_id":"live-1","round":{"id":"round-1","targets":[{"id":"elden-ring","canonical":"Elden Ring","aliases":["ER"]}],"policy":{"accept_threshold":0.87,"review_threshold":0.72,"ambiguity_margin":0.05}},"context_package_sha256":null}}
-{"protocol_version":1,"request_id":"req-2","command":"submit","params":{"session_id":"live-1","submission":{"message_id":"msg-1","participant_id":"viewer-7","source_sequence":1,"text":"eldern ring"}}}
-{"protocol_version":1,"request_id":"req-3","command":"events","params":{"session_id":"live-1","after_sequence":0,"limit":100}}
-{"protocol_version":1,"request_id":"req-4","command":"end_session","params":{"session_id":"live-1"}}
+{"protocol_version":2,"request_id":"req-1","command":"start_session","params":{"session_id":"live-1","round":{"id":"round-1","targets":[{"id":"elden-ring","canonical":"Elden Ring","aliases":["ER"]}],"policy":{"accept_threshold":0.87,"review_threshold":0.72,"ambiguity_margin":0.05}},"context_package_sha256":null}}
+{"protocol_version":2,"request_id":"req-2","command":"submit","params":{"session_id":"live-1","submission":{"message_id":"msg-1","participant_id":"viewer-7","source_sequence":1,"text":"eldern ring"}}}
+{"protocol_version":2,"request_id":"req-3","command":"events","params":{"session_id":"live-1","after_sequence":0,"limit":100}}
+{"protocol_version":2,"request_id":"req-4","command":"end_session","params":{"session_id":"live-1"}}
 ```
 
 Les commandes disponibles sont `start_session`, `get_session`, `submit`,
-`resolve`, `events`, `end_session` et `stats`. `request_id` sert uniquement à la
+`resolve`, `remember_resolution`, `list_memory`, `revoke_memory`, `events`,
+`end_session` et `stats`. `request_id` sert uniquement à la
 corrélation. La sortie conserve l'ordre des lignes et `source_sequence` demeure
 inchangé : le workflow appelant peut arbitrer le premier message accepté sans
 confondre reconnaissance et attribution des points.
@@ -41,6 +42,7 @@ Les schémas stables sont dans :
 - `contracts/validation.schema.json` ;
 - `contracts/operator-resolution-request.schema.json` ;
 - `contracts/operator-resolution.schema.json` ;
+- `contracts/memory-entry.schema.json` ;
 - `contracts/round.schema.json` ;
 - `contracts/session-start.schema.json` et `session.schema.json` ;
 - `contracts/session-event.schema.json` et `session-events-page.schema.json` ;
@@ -53,6 +55,19 @@ Une application peut ensuite émettre une `OperatorResolution` à partir d'une
 validation conservée côté backend. Sa clé d'idempotence est
 `(round_id, message_id)` ; participant et ordre source sont recopiés depuis la
 preuve backend, jamais depuis une requête d'arbitrage non fiable.
+
+L'apprentissage reste une seconde opération explicite. Après un `resolve` accepté,
+`remember_resolution` reçoit uniquement `session_id` et `message_id` : ils expriment
+le consentement de l'opérateur, tandis que le backend reprend lui-même le texte
+transitoire de la soumission et la cible de la résolution. Le client ne peut donc
+injecter ni formulation ni cible. `list_memory` filtre par SHA-256 du paquet et
+retourne jusqu'à 1 000 entrées ; `active_only: true` réserve la page aux entrées
+révocables, tandis que la valeur par défaut inclut l'historique borné.
+`revoke_memory` exige à la fois ce SHA-256 et l'identifiant opaque de l'entrée. Ces trois commandes passent aussi par
+`/v1/commands` dans l'API loopback authentifiée.
+La formulation doit correspondre au texte transitoire de la soumission ; elle ne
+peut donc plus être apprise après un redémarrage, puisque ce texte n'est jamais
+persisté.
 
 ## Cycle, reprise et limites
 

@@ -30,7 +30,7 @@
         "required": ["kind", "matched_expression"],
         "properties": {
           "kind": {
-            "enum": ["configured_expression", "normalized_expression", "fuzzy_expression", "ambiguous_expression"]
+            "enum": ["configured_expression", "normalized_expression", "memory_expression", "fuzzy_expression", "ambiguous_expression"]
           },
           "matched_expression": { "type": "string" }
         }

@@ -80,7 +80,11 @@ base légale, notice, durées, export/effacement, transferts et besoin d’AIPD.
 Le produit applique déjà une première minimisation : l’audit local exclut le
 texte du chat et l’expression correspondante, conserve les identifiants, scores
 et verdicts pendant au plus 30 jours ou 10 000 validations, et offre une purge
-totale confirmée. Cette valeur technique par défaut ne remplace pas le choix
+totale confirmée, données apprises comprises. La mémoire distincte ne conserve une formulation
+qu'après consentement opérateur explicite, pendant au plus 30 jours et 1 000
+entrées actives, avec révocation individuelle et empreinte de provenance plutôt
+que les identifiants du chat. Ces valeurs techniques par défaut ne remplacent pas
+le choix
 d’une durée adaptée à la finalité ni les obligations de la plateforme. Voir
 [Audit local et confidentialité](audit.md).
 

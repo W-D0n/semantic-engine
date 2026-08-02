@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 const MAX_RETAINED_VALIDATIONS: usize = 1_000_000;
 const MAX_RETENTION_AGE_SECONDS: u64 = 10 * 365 * 24 * 60 * 60;
 const MAX_AUDIT_PAGE: usize = 1_000;
-pub const AUDIT_SCHEMA_VERSION: u32 = 1;
+pub const AUDIT_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RetentionPolicy {
@@ -160,7 +160,7 @@ impl AuditStore {
                  recorded_at_ms INTEGER NOT NULL,
                  payload_json TEXT NOT NULL
              );
-             PRAGMA user_version = 1;",
+             PRAGMA user_version = 2;",
         )?;
         Ok(Self { connection, retention })
     }

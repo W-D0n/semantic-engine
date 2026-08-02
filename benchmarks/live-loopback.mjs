@@ -96,9 +96,9 @@ function createRequester(ready) {
       headers: {
         Authorization: `Bearer ${ready.token}`,
         'Content-Type': 'application/json',
-        'X-Semantic-Engine-Protocol': '1',
+        'X-Semantic-Engine-Protocol': '2',
       },
-      body: JSON.stringify({ protocol_version: 1, request_id: requestId, command, params }),
+      body: JSON.stringify({ protocol_version: 2, request_id: requestId, command, params }),
       signal: AbortSignal.timeout(requestTimeoutMs),
     });
     const payload = await response.json();

@@ -31,7 +31,7 @@ async fn http_transport_enforces_auth_origin_and_version_then_dispatches() {
         &command,
         &[
             ("Authorization", format!("Bearer {}", server.token())),
-            (HTTP_PROTOCOL_HEADER, "1".into()),
+            (HTTP_PROTOCOL_HEADER, "2".into()),
             ("Origin", "https://attacker.example".into()),
         ],
     )
@@ -52,7 +52,7 @@ async fn http_transport_enforces_auth_origin_and_version_then_dispatches() {
         &command,
         &[
             ("Authorization", format!("Bearer {}", server.token())),
-            (HTTP_PROTOCOL_HEADER, "1".into()),
+            (HTTP_PROTOCOL_HEADER, "2".into()),
             ("Origin", "http://localhost".into()),
         ],
     )
@@ -72,7 +72,7 @@ async fn http_transport_enforces_auth_origin_and_version_then_dispatches() {
     let accepted = authorized_post(server.addr(), server.token(), &command).await;
     assert_eq!(accepted.status, 200);
     let payload = accepted.json();
-    assert_eq!(payload["protocol_version"], 1);
+    assert_eq!(payload["protocol_version"], 2);
     assert_eq!(payload["request_id"], "http-start");
     assert_eq!(payload["status"], "ok");
     assert_eq!(payload["result"]["state"], "active");
@@ -122,7 +122,7 @@ async fn quota_rejects_bursts_without_queuing_them() {
     let second = authorized_post(
         server.addr(),
         server.token(),
-        &json!({"protocol_version": 1, "request_id": "stats", "command": "stats"}).to_string(),
+        &json!({"protocol_version": 2, "request_id": "stats", "command": "stats"}).to_string(),
     )
     .await;
     assert_eq!(second.status, 429);
@@ -300,7 +300,7 @@ async fn test_server(max_requests_per_second: usize) -> semantic_engine_loopback
 
 fn start_command() -> String {
     json!({
-        "protocol_version": 1,
+        "protocol_version": 2,
         "request_id": "http-start",
         "command": "start_session",
         "params": {
@@ -323,7 +323,7 @@ async fn authorized_post(addr: SocketAddr, token: &str, body: &str) -> HttpRespo
         &[
             ("Authorization", format!("Bearer {token}")),
             ("Content-Type", "application/json".into()),
-            (HTTP_PROTOCOL_HEADER, "1".into()),
+            (HTTP_PROTOCOL_HEADER, "2".into()),
             ("Origin", "http://localhost".into()),
         ],
     )
@@ -355,7 +355,7 @@ async fn authorized_request(
 ) -> HttpResponse {
     let mut headers = vec![
         ("Authorization", format!("Bearer {token}")),
-        (HTTP_PROTOCOL_HEADER, "1".into()),
+        (HTTP_PROTOCOL_HEADER, "2".into()),
         ("Origin", "http://localhost".into()),
     ];
     if json_body {

@@ -1,17 +1,20 @@
 use std::{
     collections::VecDeque,
     fmt,
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
+use rusqlite::Connection;
 pub use semantic_engine_audit_store::AuditEntry;
 use semantic_engine_audit_store::{AuditError, AuditStore, RetentionPolicy};
 use semantic_engine_core::{
-    Decision, Evidence, EvidenceKind, MAX_IDENTIFIER_CHARS, OperatorResolution,
-    OperatorResolutionRequest, ResolutionIssue, Round, Submission, Validation, ValidationIssue,
-    Validator, resolve_validation,
+    Decision, Evidence, EvidenceKind, MAX_EXPRESSION_CHARS, MAX_IDENTIFIER_CHARS,
+    OperatorResolution, OperatorResolutionRequest, ResolutionIssue, Round, Submission, Validation,
+    ValidationIssue, Validator, resolve_validation,
 };
+pub use semantic_engine_memory_store::{MemoryEntry, MemoryState};
+use semantic_engine_memory_store::{MemoryError, MemoryPolicy, RecognitionMemoryStore};
 use semantic_engine_session_store::{
     SessionStore, SessionStoreError, StoredDelivery, StoredEvent, StoredSessionHeader,
     StoredSessionState,
@@ -25,7 +28,7 @@ const MAX_CACHE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
 const MAX_SESSIONS: usize = 10_000;
 const MAX_EVENTS_PER_SESSION: usize = 100_000;
 const MAX_EVENT_PAGE: usize = 1_000;
-pub const SESSION_CONTRACT_VERSION: u32 = 1;
+pub const SESSION_CONTRACT_VERSION: u32 = 2;
 
 #[derive(Clone, Debug)]
 pub struct ServiceConfig {
@@ -34,6 +37,8 @@ pub struct ServiceConfig {
     pub cache_ttl: Duration,
     pub max_sessions: usize,
     pub max_events_per_session: usize,
+    pub memory_capacity: usize,
+    pub memory_ttl: Duration,
 }
 
 impl Default for ServiceConfig {
@@ -44,6 +49,8 @@ impl Default for ServiceConfig {
             cache_ttl: Duration::from_secs(10 * 60),
             max_sessions: 128,
             max_events_per_session: 4_096,
+            memory_capacity: 1_000,
+            memory_ttl: Duration::from_secs(30 * 24 * 60 * 60),
         }
     }
 }
@@ -71,6 +78,8 @@ pub enum ServiceError {
     Resolution(String),
     Audit(String),
     SessionStore(String),
+    MemoryRejected(String),
+    MemoryStore(String),
     Internal(String),
 }
 
@@ -95,6 +104,12 @@ impl fmt::Display for ServiceError {
             Self::Audit(message) => write!(formatter, "audit failed: {message}"),
             Self::SessionStore(message) => {
                 write!(formatter, "session persistence failed: {message}")
+            }
+            Self::MemoryRejected(message) => {
+                write!(formatter, "recognition memory request was refused: {message}")
+            }
+            Self::MemoryStore(message) => {
+                write!(formatter, "recognition memory storage failed: {message}")
             }
             Self::Internal(message) => write!(formatter, "service internal error: {message}"),
         }
@@ -190,6 +205,17 @@ impl From<SessionStoreError> for ServiceError {
     }
 }
 
+impl From<MemoryError> for ServiceError {
+    fn from(error: MemoryError) -> Self {
+        match error {
+            MemoryError::Database(_) | MemoryError::EntropyUnavailable => {
+                Self::MemoryStore(error.to_string())
+            }
+            _ => Self::MemoryRejected(error.to_string()),
+        }
+    }
+}
+
 #[derive(Clone)]
 struct RecordedValidation {
     request_fingerprint: [u8; 32],
@@ -221,11 +247,15 @@ struct SessionDelivery {
     request_fingerprint: [u8; 32],
     validation: SessionValidation,
     resolution_emitted: bool,
+    submission_text: Option<String>,
 }
 
 pub struct SemanticEngineService {
     audit: AuditStore,
     session_store: SessionStore,
+    memory: RecognitionMemoryStore,
+    database_path: Option<PathBuf>,
+    memory_provenance_key: [u8; 32],
     config: ServiceConfig,
     recorded: VecDeque<RecordedValidation>,
     cache: VecDeque<CacheEntry>,
@@ -236,48 +266,56 @@ pub struct SemanticEngineService {
 impl SemanticEngineService {
     pub fn open(path: impl AsRef<Path>) -> Result<Self, ServiceError> {
         let path = path.as_ref();
+        let config = ServiceConfig::default();
+        validate_service_config(&config)?;
         let audit = AuditStore::open(path, RetentionPolicy::default())?;
         let session_store = SessionStore::open(path)?;
-        Self::new_with_session_store(audit, session_store, ServiceConfig::default())
+        let memory = RecognitionMemoryStore::open(path, memory_policy(&config))?;
+        Self::new_with_stores(audit, session_store, memory, config, Some(path.to_path_buf()))
     }
 
     pub fn in_memory() -> Result<Self, ServiceError> {
         let audit = AuditStore::open_in_memory(RetentionPolicy::default())?;
         let session_store = SessionStore::open_in_memory()?;
-        Self::new_with_session_store(audit, session_store, ServiceConfig::default())
+        let config = ServiceConfig::default();
+        validate_service_config(&config)?;
+        let memory = RecognitionMemoryStore::open_in_memory(memory_policy(&config))?;
+        Self::new_with_stores(audit, session_store, memory, config, None)
     }
 
     pub fn in_memory_with_config(config: ServiceConfig) -> Result<Self, ServiceError> {
+        validate_service_config(&config)?;
         let audit = AuditStore::open_in_memory(RetentionPolicy::default())?;
         let session_store = SessionStore::open_in_memory()?;
-        Self::new_with_session_store(audit, session_store, config)
+        let memory = RecognitionMemoryStore::open_in_memory(memory_policy(&config))?;
+        Self::new_with_stores(audit, session_store, memory, config, None)
     }
 
     pub fn new(audit: AuditStore, config: ServiceConfig) -> Result<Self, ServiceError> {
+        validate_service_config(&config)?;
         let session_store = SessionStore::open_in_memory()?;
-        Self::new_with_session_store(audit, session_store, config)
+        let memory = RecognitionMemoryStore::open_in_memory(memory_policy(&config))?;
+        Self::new_with_stores(audit, session_store, memory, config, None)
     }
 
-    fn new_with_session_store(
+    fn new_with_stores(
         audit: AuditStore,
         session_store: SessionStore,
+        memory: RecognitionMemoryStore,
         config: ServiceConfig,
+        database_path: Option<PathBuf>,
     ) -> Result<Self, ServiceError> {
-        if config.max_recorded_validations == 0
-            || config.max_recorded_validations > MAX_RECORDED_VALIDATIONS
-            || config.cache_capacity > MAX_CACHE_CAPACITY
-            || config.cache_ttl > MAX_CACHE_TTL
-            || config.max_sessions == 0
-            || config.max_sessions > MAX_SESSIONS
-            || config.max_events_per_session == 0
-            || config.max_events_per_session > MAX_EVENTS_PER_SESSION
-        {
-            return Err(ServiceError::InvalidConfig);
-        }
+        validate_service_config(&config)?;
         let sessions = restore_sessions(&session_store, &config)?;
+        let mut memory_provenance_key = [0_u8; 32];
+        getrandom::fill(&mut memory_provenance_key)
+            .map_err(|_| ServiceError::Internal("OS randomness is unavailable".into()))?;
         Ok(Self {
             audit,
             session_store,
+            memory,
+            database_path,
+            memory_provenance_key,
             config,
             recorded: VecDeque::new(),
             cache: VecDeque::new(),
@@ -305,7 +343,12 @@ impl SemanticEngineService {
             return Ok(recorded.validation.clone());
         }
 
-        let cache_key = cache_fingerprint(&round, &submission.text, context_package_sha256);
+        let memory_matches =
+            self.memory_matches(&round, &submission.text, context_package_sha256, now_ms()?)?;
+        let cache_key =
+            cache_fingerprint(&round, &submission.text, context_package_sha256, &memory_matches);
+        let (computed, memory_applied) =
+            validation_with_memory(&round, &submission, &memory_matches);
         let validation = if let Some(mut cached) = self.take_cached(&cache_key) {
             self.stats.cache_hits = self.stats.cache_hits.saturating_add(1);
             cached.round_id.clone_from(&round.id);
@@ -315,10 +358,15 @@ impl SemanticEngineService {
             cached
         } else {
             self.stats.cache_misses = self.stats.cache_misses.saturating_add(1);
-            let validation = Validator::default().validate(&round, &submission);
-            self.insert_cache(cache_key, validation.clone());
-            validation
+            self.insert_cache(cache_key, computed.clone());
+            computed
         };
+
+        if memory_applied && let Some(context) = context_package_sha256 {
+            let memory_ids =
+                memory_matches.iter().map(|entry| entry.id.clone()).collect::<Vec<_>>();
+            self.memory.mark_used(context, &memory_ids, now_ms()?)?;
+        }
 
         self.audit.record_validation(&validation, context_package_sha256)?;
         self.recorded.push_back(RecordedValidation {
@@ -354,9 +402,15 @@ impl SemanticEngineService {
         self.audit.recent(limit).map_err(Into::into)
     }
 
-    pub fn purge_audit(&mut self) -> Result<usize, ServiceError> {
-        self.session_store.purge_all()?;
-        let deleted = self.audit.purge_all()?;
+    pub fn purge_local_data(&mut self) -> Result<usize, ServiceError> {
+        let deleted = if let Some(path) = &self.database_path {
+            purge_persistent_data(path)?
+        } else {
+            self.session_store
+                .purge_all()?
+                .saturating_add(self.memory.purge_all()?)
+                .saturating_add(self.audit.purge_all()?)
+        };
         self.recorded.clear();
         self.cache.clear();
         self.sessions.clear();
@@ -367,6 +421,111 @@ impl SemanticEngineService {
         let mut stats = self.stats.clone();
         stats.cache_entries = self.cache.len();
         stats
+    }
+
+    pub fn remember_session_resolution(
+        &mut self,
+        session_id: &str,
+        message_id: &str,
+    ) -> Result<MemoryEntry, ServiceError> {
+        if !valid_session_identifier(session_id) || !valid_session_identifier(message_id) {
+            return Err(ServiceError::InvalidSession);
+        }
+        let (context, round_id, target_id, source_expression) = {
+            let session = self
+                .sessions
+                .iter()
+                .find(|session| session.session_id == session_id)
+                .ok_or(ServiceError::SessionMissing)?;
+            let context = session.context_package_sha256.clone().ok_or_else(|| {
+                ServiceError::MemoryRejected("versioned context is required".into())
+            })?;
+            let resolution = session
+                .events
+                .iter()
+                .rev()
+                .find_map(|event| match &event.kind {
+                    SessionEventKind::ResolutionRecorded(resolution)
+                        if resolution.message_id == message_id =>
+                    {
+                        Some(resolution)
+                    }
+                    _ => None,
+                })
+                .ok_or_else(|| {
+                    ServiceError::MemoryRejected("an operator resolution is required".into())
+                })?;
+            let source_expression = session
+                .deliveries
+                .iter()
+                .find(|delivery| delivery.validation.message_id == message_id)
+                .and_then(|delivery| delivery.submission_text.as_deref())
+                .ok_or_else(|| {
+                    ServiceError::MemoryRejected(
+                        "the transient source expression is no longer available".into(),
+                    )
+                })?;
+            if resolution.final_decision != Decision::Accepted {
+                return Err(ServiceError::MemoryRejected(
+                    "only accepted operator resolutions can be learned".into(),
+                ));
+            }
+            let target_id = resolution.target_id.clone().ok_or_else(|| {
+                ServiceError::MemoryRejected("accepted resolution has no target".into())
+            })?;
+            (context, session.round.id.clone(), target_id, source_expression.to_owned())
+        };
+        let source_resolution = memory_source_fingerprint(
+            &self.memory_provenance_key,
+            session_id,
+            &round_id,
+            message_id,
+            &target_id,
+        );
+        self.memory
+            .remember(&context, &target_id, &source_expression, &source_resolution, now_ms()?)
+            .map_err(Into::into)
+    }
+
+    pub fn recognition_memory(
+        &mut self,
+        context_package_sha256: &str,
+        limit: usize,
+        active_only: bool,
+    ) -> Result<Vec<MemoryEntry>, ServiceError> {
+        if active_only {
+            self.memory.list_active(context_package_sha256, limit, now_ms()?).map_err(Into::into)
+        } else {
+            self.memory.list(context_package_sha256, limit, now_ms()?).map_err(Into::into)
+        }
+    }
+
+    pub fn revoke_memory(
+        &mut self,
+        context_package_sha256: &str,
+        id: &str,
+    ) -> Result<MemoryEntry, ServiceError> {
+        self.memory.revoke(context_package_sha256, id, now_ms()?).map_err(Into::into)
+    }
+
+    fn memory_matches(
+        &mut self,
+        round: &Round,
+        expression: &str,
+        context_package_sha256: Option<&str>,
+        current_time_ms: u64,
+    ) -> Result<Vec<MemoryEntry>, ServiceError> {
+        let Some(context) = context_package_sha256 else {
+            return Ok(Vec::new());
+        };
+        if expression.is_empty()
+            || expression.chars().count() > MAX_EXPRESSION_CHARS
+            || expression.chars().any(char::is_control)
+        {
+            return Ok(Vec::new());
+        }
+        let target_ids = round.targets.iter().map(|target| target.id.clone()).collect::<Vec<_>>();
+        self.memory.lookup(context, expression, &target_ids, current_time_ms).map_err(Into::into)
     }
 
     pub fn start_session(
@@ -500,6 +659,7 @@ impl SemanticEngineService {
             return Ok(Validator::default().validate(&round, &submission));
         }
 
+        let submission_text = submission.text.clone();
         let validation = self.validate(round, submission, context_package_sha256.as_deref())?;
         let occurred_at_ms = now_ms()?;
         let validation_summary = session_validation(&validation);
@@ -518,6 +678,7 @@ impl SemanticEngineService {
                 request_fingerprint: fingerprint,
                 validation: validation_summary,
                 resolution_emitted: false,
+                submission_text: Some(submission_text),
             };
             (event, delivery)
         };
@@ -882,17 +1043,18 @@ fn restore_sessions(
                 .events
                 .into_iter()
                 .map(|item| {
-                    let event: SessionEvent = serde_json::from_str(&item.payload_json)
+                    let mut event: SessionEvent = serde_json::from_str(&item.payload_json)
                         .map_err(|error| ServiceError::SessionStore(error.to_string()))?;
                     if event.session_id != definition.session_id
                         || event.sequence != item.sequence
                         || event.occurred_at_ms != item.occurred_at_ms
-                        || event.contract_version != SESSION_CONTRACT_VERSION
+                        || !matches!(event.contract_version, 1 | SESSION_CONTRACT_VERSION)
                     {
                         return Err(ServiceError::SessionStore(
                             "durable session event identity is invalid".into(),
                         ));
                     }
+                    event.contract_version = SESSION_CONTRACT_VERSION;
                     Ok(event)
                 })
                 .collect::<Result<VecDeque<_>, _>>()?;
@@ -914,6 +1076,7 @@ fn restore_sessions(
                         request_fingerprint: item.request_fingerprint,
                         validation,
                         resolution_emitted: item.resolution_emitted,
+                        submission_text: None,
                     })
                 })
                 .collect::<Result<VecDeque<_>, _>>()?;
@@ -976,6 +1139,112 @@ fn now_ms() -> Result<u64, ServiceError> {
         .map_err(|_| ServiceError::Internal("system time does not fit u64 milliseconds".to_owned()))
 }
 
+fn validate_service_config(config: &ServiceConfig) -> Result<(), ServiceError> {
+    if config.max_recorded_validations == 0
+        || config.max_recorded_validations > MAX_RECORDED_VALIDATIONS
+        || config.cache_capacity > MAX_CACHE_CAPACITY
+        || config.cache_ttl > MAX_CACHE_TTL
+        || config.max_sessions == 0
+        || config.max_sessions > MAX_SESSIONS
+        || config.max_events_per_session == 0
+        || config.max_events_per_session > MAX_EVENTS_PER_SESSION
+        || memory_policy(config).validate().is_err()
+    {
+        return Err(ServiceError::InvalidConfig);
+    }
+    Ok(())
+}
+
+fn memory_policy(config: &ServiceConfig) -> MemoryPolicy {
+    MemoryPolicy { capacity: config.memory_capacity, ttl: config.memory_ttl }
+}
+
+fn validation_with_memory(
+    round: &Round,
+    submission: &Submission,
+    memory_matches: &[MemoryEntry],
+) -> (Validation, bool) {
+    let configured = Validator::default().validate(round, submission);
+    let configured_exact = configured.evidence.iter().any(|evidence| {
+        matches!(
+            evidence.kind,
+            EvidenceKind::ConfiguredExpression
+                | EvidenceKind::NormalizedExpression
+                | EvidenceKind::AmbiguousExpression
+        ) && configured.score == 1.0
+    });
+    if configured_exact || memory_matches.is_empty() || configured.issue.is_some() {
+        return (configured, false);
+    }
+
+    let first_target = &memory_matches[0].target_id;
+    let ambiguous = memory_matches.iter().any(|entry| entry.target_id != *first_target);
+    let validation = Validation {
+        round_id: round.id.clone(),
+        message_id: submission.message_id.clone(),
+        participant_id: submission.participant_id.clone(),
+        source_sequence: submission.source_sequence,
+        decision: if ambiguous { Decision::Abstained } else { Decision::Accepted },
+        target_id: (!ambiguous).then(|| first_target.clone()),
+        score: 1.0,
+        evidence: vec![Evidence {
+            kind: if ambiguous {
+                EvidenceKind::AmbiguousExpression
+            } else {
+                EvidenceKind::MemoryExpression
+            },
+            matched_expression: memory_matches[0].expression.clone(),
+        }],
+        issue: None,
+    };
+    (validation, true)
+}
+
+fn purge_persistent_data(path: &Path) -> Result<usize, ServiceError> {
+    let mut connection =
+        Connection::open(path).map_err(|error| ServiceError::Internal(error.to_string()))?;
+    connection
+        .busy_timeout(Duration::from_secs(2))
+        .map_err(|error| ServiceError::Internal(error.to_string()))?;
+    connection
+        .execute_batch("PRAGMA foreign_keys = ON; PRAGMA secure_delete = ON;")
+        .map_err(|error| ServiceError::Internal(error.to_string()))?;
+    let transaction =
+        connection.transaction().map_err(|error| ServiceError::Internal(error.to_string()))?;
+    let session_deleted = transaction
+        .execute("DELETE FROM session_records", [])
+        .map_err(|error| ServiceError::Internal(error.to_string()))?;
+    let memory_deleted = transaction
+        .execute("DELETE FROM recognition_memory", [])
+        .map_err(|error| ServiceError::Internal(error.to_string()))?;
+    let deleted = transaction
+        .execute("DELETE FROM audit_validations", [])
+        .map_err(|error| ServiceError::Internal(error.to_string()))?;
+    transaction.commit().map_err(|error| ServiceError::Internal(error.to_string()))?;
+    let total = session_deleted.saturating_add(memory_deleted).saturating_add(deleted);
+    if total > 0 {
+        let _ = connection.execute_batch("VACUUM;");
+    }
+    Ok(total)
+}
+
+fn memory_source_fingerprint(
+    key: &[u8; 32],
+    session_id: &str,
+    round_id: &str,
+    message_id: &str,
+    target_id: &str,
+) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(b"semantic-engine-operator-memory-v1");
+    hasher.update(key);
+    hash_string(&mut hasher, session_id);
+    hash_string(&mut hasher, round_id);
+    hash_string(&mut hasher, message_id);
+    hash_string(&mut hasher, target_id);
+    hasher.finalize().into()
+}
+
 fn request_fingerprint(
     round: &Round,
     submission: &Submission,
@@ -996,12 +1265,18 @@ fn cache_fingerprint(
     round: &Round,
     submission_text: &str,
     context_package_sha256: Option<&str>,
+    memory_matches: &[MemoryEntry],
 ) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(b"semantic-engine-cache-v1");
     hash_round(&mut hasher, round);
     hash_string(&mut hasher, submission_text);
     hash_optional_string(&mut hasher, context_package_sha256);
+    hash_usize(&mut hasher, memory_matches.len());
+    for entry in memory_matches {
+        hash_string(&mut hasher, &entry.id);
+        hash_string(&mut hasher, &entry.target_id);
+    }
     hasher.finalize().into()
 }
 

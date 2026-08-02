@@ -1,6 +1,6 @@
 # API locale HTTP et WebSocket
 
-La passerelle loopback expose le même protocole public v1 que le sidecar JSONL.
+La passerelle loopback expose le même protocole public v2 que le sidecar JSONL.
 Elle est indépendante de Tauri, désactivée par défaut et ne peut écouter que sur
 une adresse loopback. Son contrat source se trouve dans
 `contracts/loopback-openapi.yaml` et les corps réutilisent les schémas JSON de
@@ -25,7 +25,7 @@ libre. Ne pas placer le jeton dans une URL, un fichier versionné ou un log.
 `POST /v1/commands` attend :
 
 - `Authorization: Bearer <jeton>` ;
-- `X-Semantic-Engine-Protocol: 1` ;
+- `X-Semantic-Engine-Protocol: 2` ;
 - une origine figurant dans l'allowlist si le client envoie `Origin` ;
 - un corps conforme à `contracts/protocol-request.schema.json` et inférieur ou
   égal à 1 Mio.
@@ -36,10 +36,10 @@ const response = await fetch(`${address}/v1/commands`, {
   headers: {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
-    "X-Semantic-Engine-Protocol": "1",
+    "X-Semantic-Engine-Protocol": "2",
   },
   body: JSON.stringify({
-    protocol_version: 1,
+    protocol_version: 2,
     request_id: crypto.randomUUID(),
     command: "stats",
   }),
@@ -73,7 +73,7 @@ const source = await fetch(`${address}/v1/sources/twitch`, {
   headers: {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
-    "X-Semantic-Engine-Protocol": "1",
+    "X-Semantic-Engine-Protocol": "2",
   },
   body: JSON.stringify({
     display_name: "Mon canal",
@@ -102,9 +102,9 @@ purge du coffre et purge SQLite, sans secret.
 - aucune migration SQLite ni réautorisation n’est nécessaire : les définitions
   persistées sont relues avec le contrat courant et les jetons restent au coffre.
 
-Le protocole de commande reste v1 : seule la ressource source évolue. Un client
-qui exige encore le schéma source v1 doit refuser explicitement la ressource au
-lieu d’ignorer le changement de version.
+Cette migration de ressource était initialement indépendante du protocole de
+commande. Depuis l'ajout de la mémoire, le protocole de commande est lui aussi en
+v2 ; le [guide de migration](protocol-v2-migration.md) couvre cette seconde rupture.
 
 ## Événements WebSocket
 
@@ -114,12 +114,12 @@ sous-protocoles :
 
 ```js
 const socket = new WebSocket(url, [
-  "semantic-engine.v1",
+  "semantic-engine.v2",
   `semantic-engine.token.${token}`,
 ]);
 ```
 
-Le serveur sélectionne uniquement `semantic-engine.v1`. Le second protocole sert
+Le serveur sélectionne uniquement `semantic-engine.v2`. Le second protocole sert
 à authentifier les navigateurs, qui ne peuvent pas définir librement un header
 `Authorization` pendant l'upgrade. Chaque message reçu est une enveloppe de
 réponse v1 contenant une page d'événements. `after_sequence` permet la reprise
@@ -130,7 +130,7 @@ sequenceDiagram
     participant C as Client local
     participant L as Passerelle loopback
     participant S as Service partagé
-    C->>L: POST /v1/commands + Bearer + version 1
+    C->>L: POST /v1/commands + Bearer + version 2
     L->>S: RequestEnvelope v1
     S-->>L: ResponseEnvelope v1
     L-->>C: JSON corrélé

@@ -104,8 +104,8 @@ l'application autonome et peut exploiter les validations via l'interface publiqu
 - [x] étendre le corpus avant tout ajout vectoriel ;
 - [x] comparer embeddings locaux optionnels et moteur lexical ;
 - [x] indexer par version de contexte et calibrer sur précision/latence/taille ;
-- alimenter une mémoire uniquement depuis des corrections validées ;
-- appliquer provenance, consentement, rollback, TTL/LRU et quotas ;
+- [x] alimenter une mémoire uniquement depuis des corrections validées ;
+- [x] appliquer provenance, consentement, rollback, TTL/LRU et quotas ;
 - [x] ajouter YouTube Live Chat avec les mêmes contrats de source, OAuth PKCE, coffre, API et UI ;
 - [x] remplacer le polling REST par `streamList` gRPC avec checkpoint de curseur
   durable, reprise après redémarrage et rebaseline observable si le curseur est refusé ;

@@ -3,9 +3,11 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 const REQUEST_TIMEOUT_MS = 5000;
 const PRIVATE_TEXT = 'eldern ring!!!';
+const LEARNED_TEXT = 'the lands between';
+const CONTEXT_SHA256 = 'b'.repeat(64);
 
 const executable = resolve(process.argv[2] ?? 'target/debug/semantic-engine-cli.exe');
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'semantic-engine-loopback-conformance-'));
@@ -40,7 +42,7 @@ try {
 
   const unauthorized = await fetchJson(`${ready.address}/v1/commands`, {
     method: 'POST',
-    body: JSON.stringify({ protocol_version: 1, request_id: 'unauthorized', command: 'stats' }),
+    body: JSON.stringify({ protocol_version: 2, request_id: 'unauthorized', command: 'stats' }),
   });
   assertEqual(unauthorized.response.status, 401, 'unauthorized status');
   assertEqual(unauthorized.body.error.code, 'unauthorized', 'unauthorized code');
@@ -51,9 +53,9 @@ try {
       Authorization: `Bearer ${ready.token}`,
       Origin: 'https://attacker.example',
       'Content-Type': 'application/json',
-      'X-Semantic-Engine-Protocol': '1',
+      'X-Semantic-Engine-Protocol': String(PROTOCOL_VERSION),
     },
-    body: JSON.stringify({ protocol_version: 1, request_id: 'forbidden', command: 'stats' }),
+    body: JSON.stringify({ protocol_version: 2, request_id: 'forbidden', command: 'stats' }),
   });
   assertEqual(forbidden.response.status, 403, 'forbidden origin status');
   assertEqual(forbidden.body.error.code, 'origin_forbidden', 'forbidden origin code');
@@ -81,7 +83,7 @@ try {
       targets: [{ id: 'elden-ring', canonical: 'Elden Ring', aliases: ['ER'] }],
       policy: { accept_threshold: 0.87, review_threshold: 0.72, ambiguity_margin: 0.05 },
     },
-    context_package_sha256: null,
+    context_package_sha256: CONTEXT_SHA256,
   });
   assertEqual(started.state, 'active', 'started state');
 
@@ -95,6 +97,35 @@ try {
     },
   });
   assertEqual(submitted.decision, 'accepted', 'loopback fuzzy decision');
+  const memorySource = await request('memory-source', 'submit', {
+    session_id: 'node-loopback-session',
+    submission: {
+      message_id: 'node-loopback-memory-message',
+      participant_id: 'viewer-10',
+      source_sequence: 10,
+      text: LEARNED_TEXT,
+    },
+  });
+  assert(memorySource.decision !== 'accepted', 'loopback memory fixture was already accepted');
+  await request('memory-resolve', 'resolve', {
+    session_id: 'node-loopback-session',
+    request: {
+      round_id: 'node-loopback-round',
+      message_id: 'node-loopback-memory-message',
+      verdict: 'accepted',
+      target_id: 'elden-ring',
+      note: 'operator confirmed',
+    },
+  });
+  const remembered = await request('memory-remember', 'remember_resolution', {
+    session_id: 'node-loopback-session',
+    message_id: 'node-loopback-memory-message',
+  });
+  assertEqual(remembered.state, 'active', 'loopback learned memory state');
+  await request('memory-revoke', 'revoke_memory', {
+    context_package_sha256: CONTEXT_SHA256,
+    id: remembered.id,
+  });
 
   const firstToken = ready.token;
   await stopServer();
@@ -103,7 +134,12 @@ try {
   request = createRequester(ready);
   const restored = await request('get', 'get_session', { session_id: 'node-loopback-session' });
   assertEqual(restored.state, 'active', 'restored loopback session state');
-  assertEqual(restored.latest_event_sequence, 2, 'restored loopback sequence');
+  assertEqual(restored.latest_event_sequence, 4, 'restored loopback sequence');
+  const restoredMemory = await request('memory-restored', 'list_memory', {
+    context_package_sha256: CONTEXT_SHA256,
+    limit: 10,
+  });
+  assertEqual(restoredMemory[0].state, 'revoked', 'loopback revoked memory survived restart');
 
   const restoredSources = await sourceApiJson(ready, '/v1/sources');
   assertEqual(restoredSources.response.status, 200, 'restored source list status');
@@ -112,7 +148,7 @@ try {
 
   const socketPayload = await firstWebSocketPayload(ready);
   assertEqual(socketPayload.status, 'ok', 'WebSocket response status');
-  assertEqual(socketPayload.result.events.length, 2, 'WebSocket restored event count');
+  assertEqual(socketPayload.result.events.length, 4, 'WebSocket restored event count');
   const encodedEvents = JSON.stringify(socketPayload);
   assert(!encodedEvents.includes(PRIVATE_TEXT), 'WebSocket exposed raw chat text');
   assert(!encodedEvents.includes('matched_expression'), 'WebSocket exposed matched expression');
@@ -133,8 +169,8 @@ try {
     after_sequence: 0,
     limit: 100,
   });
-  assertEqual(eventsAfterDuplicate.latest_sequence, 2, 'duplicate did not emit an event');
-  assertEqual(eventsAfterDuplicate.events.length, 2, 'loopback event count after duplicate');
+  assertEqual(eventsAfterDuplicate.latest_sequence, 4, 'duplicate did not emit an event');
+  assertEqual(eventsAfterDuplicate.events.length, 4, 'loopback event count after duplicate');
 
   const conflict = await request.error('conflict', 'submit', {
     session_id: 'node-loopback-session',
@@ -167,7 +203,7 @@ try {
       Authorization: `Bearer ${ready.token}`,
       Origin: 'http://localhost',
       'Content-Type': 'application/json',
-      'X-Semantic-Engine-Protocol': '1',
+      'X-Semantic-Engine-Protocol': String(PROTOCOL_VERSION),
     },
     body: 'x'.repeat(1024 * 1024 + 1),
   });
@@ -188,6 +224,7 @@ try {
   await stopServer();
   const databaseBytes = await readFile(database);
   assert(!databaseBytes.includes(Buffer.from(PRIVATE_TEXT)), 'database contains raw chat text');
+  assert(databaseBytes.includes(Buffer.from(LEARNED_TEXT)), 'loopback consented memory text was not persisted');
   process.stdout.write('Semantic Engine Node loopback conformity: PASS\n');
 } finally {
   await stopServer();
@@ -297,7 +334,7 @@ async function firstWebSocketPayload(ready) {
   const address = ready.address.replace(/^http/, 'ws');
   const socket = new WebSocket(
     `${address}/v1/events/ws?session_id=node-loopback-session&after_sequence=0&limit=100`,
-    ['semantic-engine.v1', `semantic-engine.token.${ready.token}`],
+    ['semantic-engine.v2', `semantic-engine.token.${ready.token}`],
   );
   try {
     return await new Promise((resolvePayload, rejectPayload) => {
@@ -307,7 +344,7 @@ async function firstWebSocketPayload(ready) {
       }, REQUEST_TIMEOUT_MS);
       socket.addEventListener('open', () => {
         try {
-          assertEqual(socket.protocol, 'semantic-engine.v1', 'selected WebSocket protocol');
+          assertEqual(socket.protocol, 'semantic-engine.v2', 'selected WebSocket protocol');
         } catch (error) {
           clearTimeout(timer);
           rejectPayload(error);

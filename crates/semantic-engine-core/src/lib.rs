@@ -67,6 +67,7 @@ pub enum Decision {
 pub enum EvidenceKind {
     ConfiguredExpression,
     NormalizedExpression,
+    MemoryExpression,
     FuzzyExpression,
     AmbiguousExpression,
 }
@@ -334,7 +335,8 @@ fn invalid(round: &Round, submission: &Submission, issue: ValidationIssue) -> Va
     validation
 }
 
-fn normalize(input: &str) -> String {
+#[must_use]
+pub fn normalize_expression(input: &str) -> String {
     let mut output = String::with_capacity(input.len());
     let mut pending_space = false;
 
@@ -353,6 +355,10 @@ fn normalize(input: &str) -> String {
     }
 
     output
+}
+
+fn normalize(input: &str) -> String {
+    normalize_expression(input)
 }
 
 fn compact(normalized: &str) -> String {

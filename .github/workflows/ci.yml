@@ -33,6 +33,7 @@ jobs:
         working-directory: apps/desktop
         run: npm run build
       - run: cargo fmt --all --check
+      - run: node scripts/verify-protocol-version.mjs
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - run: cargo build -p semantic-engine-cli

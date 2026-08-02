@@ -3941,6 +3941,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "semantic-engine-memory-store"
+version = "0.1.0"
+dependencies = [
+ "getrandom 0.4.3",
+ "rusqlite",
+ "semantic-engine-core",
+ "serde",
+ "tempfile",
+]
+
+[[package]]
 name = "semantic-engine-package"
 version = "0.1.0"
 dependencies = [
@@ -3970,8 +3981,11 @@ dependencies = [
 name = "semantic-engine-service"
 version = "0.1.0"
 dependencies = [
+ "getrandom 0.4.3",
+ "rusqlite",
  "semantic-engine-audit-store",
  "semantic-engine-core",
+ "semantic-engine-memory-store",
  "semantic-engine-session-store",
  "serde",
  "serde_json",

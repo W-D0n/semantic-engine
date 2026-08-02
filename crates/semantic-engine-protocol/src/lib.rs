@@ -3,7 +3,7 @@ use semantic_engine_service::{SemanticEngineService, ServiceError, StartSession}
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub const PROTOCOL_VERSION: u32 = 1;
+pub const PROTOCOL_VERSION: u32 = 2;
 pub const MAX_REQUEST_ID_CHARS: usize = 128;
 pub const UNKNOWN_REQUEST_ID: &str = "unknown";
 
@@ -29,6 +29,21 @@ pub enum Command {
     Resolve {
         session_id: String,
         request: OperatorResolutionRequest,
+    },
+    RememberResolution {
+        session_id: String,
+        message_id: String,
+    },
+    ListMemory {
+        context_package_sha256: String,
+        #[serde(default = "default_memory_limit")]
+        limit: usize,
+        #[serde(default)]
+        active_only: bool,
+    },
+    RevokeMemory {
+        context_package_sha256: String,
+        id: String,
     },
     EndSession {
         session_id: String,
@@ -114,6 +129,15 @@ pub fn handle(service: &mut SemanticEngineService, request: RequestEnvelope) -> 
         Command::Resolve { session_id, request } => {
             service.resolve_session(&session_id, request).and_then(to_value)
         }
+        Command::RememberResolution { session_id, message_id } => {
+            service.remember_session_resolution(&session_id, &message_id).and_then(to_value)
+        }
+        Command::ListMemory { context_package_sha256, limit, active_only } => service
+            .recognition_memory(&context_package_sha256, limit, active_only)
+            .and_then(to_value),
+        Command::RevokeMemory { context_package_sha256, id } => {
+            service.revoke_memory(&context_package_sha256, &id).and_then(to_value)
+        }
         Command::EndSession { session_id } => service.end_session(&session_id).and_then(to_value),
         Command::Events { session_id, after_sequence, limit } => {
             service.session_events(&session_id, after_sequence, limit).and_then(to_value)
@@ -137,6 +161,10 @@ pub fn line_too_large_response() -> ResponseEnvelope {
 }
 
 fn default_event_limit() -> usize {
+    100
+}
+
+fn default_memory_limit() -> usize {
     100
 }
 
@@ -194,6 +222,8 @@ fn service_failure(request_id: String, error: ServiceError) -> ResponseEnvelope 
         ServiceError::Resolution(_) => ("resolution_rejected", false),
         ServiceError::Audit(_) => ("audit_unavailable", true),
         ServiceError::SessionStore(_) => ("session_store_unavailable", true),
+        ServiceError::MemoryRejected(_) => ("memory_rejected", false),
+        ServiceError::MemoryStore(_) => ("memory_store_unavailable", true),
         ServiceError::Internal(_) => ("internal_error", true),
     };
     failure(request_id, code, error.to_string(), retryable)
@@ -204,7 +234,7 @@ mod tests {
     use super::*;
 
     fn start_line() -> Vec<u8> {
-        br#"{"protocol_version":1,"request_id":"req-1","command":"start_session","params":{"session_id":"live-1","round":{"id":"round-1","targets":[{"id":"elden-ring","canonical":"Elden Ring","aliases":["ER"]}],"policy":{"accept_threshold":0.87,"review_threshold":0.72,"ambiguity_margin":0.05}},"context_package_sha256":null}}"#.to_vec()
+        br#"{"protocol_version":2,"request_id":"req-1","command":"start_session","params":{"session_id":"live-1","round":{"id":"round-1","targets":[{"id":"elden-ring","canonical":"Elden Ring","aliases":["ER"]}],"policy":{"accept_threshold":0.87,"review_threshold":0.72,"ambiguity_margin":0.05}},"context_package_sha256":null}}"#.to_vec()
     }
 
     #[test]
@@ -216,7 +246,7 @@ mod tests {
 
         let submitted = handle_json_line(
             &mut service,
-            br#"{"protocol_version":1,"request_id":"req-2","command":"submit","params":{"session_id":"live-1","submission":{"message_id":"msg-1","participant_id":"viewer-7","source_sequence":1,"text":"eldern ring"}}}"#,
+            br#"{"protocol_version":2,"request_id":"req-2","command":"submit","params":{"session_id":"live-1","submission":{"message_id":"msg-1","participant_id":"viewer-7","source_sequence":1,"text":"eldern ring"}}}"#,
         );
         assert_eq!(submitted.status, ResponseStatus::Ok);
         assert_eq!(submitted.result.unwrap()["decision"], "accepted");
@@ -228,11 +258,11 @@ mod tests {
         handle_json_line(&mut service, &start_line());
         handle_json_line(
             &mut service,
-            br#"{"protocol_version":1,"request_id":"req-2","command":"submit","params":{"session_id":"live-1","submission":{"message_id":"msg-1","participant_id":"viewer-7","source_sequence":1,"text":"PRIVATE CHAT TEXT"}}}"#,
+            br#"{"protocol_version":2,"request_id":"req-2","command":"submit","params":{"session_id":"live-1","submission":{"message_id":"msg-1","participant_id":"viewer-7","source_sequence":1,"text":"PRIVATE CHAT TEXT"}}}"#,
         );
         let events = handle_json_line(
             &mut service,
-            br#"{"protocol_version":1,"request_id":"req-3","command":"events","params":{"session_id":"live-1","after_sequence":0,"limit":100}}"#,
+            br#"{"protocol_version":2,"request_id":"req-3","command":"events","params":{"session_id":"live-1","after_sequence":0,"limit":100}}"#,
         );
         let encoded = serde_json::to_string(&events).unwrap();
         assert!(!encoded.contains("PRIVATE CHAT TEXT"));
@@ -244,11 +274,54 @@ mod tests {
         let mut service = SemanticEngineService::in_memory().unwrap();
         let malformed = handle_json_line(&mut service, b"not-json");
         assert_eq!(malformed.error.unwrap().code, "malformed_request");
+        let legacy = handle_json_line(
+            &mut service,
+            br#"{"protocol_version":1,"request_id":"legacy-1","command":"stats"}"#,
+        );
+        assert_eq!(legacy.error.unwrap().code, "unsupported_protocol_version");
         let future = handle_json_line(
             &mut service,
-            br#"{"protocol_version":2,"request_id":"future-1","command":"stats"}"#,
+            br#"{"protocol_version":3,"request_id":"future-1","command":"stats"}"#,
         );
         assert_eq!(future.error.unwrap().code, "unsupported_protocol_version");
+    }
+
+    #[test]
+    fn protocol_exposes_explicit_memory_learning_listing_and_revocation() {
+        let mut service = SemanticEngineService::in_memory().unwrap();
+        let started = handle_json_line(
+            &mut service,
+            br#"{"protocol_version":2,"request_id":"memory-1","command":"start_session","params":{"session_id":"memory-live","round":{"id":"round-1","targets":[{"id":"elden-ring","canonical":"Elden Ring","aliases":[]}],"policy":{"accept_threshold":0.87,"review_threshold":0.72,"ambiguity_margin":0.05}},"context_package_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}"#,
+        );
+        assert_eq!(started.status, ResponseStatus::Ok);
+        handle_json_line(
+            &mut service,
+            br#"{"protocol_version":2,"request_id":"memory-2","command":"submit","params":{"session_id":"memory-live","submission":{"message_id":"memory-message","participant_id":"viewer","source_sequence":1,"text":"lands between"}}}"#,
+        );
+        let resolved = handle_json_line(
+            &mut service,
+            br#"{"protocol_version":2,"request_id":"memory-3","command":"resolve","params":{"session_id":"memory-live","request":{"round_id":"round-1","message_id":"memory-message","verdict":"accepted","target_id":"elden-ring","note":"operator confirmed"}}}"#,
+        );
+        assert_eq!(resolved.status, ResponseStatus::Ok);
+        let remembered = handle_json_line(
+            &mut service,
+            br#"{"protocol_version":2,"request_id":"memory-4","command":"remember_resolution","params":{"session_id":"memory-live","message_id":"memory-message"}}"#,
+        );
+        assert_eq!(remembered.status, ResponseStatus::Ok);
+        let memory_id = remembered.result.unwrap()["id"].as_str().unwrap().to_owned();
+        let listed = handle_json_line(
+            &mut service,
+            br#"{"protocol_version":2,"request_id":"memory-5","command":"list_memory","params":{"context_package_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","limit":10}}"#,
+        );
+        assert_eq!(listed.result.unwrap().as_array().unwrap().len(), 1);
+        let revoked = handle_json_line(
+            &mut service,
+            format!(
+                "{{\"protocol_version\":2,\"request_id\":\"memory-6\",\"command\":\"revoke_memory\",\"params\":{{\"context_package_sha256\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"id\":\"{memory_id}\"}}}}"
+            )
+            .as_bytes(),
+        );
+        assert_eq!(revoked.result.unwrap()["state"], "revoked");
     }
 
     #[test]
@@ -260,6 +333,7 @@ mod tests {
             include_str!("../../../contracts/session-event.schema.json"),
             include_str!("../../../contracts/session-events-page.schema.json"),
             include_str!("../../../contracts/operator-resolution-request.schema.json"),
+            include_str!("../../../contracts/memory-entry.schema.json"),
             include_str!("../../../contracts/protocol-request.schema.json"),
             include_str!("../../../contracts/protocol-response.schema.json"),
             include_str!("../../../contracts/input-source.schema.json"),

@@ -76,7 +76,7 @@ Tauri, la CLI et leurs SBOM n’importent donc jamais ONNX par transitivité.
 
 Pour des **titres courts**, les vecteurs ne sont pas le premier levier : un bon
 jeu d’alias et une normalisation explicable sont plus rapides et souvent plus
-précis. Le benchmark v2 actuel donne 92,38 % d’exactitude et 6 faux positifs
+précis. Le benchmark v2 actuel donne 90,85 % d’exactitude et 6 faux positifs
 après calibration, contre 100 % et zéro faux positif pour le lexical ; les
 embeddings restent donc désactivés. Ils ne pourront être proposés à nouveau
 qu’après un gain sur un corpus aveugle de paraphrases réelles, sans perte de
@@ -95,6 +95,26 @@ Séparer deux mécanismes :
 
 Une répétition dans le chat ne devient jamais un apprentissage. Provenance,
 quotas, isolation des contextes et rollback protègent contre l’empoisonnement.
+
+La mémoire locale implémentée est un overlay exact, pas un entraînement de modèle :
+
+1. l'opérateur enregistre d'abord un arbitrage accepté ;
+2. il consent séparément à conserver la formulation affichée ;
+3. le service lie l'entrée au SHA-256 du paquet, à la cible et à une empreinte
+   non réversible de la résolution, sans conserver participant ni identifiants du chat ;
+   le client ne transmet que son consentement, jamais le texte durable ;
+4. une formulation identique est prioritaire sur le fuzzy, mais jamais sur une
+   expression exacte déjà configurée ; deux cibles apprises identiques provoquent
+   une abstention ;
+5. l'opérateur peut lister et révoquer chaque entrée active dans l'application ou
+   l'API grâce à un identifiant opaque lié au SHA-256 du contexte.
+
+Par défaut, 1 000 entrées actives sont conservées 30 jours. L'usage met à jour
+le LRU ; la plus ancienne est évincée au quota, les expirations sont paresseuses
+et l'historique inactif reste lui-même borné. La forme normalisée porte une version
+d'algorithme afin qu'une évolution ne réinterprète pas silencieusement les données.
+Seul un contexte fingerprinté peut
+apprendre : une session ad hoc ou une simple répétition du chat ne suffit jamais.
 Contrat cible après ajout du versioning, des alternatives et de la mémoire :
 
 

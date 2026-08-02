@@ -63,6 +63,7 @@ interface.
 | `semantic-engine-package` | vérifier et importer un paquet | sessions et transports |
 | `semantic-engine-context-store` | versions, activation, brouillons et rollback | plateformes externes |
 | `semantic-engine-audit-store` | validations minimisées, résolutions et rétention | chat brut, Tauri et score |
+| `semantic-engine-memory-store` | formulations consenties, TTL/LRU, isolation et révocation | chat non arbitré, transports et score |
 | `semantic-engine-service` | déduplication, cache borné et orchestration moteur/audit | Tauri et règles métier des consommateurs |
 | `semantic-engine-session-store` | sessions, livraisons idempotentes et événements durables | règles de reconnaissance et texte du chat |
 | `semantic-engine-protocol` | commandes de session et réponses versionnées indépendantes du transport | stdin, HTTP, Tauri et plateformes |
@@ -111,6 +112,7 @@ L'interface réseau initiale doit rester petite :
 - référencer une version de contexte dans une session et fournir sa manche ;
 - soumettre un message et obtenir sa validation ;
 - enregistrer une résolution opérateur ;
+- consentir à l'apprentissage, lister et révoquer une formulation par contexte ;
 - suivre les événements de session ;
 - ajouter, autoriser, démarrer, mettre en pause et supprimer des sources ;
 - vérifier santé, version et compatibilité du contrat.
@@ -159,6 +161,7 @@ crates/
   semantic-engine-package/
   semantic-engine-context-store/
   semantic-engine-audit-store/
+  semantic-engine-memory-store/
   semantic-engine-session-store/
   semantic-engine-service/
   semantic-engine-protocol/

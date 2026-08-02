@@ -17,7 +17,7 @@ export type Round = {
 };
 
 export type SessionSnapshot = {
-  contract_version: 1;
+  contract_version: 2;
   session_id: string;
   round_id: string;
   context_package_sha256: string | null;
@@ -78,6 +78,7 @@ export type Validation = {
     kind:
       | 'configured_expression'
       | 'normalized_expression'
+      | 'memory_expression'
       | 'fuzzy_expression'
       | 'ambiguous_expression';
     matched_expression: string;
@@ -96,6 +97,22 @@ export type OperatorResolution = {
   note: string;
 };
 
+export type MemoryEntry = {
+  id: string;
+  context_package_sha256: string;
+  target_id: string;
+  expression: string;
+  normalized_expression: string;
+  normalization_version: number;
+  source_resolution_sha256: string;
+  created_at_ms: number;
+  last_used_at_ms: number;
+  expires_at_ms: number;
+  use_count: number;
+  state: 'active' | 'revoked' | 'expired' | 'evicted';
+  state_changed_at_ms: number | null;
+};
+
 export type HistoryItem = Validation & {
   input: string;
   latency: number;
@@ -104,7 +121,7 @@ export type HistoryItem = Validation & {
 };
 
 export type AuditEntry = {
-  schema_version: 1;
+  schema_version: 2;
   validation: {
     sequence: number;
     recorded_at_ms: number;

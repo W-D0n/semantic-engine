@@ -6,8 +6,9 @@ formulations proches comprises.
 
 > État actuel : moteur Rust, CLI JSONL et client Tauri portable hors ligne avec
 > inspection/rollback des paquets, tuning local des titres, export de versions,
-> arbitrage opérateur, audit SQLite à rétention bornée et service d’application
-> avec déduplication/cache TTL-LRU, API locale opt-in, Twitch EventSub et YouTube Live expérimental
+> arbitrage opérateur, mémoire révocable issue des corrections, audit SQLite à
+> rétention bornée et service d’application avec déduplication/cache TTL-LRU,
+> API locale opt-in, Twitch EventSub et YouTube Live expérimental
 > protégée par le coffre natif du système. L'API et la CLI headless pilotent
 > aussi les sources, avec un ordre global durable pour plusieurs chats.
 > Le corpus contractuel couvre 84 titres et 328 messages annotés.
@@ -32,6 +33,7 @@ quand la réponse n’est pas assez sûre.
 - [Ouvertures produit et marché](docs/product/market.md)
 - [Solutions et corpus existants](docs/research/existing-solutions-and-data.md)
 - [Intégration locale JSONL et contrat de résolution](docs/integration/jsonl-sidecar.md)
+- [Migration du protocole public v1 vers v2](docs/integration/protocol-v2-migration.md)
 - [Connecter Twitch](docs/integration/twitch.md)
 - [Connecter YouTube Live](docs/integration/youtube.md)
 - [Application portable](docs/product/portable-desktop.md)
@@ -111,10 +113,12 @@ Dans l’app : activer un paquet, ouvrir **Voir et régler le dictionnaire**, re
 un titre, modifier canonique/alias et enregistrer le brouillon local. **Exporter le
 paquet** crée ensuite une nouvelle version immuable dans le dossier choisi. Après
 une validation, **Arbitrage manuel** permet d’accepter ou rejeter sans effacer la
-décision du moteur. Voir le [guide portable](docs/product/portable-desktop.md).
+décision du moteur. La case **Apprendre cette formulation** crée, seulement après
+acceptation, une entrée locale visible et révocable dans **Mémoire de reconnaissance**.
+Voir le [guide portable](docs/product/portable-desktop.md).
 Les huit dernières validations sont relues au redémarrage depuis un audit local :
 le texte brut du chat n’y est jamais enregistré et l’opérateur peut purger le
-journal depuis l’application.
+journal, les sessions et la mémoire locale en une seule opération confirmée.
 
 La section **Sources de chat** ajoute Twitch par Device Code Grant : saisir le
 Client ID public d’une application Twitch, autoriser le compte, tester puis

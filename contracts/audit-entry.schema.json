@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "validation", "resolution"],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": { "const": 2 },
     "validation": {
       "type": "object",
       "additionalProperties": false,
@@ -45,6 +45,7 @@
             "enum": [
               "configured_expression",
               "normalized_expression",
+              "memory_expression",
               "fuzzy_expression",
               "ambiguous_expression"
             ]

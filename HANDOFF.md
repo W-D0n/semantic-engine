@@ -83,6 +83,11 @@ et durable.
   lexical, ajoute 487 Mo et environ 8,17 ms p50 ; sur 40 cas globaux, il atteint
   95 % de précision/rappel mais produit une fausse acceptation, donc les vecteurs
   restent désactivés par défaut ;
+- mémoire locale : apprentissage séparé après résolution acceptée, isolation par
+  fingerprint de contexte, provenance salée, TTL 30 jours, quota/LRU, historique
+  borné, révocation, API JSONL/loopback et panneau de tuning Tauri ;
+- protocole public v2, sessions v2 et audit v2 pour distinguer la preuve
+  `memory_expression` ; migration v1 documentée sans réautorisation OAuth ;
 - le pilote YouTube réel, l’audit de conformité, la licence, la signature Windows native et le
   scoreboard consommateur restent à faire.
 
@@ -105,16 +110,18 @@ et durable.
 15. `crates/semantic-engine-service/src/lib.rs`
 16. `docs/product/performance.md`
 17. `crates/semantic-engine-vectors/src/lib.rs`
-18. `benchmarks/vector-comparison/README.md`
-19. `crates/semantic-engine-protocol/src/lib.rs`
-20. `docs/integration/jsonl-sidecar.md`
-21. `docs/integration/twitch.md`
-22. `crates/semantic-engine-source/src/lib.rs`
-23. `crates/semantic-engine-source-runtime/src/lib.rs`
-24. `crates/semantic-engine-twitch/src/lib.rs`
-25. `apps/desktop/src/lib/SourcePanel.svelte`
-26. `docs/integration/youtube.md`
-27. `crates/semantic-engine-youtube/src/lib.rs`
+18. `crates/semantic-engine-memory-store/src/lib.rs`
+19. `apps/desktop/src/lib/MemoryPanel.svelte`
+20. `benchmarks/vector-comparison/README.md`
+21. `crates/semantic-engine-protocol/src/lib.rs`
+22. `docs/integration/jsonl-sidecar.md`
+23. `docs/integration/twitch.md`
+24. `crates/semantic-engine-source/src/lib.rs`
+25. `crates/semantic-engine-source-runtime/src/lib.rs`
+26. `crates/semantic-engine-twitch/src/lib.rs`
+27. `apps/desktop/src/lib/SourcePanel.svelte`
+28. `docs/integration/youtube.md`
+29. `crates/semantic-engine-youtube/src/lib.rs`
 
 ## Décisions à préserver
 
@@ -126,6 +133,8 @@ et durable.
 - l’audit conserve les identifiants, décisions, scores et catégories de preuve,
   jamais le texte brut ni l’expression correspondante ;
 - les versions et brouillons sont stockés dans l’AppData, pas avec l’exécutable ;
+- résolution et apprentissage sont deux opérations : le chat seul ne crée jamais
+  de mémoire et la cible vient de la résolution backend, pas du client ;
 - le moteur ne désigne pas le gagnant et ne compte pas les points ;
 - les vecteurs restent optionnels et hors portable tant qu’un corpus aveugle ne
   démontre pas un gain sans perte de précision ; microservices et autres hôtes restent ouverts ;

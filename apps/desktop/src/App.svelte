@@ -5,6 +5,7 @@
   import ArbitrationPanel from './lib/ArbitrationPanel.svelte';
   import ContextWorkshop from './lib/ContextWorkshop.svelte';
   import LoopbackPanel from './lib/LoopbackPanel.svelte';
+  import MemoryPanel from './lib/MemoryPanel.svelte';
   import SourcePanel from './lib/SourcePanel.svelte';
   import type {
     AuditEntry,
@@ -65,6 +66,7 @@
   let sessionBusy = $state(false);
   let sessionEventsBusy = false;
   let lastSessionEventSequence = 0;
+  let memoryRevision = $state(0);
 
   const inTauri = '__TAURI_INTERNALS__' in window;
   const contextBusy = $derived(contextOperation !== 'idle');
@@ -323,20 +325,21 @@
     }
   }
 
-  async function purgeAudit() {
-    if (!inTauri || auditBusy || !history.length) return;
+  async function purgeLocalData() {
+    if (!inTauri || auditBusy) return;
     auditBusy = true;
     error = '';
     try {
       const confirmed = await confirmDialog(
-        'Effacer définitivement toutes les validations et résolutions conservées sur cet appareil ?',
-        { title: 'Effacer le journal d’audit', kind: 'warning' },
+        'Effacer définitivement les sessions, validations, arbitrages et formulations apprises conservés sur cet appareil ?',
+        { title: 'Effacer toutes les données locales', kind: 'warning' },
       );
       if (!confirmed) return;
-      await invoke<number>('purge_audit_ipc');
+      await invoke<number>('purge_local_data_ipc');
+      memoryRevision += 1;
       resetSession();
     } catch (cause) {
-      error = `Impossible d’effacer le journal d’audit : ${cause instanceof Error ? cause.message : String(cause)}`;
+      error = `Impossible d’effacer les données locales : ${cause instanceof Error ? cause.message : String(cause)}`;
     } finally {
       auditBusy = false;
     }
@@ -661,7 +664,14 @@
           <div><dt>Preuve</dt><dd>{result.evidence[0]?.kind ?? 'aucune'}</dd></div>
         </dl>
 
-        <ArbitrationPanel {result} round={lastRound} {sessionId} onResolved={applyResolution} />
+        <ArbitrationPanel
+          {result}
+          round={lastRound}
+          {sessionId}
+          canLearn={!!activeContext}
+          onResolved={applyResolution}
+          onLearned={() => memoryRevision += 1}
+        />
       {:else}
         <div class="empty-result">
           <Database size={30} strokeWidth={1.5} />
@@ -680,7 +690,7 @@
   <section class="history-panel">
     <div class="history-heading">
       <div><h2>Journal d’audit local</h2><p>Les huit dernières validations · rétention maximale de 30 jours · texte du chat non conservé.</p></div>
-      <button onclick={purgeAudit} disabled={!history.length || auditBusy}><RotateCcw size={15} /> {auditBusy ? 'Traitement…' : 'Effacer'}</button>
+      <button onclick={purgeLocalData} disabled={!inTauri || auditBusy}><RotateCcw size={15} /> {auditBusy ? 'Traitement…' : 'Tout effacer'}</button>
     </div>
     {#if history.length}
       <div class="history-list">
@@ -705,4 +715,5 @@
 
   <SourcePanel {inTauri} onEnsureSession={ensureSessionForSource} />
   <LoopbackPanel {inTauri} />
+  <MemoryPanel {inTauri} contextSha256={activeContext?.package_sha256 ?? null} revision={memoryRevision} />
 </main>

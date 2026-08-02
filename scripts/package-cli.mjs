@@ -78,7 +78,7 @@ try {
     commit: options.commit,
     release: options.release,
     source_contract_version: 2,
-    protocol_version: 1,
+    protocol_version: 2,
     files: await describeFiles(packageRoot, filesBeforeManifest),
   };
   await writeFile(

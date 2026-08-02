@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://semantic-engine.dev/contracts/protocol-request.schema.json",
   "title": "Semantic Engine Protocol Request",
-  "description": "One request line accepted by the version 1 JSONL transport.",
+  "description": "One request line accepted by the version 2 JSONL transport.",
   "type": "object",
   "unevaluatedProperties": false,
   "required": ["protocol_version", "request_id", "command"],
   "properties": {
-    "protocol_version": { "const": 1 },
+    "protocol_version": { "const": 2 },
     "request_id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:-]+$" },
-    "command": { "enum": ["start_session", "get_session", "submit", "resolve", "end_session", "events", "stats"] },
+    "command": { "enum": ["start_session", "get_session", "submit", "resolve", "remember_resolution", "list_memory", "revoke_memory", "end_session", "events", "stats"] },
     "params": {}
   },
   "oneOf": [
@@ -62,6 +62,52 @@
       "properties": {
         "command": { "const": "end_session" },
         "params": { "$ref": "#/$defs/session_identity" }
+      }
+    },
+    {
+      "required": ["params"],
+      "properties": {
+        "command": { "const": "remember_resolution" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["session_id", "message_id"],
+          "properties": {
+            "session_id": { "$ref": "#/$defs/session_id" },
+            "message_id": { "$ref": "#/$defs/session_id" }
+          }
+        }
+      }
+    },
+    {
+      "required": ["params"],
+      "properties": {
+        "command": { "const": "list_memory" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["context_package_sha256"],
+          "properties": {
+            "context_package_sha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
+            "limit": { "type": "integer", "minimum": 0, "maximum": 1000 },
+            "active_only": { "type": "boolean", "default": false }
+          }
+        }
+      }
+    },
+    {
+      "required": ["params"],
+      "properties": {
+        "command": { "const": "revoke_memory" },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["context_package_sha256", "id"],
+          "properties": {
+            "context_package_sha256": { "type": "string", "pattern": "^[A-Fa-f0-9]{64}$" },
+            "id": { "type": "string", "pattern": "^[a-f0-9]{32}$" }
+          }
+        }
       }
     },
     {

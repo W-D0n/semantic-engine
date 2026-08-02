@@ -18,8 +18,15 @@ et les versions suivent SemVer.
 - contrat source v2 avec faute typée et reçu de révocation/purge sans secret ;
 - benchmark live reproductible, SBOM, CI et documentation de sécurité ;
 - couture vectorielle versionnée, benchmark FastEmbed isolé et baseline comparative ;
+- mémoire locale d'expressions confirmées, isolée par contexte, révocable et
+  bornée par TTL/LRU/quota, avec API et panneau de tuning ;
 - paquets CLI natifs Windows/Linux/macOS, checksums indépendamment vérifiés,
   attestations de provenance et brouillon de release protégé.
+
+### Changed
+
+- protocole public, sessions et audit passent en v2 pour exposer explicitement la
+  preuve `memory_expression` ; voir le guide de migration v1 → v2.
 
 ### Security
 

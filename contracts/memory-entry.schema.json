@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://semantic-engine.dev/contracts/memory-entry.schema.json",
+  "title": "Recognition Memory Entry",
+  "description": "Bounded local expression learned only from an explicit accepted operator resolution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "context_package_sha256",
+    "target_id",
+    "expression",
+    "normalized_expression",
+    "normalization_version",
+    "source_resolution_sha256",
+    "created_at_ms",
+    "last_used_at_ms",
+    "expires_at_ms",
+    "use_count",
+    "state",
+    "state_changed_at_ms"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+    "context_package_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "target_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "expression": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "normalized_expression": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "normalization_version": { "const": 1 },
+    "source_resolution_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "created_at_ms": { "type": "integer", "minimum": 0 },
+    "last_used_at_ms": { "type": "integer", "minimum": 0 },
+    "expires_at_ms": { "type": "integer", "minimum": 0 },
+    "use_count": { "type": "integer", "minimum": 0 },
+    "state": { "enum": ["active", "revoked", "expired", "evicted"] },
+    "state_changed_at_ms": {
+      "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }]
+    }
+  }
+}

@@ -68,13 +68,14 @@ if (Test-Path -LiteralPath $sourceRuntimeLink) {
 
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ('semantic-engine-portable-' + [guid]::NewGuid().ToString('N'))
 $runtimeExtract = Join-Path $temporaryRoot 'runtime'
+$runtimeBuildStub = Join-Path $temporaryRoot 'runtime-build-stub'
 $packageStaging = Join-Path $temporaryRoot 'package'
 $frontendBuild = Join-Path $temporaryRoot 'frontend'
 $portableConfigPath = Join-Path $desktopRoot 'src-tauri\tauri.portable.conf.json'
 $previousTauriConfig = [Environment]::GetEnvironmentVariable('TAURI_CONFIG', 'Process')
 
 try {
-    New-Item -ItemType Directory -Force -Path $runtimeExtract, $packageStaging, $frontendBuild | Out-Null
+    New-Item -ItemType Directory -Force -Path $runtimeExtract, $runtimeBuildStub, $packageStaging, $frontendBuild | Out-Null
 
     & expand.exe $cabPath '-F:*' $runtimeExtract | Out-Null
     if ($LASTEXITCODE -ne 0) {
@@ -86,7 +87,13 @@ try {
         throw "Expected one msedgewebview2.exe after extraction, found $($runtimeExecutables.Count)."
     }
     $runtimeRoot = $runtimeExecutables[0].Directory.FullName
-    New-Item -ItemType Junction -Path $sourceRuntimeLink -Target $runtimeRoot | Out-Null
+
+    # Tauri copies every fixed-runtime resource into Cargo's target directory at
+    # build time even when bundling is disabled. The runtime is already copied
+    # from the verified extraction into the final package below, so compiling
+    # against an empty directory preserves the baked relative path without a
+    # redundant multi-hundred-megabyte copy.
+    New-Item -ItemType Junction -Path $sourceRuntimeLink -Target $runtimeBuildStub | Out-Null
 
     $nodeExecutable = (Get-Command node.exe -ErrorAction Stop).Source
     $npmCli = Join-Path (Split-Path -Parent $nodeExecutable) 'node_modules\npm\bin\npm-cli.js'

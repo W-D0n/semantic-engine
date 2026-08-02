@@ -6,6 +6,7 @@ members = [
   "crates/semantic-engine-audit-store",
   "crates/semantic-engine-service",
   "crates/semantic-engine-session-store",
+  "crates/semantic-engine-memory-store",
   "crates/semantic-engine-protocol",
   "crates/semantic-engine-loopback",
   "crates/semantic-engine-source",

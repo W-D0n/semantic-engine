@@ -96,6 +96,11 @@ purge locale.
 - YouTube limite la conservation et interdit plusieurs formes de données
   dérivées ou de fusion inter-plateformes. Les scores/verdicts doivent rester
   désactivables et documentés dans la demande d’audit de conformité.
+- La case d'apprentissage conserve une formulation de chat jusqu'à 30 jours. Elle
+  doit rester décochée pendant le pilote YouTube tant que la finalité, la notice,
+  les demandes d'effacement et la conformité aux Developer Policies n'ont pas été
+  validées ; le consentement de l'opérateur dans l'UI ne vaut pas consentement du
+  participant ni autorisation de la plateforme.
 - Une autorisation de test Google peut expirer rapidement ; l’application traite
   la réauthentification comme un état normal.
 - Les quotas et refus API sont des fautes de source, jamais des raisons de

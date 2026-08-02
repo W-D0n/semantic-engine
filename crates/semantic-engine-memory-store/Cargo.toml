@@ -1,0 +1,15 @@
+[package]
+name = "semantic-engine-memory-store"
+version = "0.1.0"
+description = "Bounded operator-confirmed recognition memory for Semantic Engine"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+getrandom.workspace = true
+rusqlite.workspace = true
+semantic-engine-core = { path = "../semantic-engine-core" }
+serde.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

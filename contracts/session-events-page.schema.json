@@ -14,7 +14,7 @@
     "events"
   ],
   "properties": {
-    "contract_version": { "const": 1 },
+    "contract_version": { "const": 2 },
     "session_id": { "type": "string", "minLength": 1, "maxLength": 256 },
     "earliest_available_sequence": { "type": "integer", "minimum": 1 },
     "latest_sequence": { "type": "integer", "minimum": 1 },

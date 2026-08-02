@@ -11,6 +11,7 @@ passerelle loopback en service LAN/Internet.
 | Bearer loopback | mémoire du processus | confidentialité, rotation à chaque activation |
 | texte du chat | mémoire transitoire | jamais dans audit/statut/log |
 | session, ordre, verdict | SQLite local | intégrité, idempotence, reprise |
+| formulation apprise | SQLite local opt-in | consentement, isolation, expiration, révocation |
 | paquet de contexte | fichiers importés | provenance, licence, taille, hash |
 
 Les frontières sont : utilisateur/chat non fiable → adaptateur ; Twitch → OAuth
@@ -24,6 +25,7 @@ flowchart LR
     A -->|SourceMessage éphémère| R["Source runtime"]
     R -->|Submission + ordre global| E["Service moteur"]
     P["Paquet importé"] -->|validation + hash| E
+    O["Opérateur"] -->|résolution puis consentement| E
     E -->|événement minimisé| D[("SQLite")]
     W["Client local"] -->|Bearer + origine + v1| L["Loopback"]
     L --> E
@@ -42,7 +44,8 @@ flowchart LR
 | serveur exposé sur LAN | validation stricte de l'adresse loopback | tunnel/proxy explicitement installé par l'utilisateur |
 | paquet malveillant | chemins canoniques, tailles, nombre de fichiers, SHA-256, schéma, transaction | données légalement douteuses mais techniquement valides |
 | relecture/doublon Twitch | ID de notification bornés, message ID namespacé, idempotence | Twitch ne rejoue pas les messages perdus hors connexion |
-| ordre concurrent incorrect | séquence globale sous verrou, valeur suivante reconstruite du journal | ordre reflète l'arrivée locale, pas l'horodatage absolu réseau |
+| ordre concurrent incorrect | séquence globale sous verrou, valeur suivante reconstruite du journal | ordre reflète l’arrivée locale, pas l’horodatage absolu réseau |
+| empoisonnement de la mémoire | apprentissage séparé réservé à une résolution acceptée, cible backend, contexte hashé, conflit exact abstenu, TTL/LRU/quota et révocation | opérateur local malveillant ou trompé |
 | suppression partielle | secret supprimé avant configuration, SQLite `secure_delete` | sauvegardes OS externes au produit |
 | DLL/runtime substitué | checksums du paquet portable et WebView2 fixé | binaires non encore signés |
 | dépendance compromise | lockfiles, CI, SBOM CycloneDX | absence initiale de signature/SLSA |

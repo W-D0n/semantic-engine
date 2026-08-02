@@ -15,7 +15,7 @@
     "latest_event_sequence"
   ],
   "properties": {
-    "contract_version": { "const": 1 },
+    "contract_version": { "const": 2 },
     "session_id": { "type": "string", "minLength": 1, "maxLength": 256 },
     "round_id": { "type": "string", "minLength": 1, "maxLength": 256 },
     "context_package_sha256": {

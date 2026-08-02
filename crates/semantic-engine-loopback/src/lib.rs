@@ -39,7 +39,7 @@ use tower_http::cors::CorsLayer;
 pub const DEFAULT_PORT: u16 = 17_831;
 pub const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 pub const HTTP_PROTOCOL_HEADER: &str = "x-semantic-engine-protocol";
-pub const WEBSOCKET_PROTOCOL: &str = "semantic-engine.v1";
+pub const WEBSOCKET_PROTOCOL: &str = "semantic-engine.v2";
 const WEBSOCKET_TOKEN_PREFIX: &str = "semantic-engine.token.";
 pub type SharedService = Arc<Mutex<SemanticEngineService>>;
 
@@ -742,7 +742,7 @@ async fn events_websocket(
         return transport_error(
             StatusCode::UPGRADE_REQUIRED,
             "unsupported_protocol_version",
-            "the semantic-engine.v1 WebSocket protocol is required",
+            "the semantic-engine.v2 WebSocket protocol is required",
             false,
         );
     }
@@ -1028,7 +1028,7 @@ fn negotiate_http_version(headers: &HeaderMap) -> Result<(), TransportFailure> {
     Err(TransportFailure {
         status: StatusCode::UPGRADE_REQUIRED,
         code: "unsupported_protocol_version",
-        message: "x-semantic-engine-protocol must select version 1",
+        message: "x-semantic-engine-protocol must select version 2",
         retryable: false,
     })
 }

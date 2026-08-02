@@ -9,7 +9,7 @@
     running: false,
     address: null,
     token: null,
-    protocol_version: 1,
+    protocol_version: 2,
     allowed_origins: [],
   });
   let port = $state(17831);

@@ -3,10 +3,12 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 const MAX_LINE_BYTES = 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 5000;
 const PRIVATE_TEXT = 'eldern ring!!!';
+const LEARNED_TEXT = 'the lands between';
+const CONTEXT_SHA256 = 'a'.repeat(64);
 
 const executable = resolve(process.argv[2] ?? 'target/debug/semantic-engine-cli.exe');
 const temporaryRoot = await mkdtemp(join(tmpdir(), 'semantic-engine-conformance-'));
@@ -22,7 +24,7 @@ try {
       targets: [{ id: 'elden-ring', canonical: 'Elden Ring', aliases: ['ER'] }],
       policy: { accept_threshold: 0.87, review_threshold: 0.72, ambiguity_margin: 0.05 },
     },
-    context_package_sha256: null,
+    context_package_sha256: CONTEXT_SHA256,
   });
   assertEqual(started.state, 'active', 'new session state');
   assertEqual(started.latest_event_sequence, 1, 'start sequence');
@@ -37,6 +39,40 @@ try {
     },
   });
   assertEqual(submitted.decision, 'accepted', 'fuzzy decision');
+  const memorySource = await first.request('memory-source', 'submit', {
+    session_id: 'node-client-session',
+    submission: {
+      message_id: 'node-client-memory-message',
+      participant_id: 'viewer-8',
+      source_sequence: 8,
+      text: LEARNED_TEXT,
+    },
+  });
+  assert(memorySource.decision !== 'accepted', 'memory fixture was already accepted');
+  await first.request('memory-resolve', 'resolve', {
+    session_id: 'node-client-session',
+    request: {
+      round_id: 'node-client-round',
+      message_id: 'node-client-memory-message',
+      verdict: 'accepted',
+      target_id: 'elden-ring',
+      note: 'operator confirmed',
+    },
+  });
+  const remembered = await first.request('memory-remember', 'remember_resolution', {
+    session_id: 'node-client-session',
+    message_id: 'node-client-memory-message',
+  });
+  assertEqual(remembered.state, 'active', 'learned memory state');
+  const listedMemory = await first.request('memory-list', 'list_memory', {
+    context_package_sha256: CONTEXT_SHA256,
+    limit: 10,
+  });
+  assertEqual(listedMemory.length, 1, 'learned memory count');
+  await first.request('memory-revoke', 'revoke_memory', {
+    context_package_sha256: CONTEXT_SHA256,
+    id: remembered.id,
+  });
   await first.close();
 
   const second = createClient(executable, database);
@@ -44,7 +80,12 @@ try {
     session_id: 'node-client-session',
   });
   assertEqual(restored.state, 'active', 'restored session state');
-  assertEqual(restored.latest_event_sequence, 2, 'restored sequence');
+  assertEqual(restored.latest_event_sequence, 4, 'restored sequence');
+  const restoredMemory = await second.request('memory-restored', 'list_memory', {
+    context_package_sha256: CONTEXT_SHA256,
+    limit: 10,
+  });
+  assertEqual(restoredMemory[0].state, 'revoked', 'revoked memory survived restart');
 
   const duplicate = await second.request('duplicate', 'submit', {
     session_id: 'node-client-session',
@@ -62,8 +103,8 @@ try {
     after_sequence: 0,
     limit: 100,
   });
-  assertEqual(events.latest_sequence, 2, 'duplicate did not emit an event');
-  assertEqual(events.events.length, 2, 'restored event count');
+  assertEqual(events.latest_sequence, 4, 'duplicate did not emit an event');
+  assertEqual(events.events.length, 4, 'restored event count');
   const encodedEvents = JSON.stringify(events);
   assert(!encodedEvents.includes(PRIVATE_TEXT), 'event stream exposed raw chat text');
   assert(!encodedEvents.includes('matched_expression'), 'event stream exposed matched expression');
@@ -98,6 +139,7 @@ try {
 
   const databaseBytes = await readFile(database);
   assert(!databaseBytes.includes(Buffer.from(PRIVATE_TEXT)), 'database contains raw chat text');
+  assert(databaseBytes.includes(Buffer.from(LEARNED_TEXT)), 'consented memory text was not persisted');
   process.stdout.write('Semantic Engine Node client conformity: PASS\n');
 } finally {
   for (const child of activeChildren) {
